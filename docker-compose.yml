@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  icecast:
+    image: ghcr.io/karlheinzniebuhr/icecast:latest
+    container_name: nova-icecast
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ICECAST_SOURCE_PASSWORD=hackme
+      - ICECAST_ADMIN_PASSWORD=hackme
+      - ICECAST_HOSTNAME=localhost
+    volumes:
+      - ./icecast.xml:/etc/icecast2/icecast.xml:ro
+    networks:
+      - nova-net
+
+networks:
+  nova-net:
+    driver: bridge

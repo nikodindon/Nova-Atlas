@@ -1,0 +1,1195 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/web/atlas_web.py — Nova-Atlas
+Génère le site web statique + serveur Flask local.
+
+Différences vs version standalone pblart/nova-media :
+  - Les chemins (articles, reports, editions, site) sont lus depuis le dict config
+    issu de config/config.yaml, via les deux fonctions publiques :
+      run_server(config, host, port)
+      generate_static_site(config, full)
+  - L'objet Flask est instancié à l'intérieur de run_server() pour que les
+    chemins soient correctement résolus au moment de l'appel, pas au chargement
+    du module.
+  - load_atlas_config() / save_atlas_config() utilisent paths.data_dir
+"""
+
+import json
+import os
+import re
+import markdown
+from datetime import datetime, date, timedelta
+from pathlib import Path
+from typing import Optional
+
+# ─── CONSTANTES ÉDITORIALES ───────────────────────────────────────────────────
+
+CATEGORY_LABELS = {
+    "geopolitique":  "Géopolitique",
+    "economie":      "Économie",
+    "crypto":        "Crypto",
+    "tech":          "Tech & IA",
+    "france":        "France",
+    "monde":         "Monde",
+    "science":       "Science & Santé",
+    "environnement": "Environnement",
+    "societe":       "Société & Droits",
+    "culture":       "Culture & Arts",
+    "sport":         "Sport",
+}
+
+CATEGORY_ICONS = {
+    "geopolitique":  "🌍",
+    "economie":      "📈",
+    "crypto":        "₿",
+    "tech":          "⚡",
+    "france":        "🗼",
+    "monde":         "🌐",
+    "science":       "🔬",
+    "environnement": "🌿",
+    "societe":       "✊",
+    "culture":       "🎭",
+    "sport":         "⚽",
+}
+
+EDITION_CONFIG = {
+    "matin": {"label": "Édition du Matin", "emoji": "🌅", "color": "#f59e0b"},
+    "midi":  {"label": "Édition de Midi",  "emoji": "☀️", "color": "#3b82f6"},
+    "soir":  {"label": "Édition du Soir",  "emoji": "🌙", "color": "#8b5cf6"},
+}
+
+AVAILABLE_MODELS = [
+    {"id": "qwen3:8b",             "label": "qwen3:8b",             "desc": "Défaut Nova-Atlas"},
+    {"id": "mistral-small:22b",    "label": "mistral-small:22b",    "desc": "Meilleure qualité (12Go RAM)"},
+    {"id": "mistral:7b",           "label": "mistral:7b",           "desc": "Bon équilibre (4Go VRAM)"},
+    {"id": "mistral:7b-instruct",  "label": "mistral:7b-instruct",  "desc": "Suit mieux les consignes"},
+    {"id": "llama3.1:8b",          "label": "llama3.1:8b",          "desc": "Meta LLaMA — rapide"},
+    {"id": "qwen2.5:7b",           "label": "qwen2.5:7b",           "desc": "Bon pour les faits"},
+    {"id": "gemma2:9b",            "label": "gemma2:9b",            "desc": "Google Gemma"},
+    {"id": "phi4:14b",             "label": "phi4:14b",             "desc": "Microsoft Phi4 — excellent"},
+    {"id": "deepseek-r1:14b",      "label": "deepseek-r1:14b",      "desc": "DeepSeek — raisonnement"},
+]
+
+DEFAULT_ATLAS_CONFIG = {
+    "ollama_model":      "qwen3:8b",
+    "fetch_timeout":     240,
+    "edition_timeout":   900,
+    "max_articles_feed": 8,
+    "live_window_hours": 20,
+    "post_hours":        [7, 9, 11, 13, 15, 17, 19, 21],
+}
+
+# ─── RÉSOLUTION DES CHEMINS ───────────────────────────────────────────────────
+
+def _resolve_paths(config: dict) -> dict:
+    """Extrait les chemins absolus + branding depuis le dict config Nova-Atlas."""
+    paths = config.get("paths", {})
+    root  = Path.cwd()
+    svc   = config.get("service", {})
+    name  = svc.get("name", "Nova Atlas")
+    # Découpe le nom en deux parties pour le logo monospace :
+    # ex. "Nova Media" → "NOVA" + "_MEDIA"  /  "Le Journal IA" → "LE JOURNAL" + "_IA"
+    parts     = name.upper().rsplit(" ", 1)
+    logo_main = parts[0]
+    logo_sub  = "_" + parts[1] if len(parts) > 1 else ""
+    return {
+        "articles": root / paths.get("articles_dir", "data/articles"),
+        "reports":  root / paths.get("reports_dir",  "data/reports"),
+        "editions": root / paths.get("editions_dir", "data/editions"),
+        "site":     root / paths.get("site_dir",     "site"),
+        "data":     root / paths.get("data_dir",     "data"),
+        # Branding — injecté dans tous les templates
+        "brand_name":    name,
+        "brand_tagline": svc.get("tagline", ""),
+        "logo_main":     logo_main,
+        "logo_sub":      logo_sub,
+    }
+
+def _branding(paths: dict) -> dict:
+    """Retourne les variables de branding à injecter dans les templates."""
+    return {
+        "brand_name":    paths["brand_name"],
+        "brand_tagline": paths["brand_tagline"],
+        "logo_main":     paths["logo_main"],
+        "logo_sub":      paths["logo_sub"],
+    }
+
+# ─── CONFIG ATLAS (JSON) ──────────────────────────────────────────────────────
+
+def _config_file(paths: dict) -> Path:
+    return paths["data"] / "atlas_config.json"
+
+def load_atlas_config(paths: dict) -> dict:
+    f = _config_file(paths)
+    if f.exists():
+        try:
+            with open(f, "r", encoding="utf-8") as fp:
+                cfg = json.load(fp)
+            for k, v in DEFAULT_ATLAS_CONFIG.items():
+                cfg.setdefault(k, v)
+            return cfg
+        except Exception:
+            pass
+    return DEFAULT_ATLAS_CONFIG.copy()
+
+def save_atlas_config(paths: dict, cfg: dict):
+    f = _config_file(paths)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    with open(f, "w", encoding="utf-8") as fp:
+        json.dump(cfg, fp, ensure_ascii=False, indent=2)
+
+# ─── HELPERS DATA ─────────────────────────────────────────────────────────────
+
+def format_date_fr(day: str) -> str:
+    months  = ["janvier","février","mars","avril","mai","juin",
+                "juillet","août","septembre","octobre","novembre","décembre"]
+    days_fr = ["lundi","mardi","mercredi","jeudi","vendredi","samedi","dimanche"]
+    d = date(int(day[:4]), int(day[4:6]), int(day[6:8]))
+    return f"{days_fr[d.weekday()]} {d.day} {months[d.month-1]} {d.year}"
+
+def format_day_label(day: str) -> str:
+    d = date(int(day[:4]), int(day[4:6]), int(day[6:8]))
+    return d.strftime("%d/%m/%Y")
+
+def load_articles_for_day(day: str, paths: dict) -> list:
+    f = paths["articles"] / f"{day}_articles.json"
+    if not f.exists():
+        return []
+    with open(f, "r", encoding="utf-8") as fp:
+        return json.load(fp)
+
+def load_report(day: str, paths: dict) -> str:
+    f = paths["reports"] / f"{day}_report.md"
+    if not f.exists():
+        return ""
+    with open(f, "r", encoding="utf-8") as fp:
+        return fp.read()
+
+def get_available_days(paths: dict) -> list:
+    days = set()
+    if paths["reports"].exists():
+        for f in paths["reports"].iterdir():
+            if f.name.endswith("_report.md"):
+                days.add(f.name[:8])
+    if paths["articles"].exists():
+        for f in paths["articles"].iterdir():
+            if f.name.endswith("_articles.json"):
+                days.add(f.name[:8])
+    return sorted(days, reverse=True)
+
+# ─── BREAKING NEWS ────────────────────────────────────────────────────────────
+
+def get_breaking_news(paths: dict, max_items: int = 6) -> list:
+    stopwords = {
+        "le","la","les","de","du","des","en","et","à","pour","sur","par",
+        "dans","avec","un","une","au","aux","que","qui","est","sont","a",
+        "the","of","in","to","and","is","are","for","on","at","an","that",
+        "this","it","as","was","be","by","or","from","has","have","new",
+        "says","said","after","will","can","more","its","but","not","their",
+    }
+
+    def kw(title):
+        words = re.findall(r'\b[A-Za-zÀ-ÿ]{4,}\b', title.lower())
+        return frozenset(w for w in words if w not in stopwords)
+
+    today     = datetime.now().strftime("%Y%m%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+    cutoff    = datetime.now() - timedelta(hours=4)
+
+    articles = []
+    for day in [yesterday, today]:
+        f = paths["articles"] / f"{day}_articles.json"
+        if f.exists():
+            try:
+                with open(f, "r", encoding="utf-8") as fp:
+                    articles.extend(json.load(fp))
+            except Exception:
+                pass
+
+    recent = [
+        a for a in articles
+        if not a.get("migrated") and a.get("title") and a.get("link")
+        and _parse_ts(a.get("timestamp","")) >= cutoff
+    ]
+    if not recent:
+        return []
+
+    groups, grouped = [], set()
+    for i, a in enumerate(recent):
+        if i in grouped:
+            continue
+        kw_i = kw(a.get("title", ""))
+        group = [a]
+        grouped.add(i)
+        for j, b in enumerate(recent):
+            if j <= i or j in grouped:
+                continue
+            if len(kw_i & kw(b.get("title",""))) >= 2:
+                group.append(b)
+                grouped.add(j)
+        groups.append(group)
+
+    groups.sort(key=lambda g: -len(g))
+    breaking = []
+    for group in groups:
+        if len(group) < 2:
+            continue
+        best    = max(group, key=lambda x: len(x.get("summary","")))
+        sources = list({a.get("source","") for a in group if a.get("source")})[:3]
+        breaking.append({
+            "title":   best.get("title","")[:80],
+            "link":    best.get("link",""),
+            "count":   len(group),
+            "sources": ", ".join(sources),
+            "cat":     best.get("category","monde"),
+        })
+        if len(breaking) >= max_items:
+            break
+    return breaking
+
+def _parse_ts(ts: str) -> datetime:
+    try:
+        return datetime.fromisoformat(ts)
+    except Exception:
+        return datetime.min
+
+def render_breaking_banner(paths: dict) -> str:
+    items = get_breaking_news(paths)
+    if not items:
+        return ""
+    parts = []
+    for item in items:
+        emoji = CATEGORY_ICONS.get(item["cat"], "🌐")
+        badge = "🔥 " + str(item["count"]) + "  " if item["count"] >= 3 else "🔥 "
+        title = item["title"].replace('"','&quot;').replace('<','&lt;').replace('>','&gt;')
+        parts.append(
+            f'<a href="{item["link"]}" target="_blank" rel="noopener" class="bb-item">'
+            f'{badge}{emoji} {title}'
+            f'</a><span class="bb-sep"> &nbsp;·&nbsp; </span>'
+        )
+    track = "".join(parts)
+    return (
+        '<div class="breaking-banner">'
+        '<span class="bb-label"><span class="live-dot"></span>BREAKING</span>'
+        '<div class="bb-track-wrap">'
+        f'<div class="bb-track">{track}{track}</div>'
+        '</div></div>'
+    )
+
+# ─── RENDERERS ────────────────────────────────────────────────────────────────
+
+def render_report_page(day: str, paths: dict) -> str:
+    from jinja2 import Template
+    articles  = load_articles_for_day(day, paths)
+    report_md = load_report(day, paths)
+
+    if not report_md and not articles:
+        return ""
+    if not report_md:
+        report_md = f"# {format_date_fr(day)}\n\n*Rapport en cours de génération...*"
+
+    report_html = markdown.markdown(report_md, extensions=["extra"])
+
+    by_cat    = {}
+    for a in articles:
+        by_cat.setdefault(a.get("category","monde"), []).append(a)
+    sources    = set(a.get("source","") for a in articles)
+    categories = sorted([(c, len(a)) for c, a in by_cat.items()], key=lambda x: -x[1])
+
+    stats = [
+        ("Articles analysés",  str(len(articles))),
+        ("Sources distinctes", str(len(sources))),
+        ("Catégories",         str(len(by_cat))),
+        ("Date",               format_day_label(day)),
+    ]
+
+    all_days = get_available_days(paths)
+    archives = []
+    for d in all_days[:6]:
+        if d == day:
+            continue
+        arts = load_articles_for_day(d, paths)
+        archives.append({
+            "file":    f"{d}_report.html",
+            "date_fr": format_day_label(d),
+            "count":   str(len(arts)),
+        })
+    archives = archives[:5]
+
+    recent           = sorted(articles, key=lambda a: a.get("timestamp",""), reverse=True)[:20]
+    all_arts_sorted  = sorted(
+        [a for a in articles if a.get("link")],
+        key=lambda a: (a.get("category",""), a.get("timestamp",""))
+    )
+    today_str = datetime.now().strftime("%Y%m%d")
+
+    return Template(REPORT_TEMPLATE).render(
+        **_branding(paths),
+        css=BASE_CSS,
+        breaking_banner=render_breaking_banner(paths),
+        title=format_date_fr(day),
+        date_fr=format_date_fr(day),
+        day_label=format_day_label(day),
+        report_html=report_html,
+        article_count=len(articles),
+        source_count=len(sources),
+        gen_time=datetime.now().strftime("%H:%M"),
+        categories=categories,
+        cat_labels=CATEGORY_LABELS,
+        cat_icons=CATEGORY_ICONS,
+        stats=stats,
+        recent_articles=recent,
+        archives=archives,
+        all_articles=all_arts_sorted,
+        today_file=f"{today_str}_report.html",
+        model=load_atlas_config(paths).get("ollama_model","—"),
+        year=datetime.now().year,
+    )
+
+
+def load_edition(day: str, edition_name: str, paths: dict) -> str:
+    f = paths["editions"] / f"{day}_{edition_name}.md"
+    if not f.exists():
+        return ""
+    with open(f, "r", encoding="utf-8") as fp:
+        return fp.read()
+
+def get_editions_of_day(day: str, paths: dict) -> list:
+    return [
+        (name, cfg)
+        for name, cfg in EDITION_CONFIG.items()
+        if (paths["editions"] / f"{day}_{name}.md").exists()
+    ]
+
+def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
+    from jinja2 import Template
+    md_text = load_edition(day, edition_name, paths)
+    if not md_text:
+        return ""
+
+    cfg        = EDITION_CONFIG.get(edition_name, EDITION_CONFIG["matin"])
+    lines      = md_text.split("\n")
+    body_lines = []
+    art_title  = ""
+    in_header  = past_sep = False
+
+    for line in lines:
+        s = line.strip()
+        if s.startswith("# "):
+            in_header = True
+            continue
+        if s.startswith("---") and in_header and not past_sep:
+            past_sep = True
+            continue
+        if past_sep:
+            if not art_title and s and not s.startswith("*"):
+                art_title = s.rstrip(".")
+                continue
+            body_lines.append(line)
+
+    body_html     = markdown.markdown("\n".join(body_lines).strip(), extensions=["extra"])
+    articles      = load_articles_for_day(day, paths)
+    article_count = len([a for a in articles if not a.get("migrated")])
+    editions_day  = get_editions_of_day(day, paths)
+    today_str     = datetime.now().strftime("%Y%m%d")
+    now           = datetime.now()
+    months        = ["janvier","février","mars","avril","mai","juin",
+                     "juillet","août","septembre","octobre","novembre","décembre"]
+    date_fr       = f"{int(day[6:8])} {months[int(day[4:6])-1]} {int(day[:4])}"
+
+    return Template(EDITION_TEMPLATE).render(
+        **_branding(paths),
+        css=BASE_CSS,
+        breaking_banner=render_breaking_banner(paths),
+        edition_label=cfg["label"],
+        edition_emoji=cfg["emoji"],
+        edition_color=cfg["color"],
+        current_edition=edition_name,
+        article_title=art_title or cfg["label"],
+        date_fr=date_fr,
+        article_count=article_count,
+        gen_time=now.strftime("%H:%M"),
+        body_html=body_html,
+        editions_of_day=editions_day,
+        edition_configs=EDITION_CONFIG,
+        day=day,
+        today_report=f"{today_str}_report.html",
+        year=now.year,
+    )
+
+
+def build_index(paths: dict) -> str:
+    from jinja2 import Template
+    all_days       = get_available_days(paths)
+    today_str      = datetime.now().strftime("%Y%m%d")
+    total_articles = 0
+    day_cards      = []
+
+    for day in all_days:
+        articles   = load_articles_for_day(day, paths)
+        report_md  = load_report(day, paths)
+        total_articles += len(articles)
+        lines = [
+            l.strip() for l in report_md.split("\n")
+            if l.strip() and not l.startswith("#") and not l.startswith("*") and l != "---"
+        ] if report_md else []
+        excerpt = " ".join(lines[:2])[:200] if lines else ""
+        sources = set(a.get("source","") for a in articles)
+        day_cards.append({
+            "file":          f"{day}_report.html",
+            "date_fr":       format_date_fr(day),
+            "day_label":     format_day_label(day),
+            "excerpt":       excerpt or "Rapport en cours de génération...",
+            "article_count": len(articles),
+            "source_count":  len(sources),
+        })
+
+    today_file = f"{today_str}_report.html" if today_str in all_days else None
+    return Template(INDEX_TEMPLATE).render(
+        **_branding(paths),
+        css=BASE_CSS,
+        breaking_banner=render_breaking_banner(paths),
+        days=day_cards,
+        today_file=today_file,
+        total_days=len(all_days),
+        total_articles=total_articles,
+        year=datetime.now().year,
+    )
+
+
+def get_current_edition_name() -> str:
+    h = datetime.now().hour
+    if h < 13:  return "matin"
+    elif h < 20: return "midi"
+    return "soir"
+
+
+def build_homepage(paths: dict) -> str:
+    today        = datetime.now().strftime("%Y%m%d")
+    edition_name = get_current_edition_name()
+    for ed in [edition_name, "soir", "midi", "matin"]:
+        md = load_edition(today, ed, paths)
+        if md:
+            return render_edition_page(today, ed, paths)
+    return build_live_feed(paths)
+
+
+def build_live_feed(paths: dict) -> str:
+    """Fil en direct — articles des dernières N heures."""
+    from jinja2 import Template
+    cfg          = load_atlas_config(paths)
+    window_hours = cfg.get("live_window_hours", 20)
+    cutoff       = datetime.now() - timedelta(hours=window_hours)
+
+    today_str     = datetime.now().strftime("%Y%m%d")
+    yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+
+    articles = []
+    for d in [yesterday_str, today_str]:
+        articles.extend(load_articles_for_day(d, paths))
+
+    recent = sorted(
+        [a for a in articles
+         if not a.get("migrated")
+         and a.get("summary") and not a["summary"].startswith("[")
+         and _parse_ts(a.get("timestamp","")) >= cutoff],
+        key=lambda a: a.get("timestamp",""),
+        reverse=True,
+    )
+
+    by_cat = {}
+    for a in recent:
+        by_cat.setdefault(a.get("category","monde"), []).append(a)
+
+    return Template(LIVE_TEMPLATE).render(
+        **_branding(paths),
+        css=BASE_CSS + LIVE_CSS_EXTRA,
+        breaking_banner=render_breaking_banner(paths),
+        by_cat=by_cat,
+        cat_labels=CATEGORY_LABELS,
+        cat_icons=CATEGORY_ICONS,
+        total=len(recent),
+        window_hours=window_hours,
+        today_file=f"{today_str}_report.html",
+        updated=datetime.now().strftime("%H:%M"),
+        year=datetime.now().year,
+    )
+
+
+def build_config_page(paths: dict) -> str:
+    from jinja2 import Template
+    cfg = load_atlas_config(paths)
+    return Template(CONFIG_TEMPLATE).render(
+        **_branding(paths),
+        css=BASE_CSS,
+        cfg=cfg,
+        models=AVAILABLE_MODELS,
+        today_file=f"{datetime.now().strftime('%Y%m%d')}_report.html",
+        year=datetime.now().year,
+    )
+
+# ─── STATIC SITE GENERATOR ────────────────────────────────────────────────────
+
+def generate_static_site(config: dict, full: bool = False) -> str:
+    paths = _resolve_paths(config)
+    paths["site"].mkdir(parents=True, exist_ok=True)
+
+    all_days  = get_available_days(paths)
+    today     = datetime.now().strftime("%Y%m%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+
+    days_to_build = all_days if full else [d for d in all_days if d in (today, yesterday)]
+
+    generated = 0
+    for day in days_to_build:
+        html = render_report_page(day, paths)
+        if html:
+            out = paths["site"] / f"{day}_report.html"
+            out.write_text(html, encoding="utf-8")
+            generated += 1
+
+    (paths["site"] / "index.html").write_text(build_index(paths), encoding="utf-8")
+
+    mode = "complet" if full else "incrémental"
+    print(f"Site {mode} : {generated} rapport(s) → {paths['site']}")
+    return str(paths["site"])
+
+# ─── FLASK APP ────────────────────────────────────────────────────────────────
+
+def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
+               debug: bool = False):
+    """
+    Point d'entrée du serveur Flask.
+    Toujours appelé avec le dict config complet issu de config.yaml.
+    """
+    from flask import Flask, abort, request, jsonify, send_from_directory
+
+    paths = _resolve_paths(config)
+    app   = Flask(__name__)
+
+    @app.route("/")
+    def homepage():
+        return build_homepage(paths)
+
+    @app.route("/archives")
+    @app.route("/index.html")
+    def index():
+        return build_index(paths)
+
+    @app.route("/live")
+    @app.route("/live.html")
+    def live():
+        return build_live_feed(paths)
+
+    @app.route("/config")
+    def config_page():
+        return build_config_page(paths)
+
+    @app.route("/config/save", methods=["POST"])
+    def config_save():
+        try:
+            data    = request.get_json()
+            cfg     = load_atlas_config(paths)
+            allowed = ["ollama_model","fetch_timeout","edition_timeout",
+                       "max_articles_feed","live_window_hours"]
+            for k in allowed:
+                if k in data:
+                    cfg[k] = data[k]
+            save_atlas_config(paths, cfg)
+            return jsonify({"status": "ok"})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/editions/<path:filename>")
+    def serve_edition(filename):
+        if filename.endswith(".html"):
+            parts = filename[:-5].split("_")
+            if len(parts) == 2:
+                html = render_edition_page(parts[0], parts[1], paths)
+                if html:
+                    return html
+        abort(404)
+
+    @app.route("/<path:filename>")
+    def serve_page(filename):
+        if filename.endswith("_report.html"):
+            html = render_report_page(filename[:8], paths)
+            if html:
+                return html
+            abort(404)
+        try:
+            return send_from_directory(str(paths["site"]), filename)
+        except Exception:
+            abort(404)
+
+    print(f"\n✅ {paths["brand_name"]} → http://localhost:{port}/\n")
+    app.run(host=host, port=port, debug=debug)
+
+# ─── TEMPLATES HTML ───────────────────────────────────────────────────────────
+# (identiques à la version originale — seules les références aux chemins ont
+#  été supprimées du code Python, les templates HTML ne changent pas)
+
+BASE_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  --bg:#0a0a0f; --bg2:#111118; --bg3:#1a1a24; --border:#2a2a3a;
+  --accent:#e8612a; --accent2:#c44d1e; --gold:#c9a84c;
+  --text:#e2e2e8; --text-dim:#8888a0; --text-muted:#555568;
+  --radius:8px; --shadow:0 4px 24px rgba(0,0,0,0.5);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',sans-serif;font-weight:300;line-height:1.7;min-height:100vh;}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(10,10,15,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:56px;}
+.topbar-logo{font-family:'JetBrains Mono',monospace;font-size:1.1rem;font-weight:500;color:var(--accent);letter-spacing:.15em;text-decoration:none;}
+.topbar-logo span{color:var(--text-dim);}
+.topbar-nav{display:flex;gap:1.5rem;}
+.topbar-nav a{color:var(--text-dim);text-decoration:none;font-size:.85rem;letter-spacing:.05em;transition:color .2s;}
+.topbar-nav a:hover{color:var(--text);}
+.page{max-width:1240px;margin:0 auto;padding:2rem 1.5rem;}
+.hero{padding:3rem 0 2rem;border-bottom:1px solid var(--border);margin-bottom:2.5rem;}
+.hero-date{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;margin-bottom:.75rem;}
+.hero-title{font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3.5rem);font-weight:700;line-height:1.15;color:var(--text);margin-bottom:1rem;}
+.hero-meta{color:var(--text-muted);font-size:.85rem;display:flex;gap:1.5rem;flex-wrap:wrap;}
+.hero-meta span{display:flex;align-items:center;gap:.3rem;}
+.content-grid{display:grid;grid-template-columns:1fr 340px;gap:2.5rem;align-items:start;min-width:0;}
+.content-grid>*{min-width:0;}
+@media(max-width:900px){.content-grid{grid-template-columns:1fr;}.sidebar{order:-1;}}
+.report-body{font-family:'Source Sans 3',sans-serif;font-weight:300;font-size:1.05rem;line-height:1.8;color:var(--text);}
+.report-body h2{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:var(--text);margin:2.5rem 0 1rem;padding-bottom:.5rem;border-bottom:2px solid var(--accent);}
+.report-body p{margin-bottom:1.2rem;text-align:justify;overflow-wrap:break-word;word-break:break-word;}
+.report-body hr{border:none;border-top:1px solid var(--border);margin:2rem 0;}
+.report-body em{color:var(--text-muted);font-size:.85rem;}
+.sidebar{position:sticky;top:104px;}
+.sidebar-block{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.5rem;}
+.sidebar-block h3{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
+.cat-pills{display:flex;flex-wrap:wrap;gap:.4rem;}
+.cat-pill{display:inline-flex;align-items:center;gap:.3rem;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:.25rem .7rem;font-size:.78rem;color:var(--text-dim);text-decoration:none;transition:all .2s;}
+.cat-count{background:var(--bg);border-radius:10px;padding:0 .35rem;font-size:.65rem;color:var(--text-muted);}
+.article-item{padding:.75rem 0;border-bottom:1px solid var(--border);}
+.article-item:last-child{border-bottom:none;}
+.article-item a{color:var(--text);text-decoration:none;font-size:.88rem;line-height:1.4;display:block;transition:color .2s;}
+.article-item a:hover{color:var(--accent);}
+.article-source{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--text-muted);margin-top:.2rem;text-transform:uppercase;letter-spacing:.05em;}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;font-size:.85rem;}
+.stat-label{color:var(--text-dim);}
+.stat-value{font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:500;}
+.archive-list{list-style:none;}
+.archive-list li{padding:.4rem 0;border-bottom:1px solid var(--border);}
+.archive-list li:last-child{border-bottom:none;}
+.archive-list a{color:var(--text-dim);text-decoration:none;font-size:.85rem;display:flex;justify-content:space-between;align-items:center;transition:color .2s;}
+.archive-list a:hover{color:var(--text);}
+.archive-date{font-family:'JetBrains Mono',monospace;font-size:.72rem;}
+.archive-badge{background:var(--bg3);border-radius:10px;padding:.1rem .5rem;font-size:.65rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.5rem;margin-top:2rem;}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;text-decoration:none;display:block;transition:all .2s;position:relative;overflow:hidden;}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow);}
+.card-date{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--accent);letter-spacing:.15em;margin-bottom:.5rem;}
+.card-title{font-family:'Playfair Display',serif;font-size:1.15rem;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:.75rem;}
+.card-excerpt{font-size:.85rem;color:var(--text-dim);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.card-meta{margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);display:flex;gap:.75rem;font-size:.75rem;color:var(--text-muted);}
+.live-dot{display:inline-block;width:7px;height:7px;background:#22c55e;border-radius:50%;margin-right:.4rem;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+footer{margin-top:4rem;padding:2rem;border-top:1px solid var(--border);text-align:center;color:var(--text-muted);font-size:.8rem;font-family:'JetBrains Mono',monospace;letter-spacing:.05em;}
+footer strong{color:var(--accent);}
+.sources-section{margin-top:3rem;border-top:1px solid var(--border);padding-top:1.5rem;}
+.sources-toggle{display:flex;align-items:center;gap:.75rem;cursor:pointer;background:none;border:none;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;padding:.5rem 0;transition:color .2s;width:100%;text-align:left;}
+.sources-toggle:hover{color:var(--accent);}
+.sources-toggle .toggle-icon{transition:transform .25s;font-style:normal;display:inline-block;}
+.sources-toggle.open .toggle-icon{transform:rotate(90deg);}
+.sources-count{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.1rem .5rem;font-size:.7rem;color:var(--text-muted);}
+.sources-list{display:none;margin-top:1rem;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.sources-list.open{display:block;}
+.source-row{display:grid;grid-template-columns:120px 1fr;gap:1rem;align-items:center;padding:.65rem 1rem;border-bottom:1px solid var(--border);transition:background .15s;}
+.source-row:last-child{border-bottom:none;}
+.source-row:hover{background:var(--bg2);}
+.source-domain{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.source-title{font-size:.85rem;color:var(--text-dim);text-decoration:none;line-height:1.4;transition:color .2s;}
+.source-title:hover{color:var(--text);}
+.breaking-banner{width:100%;background:rgba(10,10,15,0.97);border-bottom:2px solid rgba(232,97,42,0.35);display:flex;align-items:center;height:56px;overflow:hidden;position:sticky;top:56px;z-index:95;backdrop-filter:blur(8px);}
+.bb-label{flex-shrink:0;display:flex;align-items:center;gap:.5rem;background:var(--accent);color:white;font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:700;letter-spacing:.15em;padding:0 1.4rem;height:100%;white-space:nowrap;text-transform:uppercase;}
+.bb-track-wrap{flex:1;overflow:hidden;height:100%;display:flex;align-items:center;mask-image:linear-gradient(to right,transparent 0%,black 2%,black 98%,transparent 100%);}
+.bb-track{display:flex;align-items:center;white-space:nowrap;animation:bb-scroll 70s linear infinite;padding-left:2rem;}
+.bb-track:hover{animation-play-state:paused;}
+@keyframes bb-scroll{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
+.bb-item{display:inline-flex;align-items:center;color:var(--text);text-decoration:none;font-size:.92rem;padding:0 1.4rem;transition:color .15s;white-space:nowrap;}
+.bb-item:hover{color:var(--accent);text-decoration:underline;}
+.bb-sep{color:rgba(232,97,42,.45);font-size:1rem;}
+.edition-hero{padding:2.5rem 0 1.5rem;border-bottom:1px solid var(--border);margin-bottom:2rem;}
+.edition-badge{display:inline-flex;align-items:center;gap:.5rem;font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:.75rem;}
+.edition-title{font-family:'Playfair Display',serif;font-size:clamp(1.6rem,4vw,2.8rem);font-weight:700;line-height:1.2;color:var(--text);margin-bottom:1rem;}
+.edition-nav{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.5rem;}
+.edition-nav a{display:inline-flex;align-items:center;gap:.3rem;padding:.35rem .9rem;border-radius:20px;font-size:.82rem;text-decoration:none;border:1px solid var(--border);color:var(--text-dim);transition:all .2s;}
+.edition-nav a.active,.edition-nav a:hover{border-color:var(--accent);color:var(--text);}
+.edition-body{font-family:'Source Sans 3',sans-serif;font-weight:300;font-size:1.05rem;line-height:1.85;color:var(--text);max-width:760px;margin:0 auto;}
+.edition-body p{margin-bottom:1.4rem;text-align:justify;}
+.edition-body hr{border:none;border-top:1px solid var(--border);margin:2rem 0;}
+.edition-body em{color:var(--text-muted);font-size:.85rem;}
+"""
+
+LIVE_CSS_EXTRA = """
+.live-header{padding:2.5rem 0 1.5rem;border-bottom:1px solid var(--border);margin-bottom:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
+.live-title{font-family:'Playfair Display',serif;font-size:clamp(1.8rem,4vw,2.8rem);font-weight:700;color:var(--text);}
+.live-status{display:flex;align-items:center;gap:.5rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-muted);letter-spacing:.1em;}
+.live-updated{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-muted);margin-top:.3rem;}
+.filter-bar{display:flex;flex-wrap:wrap;gap:.5rem;padding:1rem 0;border-bottom:1px solid var(--border);margin-bottom:1.5rem;position:sticky;top:96px;z-index:50;background:rgba(10,10,15,.95);backdrop-filter:blur(8px);}
+.filter-btn{display:inline-flex;align-items:center;gap:.3rem;background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:.3rem .8rem;font-size:.78rem;color:var(--text-dim);cursor:pointer;transition:all .15s;font-family:'Source Sans 3',sans-serif;user-select:none;}
+.filter-btn:hover{border-color:var(--accent);color:var(--text);}
+.filter-btn.active{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;}
+.filter-count{background:rgba(0,0,0,.25);border-radius:10px;padding:0 .35rem;font-size:.65rem;}
+
+/* ── Sections catégories ── */
+.live-cat-section{border-bottom:1px solid var(--border);padding:1.25rem 0;}
+.live-cat-section.hidden{display:none;}
+.live-cat-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;}
+.live-cat-label{font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:500;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;}
+.live-cat-count{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--text-muted);background:var(--bg3);border-radius:10px;padding:.05rem .4rem;}
+
+/* ── Couleurs par catégorie (bande gauche) ── */
+.live-item{padding:.7rem 0 .7rem .85rem;border-bottom:1px solid rgba(42,42,58,.5);border-left:3px solid transparent;transition:border-color .2s,background .2s;}
+.live-item:last-child{border-bottom:none;}
+.live-item:hover{background:rgba(255,255,255,.025);}
+[data-cat="geopolitique"] .live-item{border-left-color:#e8612a;}
+[data-cat="economie"]     .live-item{border-left-color:#3b82f6;}
+[data-cat="crypto"]       .live-item{border-left-color:#f59e0b;}
+[data-cat="tech"]         .live-item{border-left-color:#8b5cf6;}
+[data-cat="france"]       .live-item{border-left-color:#ef4444;}
+[data-cat="monde"]        .live-item{border-left-color:#22c55e;}
+[data-cat="science"]      .live-item{border-left-color:#06b6d4;}
+[data-cat="environnement"].live-item{border-left-color:#84cc16;}
+[data-cat="societe"]      .live-item{border-left-color:#f97316;}
+[data-cat="culture"]      .live-item{border-left-color:#ec4899;}
+[data-cat="sport"]        .live-item{border-left-color:#14b8a6;}
+
+/* ── Ligne titre : icône + lien ── */
+.live-item-row{display:flex;align-items:flex-start;gap:.55rem;}
+.live-cat-icon{font-size:1rem;line-height:1.4;flex-shrink:0;margin-top:.05rem;}
+.live-item-title{color:var(--text);text-decoration:none;font-size:.92rem;line-height:1.4;transition:color .2s;}
+.live-item-title:hover{color:var(--accent);}
+.live-item-meta{display:flex;gap:1rem;font-size:.7rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;margin-top:.25rem;padding-left:1.55rem;}
+
+/* ── Résumé extensible ── */
+.live-summary-wrap{margin-top:.35rem;padding-left:1.55rem;}
+.live-summary-text{
+  font-size:.83rem;color:var(--text-dim);line-height:1.55;
+  overflow:hidden;
+  max-height:2.6em;           /* ~2 lignes */
+  transition:max-height .3s ease;
+}
+.live-summary-text.expanded{max-height:40em;}
+.live-summary-toggle{
+  display:inline-flex;align-items:center;gap:.25rem;
+  margin-top:.2rem;
+  font-size:.72rem;font-family:'JetBrains Mono',monospace;
+  color:var(--accent);cursor:pointer;
+  background:none;border:none;padding:0;
+  transition:opacity .15s;
+}
+.live-summary-toggle:hover{opacity:.75;}
+.live-summary-toggle .tgl-icon{transition:transform .25s;display:inline-block;}
+.live-summary-toggle.open .tgl-icon{transform:rotate(90deg);}
+"""
+
+REPORT_TEMPLATE = """<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ title }} — {{ brand_name }}</title>
+<style>{{ css }}</style></head><body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></a>
+  <div class="topbar-nav">
+    <a href="/">Accueil</a>
+    <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>Direct</a>
+    <a href="/{{ today_file }}">Chronique</a>
+    <a href="/archives">Archives</a>
+    <a href="/config">⚙</a>
+  </div>
+</nav>
+{{ breaking_banner }}
+<div class="page">
+  <div class="hero">
+    <div class="hero-date">{{ day_label }}</div>
+    <h1 class="hero-title">Chronique du {{ date_fr }}</h1>
+    <div class="hero-meta">
+      <span>📰 {{ article_count }} articles analysés</span>
+      <span>🏛️ {{ source_count }} sources</span>
+      <span>⏱️ Généré à {{ gen_time }}</span>
+    </div>
+  </div>
+  <div class="content-grid">
+    <main>
+      <div class="report-body">{{ report_html }}</div>
+    </main>
+    <aside class="sidebar">
+      <div class="sidebar-block">
+        <h3>Catégories</h3>
+        <div class="cat-pills">
+          {% for cat, count in categories %}
+          <span class="cat-pill">{{ cat_icons.get(cat,'') }} {{ cat_labels.get(cat,cat) }}
+            <span class="cat-count">{{ count }}</span></span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="sidebar-block">
+        <h3>Statistiques</h3>
+        {% for label, value in stats %}
+        <div class="stat-row">
+          <span class="stat-label">{{ label }}</span>
+          <span class="stat-value">{{ value }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="sidebar-block">
+        <h3>Articles récents</h3>
+        <div style="max-height:380px;overflow-y:auto">
+        {% for a in recent_articles %}
+        <div class="article-item">
+          <a href="{{ a.link }}" target="_blank" rel="noopener">
+            {{ a.title[:80] }}{% if a.title|length > 80 %}…{% endif %}
+          </a>
+          <div class="article-source">{{ a.source }} · {{ a.category }}</div>
+        </div>
+        {% endfor %}
+        </div>
+      </div>
+      {% if archives %}
+      <div class="sidebar-block">
+        <h3>Archives récentes</h3>
+        <ul class="archive-list">
+          {% for arch in archives %}
+          <li><a href="/{{ arch.file }}">
+            <span class="archive-date">{{ arch.date_fr }}</span>
+            <span class="archive-badge">{{ arch.count }}</span>
+          </a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+  {% if all_articles %}
+  <div class="sources-section">
+    <button class="sources-toggle" onclick="toggleSources(this)" aria-expanded="false">
+      <i class="toggle-icon">▶</i> Sources consultées
+      <span class="sources-count">{{ all_articles|length }} liens</span>
+    </button>
+    <div class="sources-list" id="sources-list">
+      {% for a in all_articles %}{% if a.link %}
+      <div class="source-row">
+        <div>
+          <div class="source-domain">{{ a.source }}</div>
+          <div class="source-cat" style="font-size:.65rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">{{ cat_labels.get(a.category,a.category) }}</div>
+        </div>
+        <a href="{{ a.link }}" target="_blank" rel="noopener" class="source-title">{{ a.title }}</a>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+<footer><strong>{{ brand_name }}</strong> — {{ brand_tagline }}<br>Modèle : {{ model }} · © {{ year }}</footer>
+<script>
+function toggleSources(btn){
+  const list=document.getElementById('sources-list');
+  const open=list.classList.contains('open');
+  list.classList.toggle('open',!open);
+  btn.classList.toggle('open',!open);
+  btn.setAttribute('aria-expanded',String(!open));
+}
+</script>
+</body></html>"""
+
+INDEX_TEMPLATE = """<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ brand_name }} — Archives</title>
+<style>{{ css }}</style></head><body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></a>
+  <div class="topbar-nav">
+    <a href="/">Accueil</a>
+    <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>Direct</a>
+    {% if today_file %}<a href="/{{ today_file }}">Chronique</a>{% endif %}
+    <a href="/archives">Archives</a>
+    <a href="/config">⚙</a>
+  </div>
+</nav>
+{{ breaking_banner }}
+<div class="page">
+  <div class="hero">
+    <div class="hero-date">Archives</div>
+    <h1 class="hero-title">Chronique du monde</h1>
+    <div class="hero-meta">
+      <span>📅 {{ total_days }} journées archivées</span>
+      <span>📰 {{ total_articles }} articles traités</span>
+    </div>
+  </div>
+  <div class="cards-grid">
+    {% for day in days %}
+    <a href="/{{ day.file }}" class="card">
+      <div class="card-date">{{ day.day_label }}</div>
+      <div class="card-title">{{ day.date_fr }}</div>
+      <div class="card-excerpt">{{ day.excerpt }}</div>
+      <div class="card-meta">
+        <span>📰 {{ day.article_count }} articles</span>
+        <span>🏛️ {{ day.source_count }} sources</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+<footer><strong>{{ brand_name }}</strong> — {{ brand_tagline }}<br>© {{ year }}</footer>
+</body></html>"""
+
+EDITION_TEMPLATE = """<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ edition_label }} — {{ brand_name }}</title>
+<style>{{ css }}</style></head><body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></a>
+  <div class="topbar-nav">
+    <a href="/">Accueil</a>
+    <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>Direct</a>
+    <a href="/{{ today_report }}">Chronique</a>
+    <a href="/archives">Archives</a>
+    <a href="/config">⚙</a>
+  </div>
+</nav>
+{{ breaking_banner }}
+<div class="page">
+  <div class="edition-hero">
+    <div class="edition-badge">{{ edition_emoji }} {{ edition_label }}</div>
+    <h1 class="edition-title">{{ article_title }}</h1>
+    <div class="hero-meta">
+      <span>📅 {{ date_fr }}</span>
+      <span>📰 {{ article_count }} articles analysés</span>
+      <span>⏱️ {{ gen_time }}</span>
+    </div>
+    <div class="edition-nav">
+      {% for ed_name, ed_cfg in editions_of_day %}
+      <a href="/editions/{{ day }}_{{ ed_name }}.html"
+         class="{{ 'active' if ed_name == current_edition else '' }}">
+        {{ ed_cfg.emoji }} {{ ed_cfg.label }}
+      </a>
+      {% endfor %}
+      <a href="/{{ today_report }}">📖 Chronique</a>
+    </div>
+  </div>
+  <div class="edition-body">{{ body_html }}</div>
+</div>
+<footer><strong>{{ brand_name }}</strong> — {{ edition_label }} · {{ date_fr }}<br>© {{ year }}</footer>
+</body></html>"""
+
+LIVE_TEMPLATE = """<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ brand_name }} — Fil en direct</title>
+<style>{{ css }}</style></head><body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></a>
+  <div class="topbar-nav">
+    <a href="/">Accueil</a>
+    <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>Direct</a>
+    {% if today_file %}<a href="/{{ today_file }}">Chronique</a>{% endif %}
+    <a href="/archives">Archives</a>
+    <a href="/config">⚙</a>
+  </div>
+</nav>
+{{ breaking_banner }}
+<div class="page">
+  <div class="live-header">
+    <div>
+      <h1 class="live-title">Fil en direct</h1>
+      <div class="live-updated">Mis à jour à {{ updated }} · {{ total }} articles · {{ window_hours }}h d'historique</div>
+    </div>
+    <div class="live-status"><span class="live-dot"></span> EN DIRECT</div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterCat('all',this)">
+      Tout <span class="filter-count">{{ total }}</span>
+    </button>
+    {% for cat, arts in by_cat.items() %}
+    <button class="filter-btn" onclick="filterCat('{{ cat }}',this)">
+      {{ cat_icons.get(cat,'') }} {{ cat_labels.get(cat,cat) }}
+      <span class="filter-count">{{ arts|length }}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="live-grid">
+    {% for cat, arts in by_cat.items() %}
+    <div class="live-cat-section" data-cat="{{ cat }}">
+      <div class="live-cat-header">
+        <span class="live-cat-label">{{ cat_icons.get(cat,'') }} {{ cat_labels.get(cat,cat) }}</span>
+        <span class="live-cat-count">{{ arts|length }}</span>
+      </div>
+
+      {% for a in arts %}
+      <div class="live-item">
+
+        <!-- Titre avec icône catégorie -->
+        <div class="live-item-row">
+          <span class="live-cat-icon">{{ cat_icons.get(a.get('category', cat), cat_icons.get(cat,'')) }}</span>
+          <a href="{{ a.link }}" target="_blank" rel="noopener" class="live-item-title">{{ a.title }}</a>
+        </div>
+
+        <!-- Source · date -->
+        <div class="live-item-meta">
+          <span>{{ a.source }}</span>
+          <span>{{ a.timestamp[:16].replace('T',' ') }}</span>
+        </div>
+
+        <!-- Résumé extensible -->
+        {% if a.summary %}
+        <div class="live-summary-wrap">
+          <div class="live-summary-text" id="sum-{{ loop.index0 }}-{{ cat }}">{{ a.summary }}</div>
+          <button class="live-summary-toggle"
+                  onclick="toggleSummary(this, 'sum-{{ loop.index0 }}-{{ cat }}')"
+                  aria-expanded="false">
+            <span class="tgl-icon">▶</span> <span class="tgl-label">Lire</span>
+          </button>
+        </div>
+        {% endif %}
+
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<footer><strong>{{ brand_name }}</strong> — Fil en direct · © {{ year }}</footer>
+<script>
+function filterCat(cat, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.live-cat-section').forEach(s => {
+    s.classList.toggle('hidden', cat !== 'all' && s.dataset.cat !== cat);
+  });
+}
+
+function toggleSummary(btn, id) {
+  const el  = document.getElementById(id);
+  const open = el.classList.toggle('expanded');
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', open);
+  btn.querySelector('.tgl-label').textContent = open ? 'Réduire' : 'Lire';
+}
+</script>
+</body></html>"""
+
+CONFIG_TEMPLATE = """<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ brand_name }} — Configuration</title>
+<style>{{ css }}
+.config-page{max-width:720px;margin:0 auto;padding:2rem 1.5rem;}
+.config-hero{padding:2rem 0 1.5rem;border-bottom:1px solid var(--border);margin-bottom:2rem;}
+.config-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1.5rem;}
+.config-section h2{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:1.25rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
+.config-row{display:flex;align-items:flex-start;justify-content:space-between;gap:1.5rem;padding:.75rem 0;border-bottom:1px solid var(--border);}
+.config-row:last-child{border-bottom:none;}
+.config-label{font-size:.9rem;color:var(--text);font-weight:400;}
+.config-desc{font-size:.75rem;color:var(--text-muted);margin-top:.2rem;}
+.config-control{flex-shrink:0;}
+select,input[type=number]{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.82rem;padding:.35rem .7rem;min-width:200px;transition:border-color .2s;}
+select:focus,input[type=number]:focus{outline:none;border-color:var(--accent);}
+.btn-save{background:var(--accent);border:none;border-radius:var(--radius);color:white;font-size:.95rem;font-weight:600;padding:.75rem 2rem;cursor:pointer;transition:background .2s;width:100%;margin-top:1rem;}
+.btn-save:hover{background:var(--accent2);}
+.save-msg{display:none;text-align:center;padding:.75rem;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:var(--radius);color:#22c55e;font-family:'JetBrains Mono',monospace;font-size:.8rem;margin-top:1rem;}
+.current-tag{display:inline-flex;align-items:center;background:rgba(232,97,42,.15);border:1px solid rgba(232,97,42,.3);border-radius:10px;padding:.1rem .5rem;font-size:.65rem;color:var(--accent);font-family:'JetBrains Mono',monospace;margin-left:.5rem;}
+</style></head><body>
+<nav class="topbar">
+  <a href="/" class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></a>
+  <div class="topbar-nav">
+    <a href="/">Accueil</a>
+    <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>Direct</a>
+    <a href="/{{ today_file }}">Chronique</a>
+    <a href="/archives">Archives</a>
+    <a href="/config" style="color:var(--text)">⚙</a>
+  </div>
+</nav>
+<div class="config-page">
+  <div class="config-hero">
+    <div class="hero-date">Paramètres</div>
+    <h1 class="hero-title" style="font-family:'Playfair Display',serif;font-size:2rem;">Configuration {{ brand_name }}</h1>
+  </div>
+  <form id="configForm">
+    <div class="config-section">
+      <h2>Modèle Ollama</h2>
+      <div class="config-row">
+        <div>
+          <div class="config-label">Modèle actif <span class="current-tag">{{ cfg.ollama_model }}</span></div>
+          <div class="config-desc">Installé via <code>ollama pull &lt;modèle&gt;</code></div>
+        </div>
+        <div class="config-control">
+          <select name="ollama_model">
+            {% for m in models %}
+            <option value="{{ m.id }}" {{ 'selected' if m.id == cfg.ollama_model else '' }}>{{ m.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="config-row">
+        <div>
+          <div class="config-label">Timeout résumé article</div>
+          <div class="config-desc">Secondes max pour résumer un article</div>
+        </div>
+        <div class="config-control">
+          <input type="number" name="fetch_timeout" value="{{ cfg.fetch_timeout }}" min="60" max="600" step="30">
+        </div>
+      </div>
+      <div class="config-row">
+        <div>
+          <div class="config-label">Timeout édition</div>
+          <div class="config-desc">Secondes max pour générer une édition</div>
+        </div>
+        <div class="config-control">
+          <input type="number" name="edition_timeout" value="{{ cfg.edition_timeout }}" min="120" max="1800" step="60">
+        </div>
+      </div>
+    </div>
+    <div class="config-section">
+      <h2>Collecte RSS</h2>
+      <div class="config-row">
+        <div>
+          <div class="config-label">Articles max par flux RSS</div>
+          <div class="config-desc">Par source à chaque cycle</div>
+        </div>
+        <div class="config-control">
+          <input type="number" name="max_articles_feed" value="{{ cfg.max_articles_feed }}" min="3" max="20">
+        </div>
+      </div>
+    </div>
+    <div class="config-section">
+      <h2>Fil en direct</h2>
+      <div class="config-row">
+        <div>
+          <div class="config-label">Fenêtre d'affichage</div>
+          <div class="config-desc">Heures d'historique dans le fil en direct</div>
+        </div>
+        <div class="config-control">
+          <input type="number" name="live_window_hours" value="{{ cfg.live_window_hours }}" min="6" max="48">
+        </div>
+      </div>
+    </div>
+    <button type="submit" class="btn-save">Enregistrer la configuration</button>
+    <div class="save-msg" id="saveMsg">✓ Configuration enregistrée — redémarre Atlas pour appliquer</div>
+  </form>
+</div>
+<footer><strong>{{ brand_name }}</strong> — Configuration · © {{ year }}</footer>
+<script>
+document.getElementById('configForm').addEventListener('submit',async(e)=>{
+  e.preventDefault();
+  const data=Object.fromEntries(new FormData(e.target));
+  ['fetch_timeout','edition_timeout','max_articles_feed','live_window_hours'].forEach(k=>{if(data[k])data[k]=parseInt(data[k]);});
+  const r=await fetch('/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  if(r.ok){
+    document.getElementById('saveMsg').style.display='block';
+    setTimeout(()=>document.getElementById('saveMsg').style.display='none',4000);
+    document.querySelector('.current-tag').textContent=data.ollama_model;
+  }
+});
+</script>
+</body></html>"""

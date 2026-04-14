@@ -1,0 +1,8 @@
+edge-tts
+PyYAML
+requests
+beautifulsoup4
+lxml
+flask
+jinja2
+markdown

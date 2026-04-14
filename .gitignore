@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs & temporary files
+*.log
+nova.log
+logs/
+tmp/
+audio_queue/
+*.tmp
+
+# Data (ne pas committer les gros fichiers générés)
+data/music/
+data/articles/
+data/reports/
+data/editions/
+data/posts/
+data/processed_hashes.json
+data/ollama.lock
+modules/web/*.old
+
+# Site généré
+site/
+
+# Config personnelle (ne committer que le modèle)
+config/config.yaml
+!config/config.yaml.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

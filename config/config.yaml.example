@@ -1,0 +1,64 @@
+# ================================================
+# NOVA MEDIA — Configuration centrale
+# ================================================
+
+service:
+  name: "Nova Media"                    # ← Changez ceci selon votre projet (ex: "Asia Sentinel", "Le Journal IA")
+  tagline: "Your personal AI news engine & radio"
+  default_language: "fr"
+
+ollama:
+  model: "qwen3:8b"                     # Modèle Ollama à utiliser
+  timeout_fetch: 240
+  timeout_report: 600
+  timeout_edition: 900
+
+rss:
+  max_articles_per_feed: 8
+  live_window_hours: 20
+
+radio:
+  news_per_bulletin: 5
+  news_interval_seconds: 30
+  background_volume: 0.30
+
+  # Voices by language (edge-tts)
+  voices:
+    fr:
+      - "fr-FR-HenriNeural"
+      - "fr-FR-DeniseNeural"
+      - "fr-CA-AntoineNeural"
+      - "fr-FR-RemyMultilingualNeural"
+    en:
+      - "en-US-AriaNeural"
+      - "en-US-GuyNeural"
+
+web:
+  host: "0.0.0.0"
+  port: 5055
+  enable_live_feed: true
+  enable_editions: true
+
+posts:
+  nb_posts_per_cycle: 4
+  window_hours: 2
+  max_chars_x: 280
+
+paths:
+  data_dir: "data"
+  articles_dir: "data/articles"
+  reports_dir: "data/reports"
+  editions_dir: "data/editions"
+  posts_dir: "data/posts"
+  site_dir: "site"
+  audio_queue: "audio_queue"
+  tmp_dir: "tmp"
+  background_music: "background_music"
+  music: "music"
+
+icecast:
+  host: "localhost"
+  port: 8000
+  password: "hackme"
+  mount: "/nova"
+  user: "source"

@@ -1,0 +1,534 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+modules/fetch/atlas_fetch.py — Nova-Atlas
+Collecte RSS, fetch contenu articles, résumé court via Ollama.
+Stockage incrémental dans data/articles/YYYYMMDD_articles.json
+
+Refactorisé depuis atlas_fetch.py (pblart/nova-media) :
+  - Enveloppé dans la classe ArticleFetcher(config)
+  - Toute la logique interne (RSS_SOURCES, round-robin, verrou seen_hashes,
+    retry_pending_summaries, etc.) est conservée à l'identique
+  - Les chemins viennent de config.paths.*
+  - Ollama passe par modules.core.ollama
+"""
+
+import hashlib
+import json
+import logging
+import os
+import re
+import time
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+from bs4 import BeautifulSoup
+
+from modules.core.ollama import init_ollama, ollama_call, get_language, get_fetch_timeout
+
+# ─── SOURCES RSS (identiques à atlas_fetch.py original) ───────────────────────
+
+RSS_SOURCES = {
+    "geopolitique": [
+        "https://www.france24.com/fr/rss",
+        "https://www.france24.com/en/rss",
+        "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "https://www.theguardian.com/world/rss",
+        "https://www.euronews.com/rss",
+        "https://feeds.reuters.com/reuters/topNews",
+        "https://apnews.com/apf-topnews.rss",
+        "https://www.aljazeera.com/xml/rss/all.xml",
+        "https://www.middleeasteye.net/rss",
+        "https://rss.dw.com/rdf/rss-en-all",
+        "https://rss.dw.com/rdf/rss-fr-all",
+        "https://www.courrierinternational.com/feed/rubrique/geopolitique/rss.xml",
+    ],
+    "economie": [
+        "https://bfmbusiness.bfmtv.com/rss/news-flux-rss/",
+        "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+        "https://foreignpolicy.com/feed/",
+        "https://fr.investing.com/rss/news.rss",
+        "https://finance.yahoo.com/news/rssindex",
+        "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines",
+        "https://www.courrierinternational.com/feed/rubrique/economie/rss.xml",
+        "https://www.federalreserve.gov/feeds/press_all.xml",
+    ],
+    "crypto": [
+        "https://cointelegraph.com/rss",
+        "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "https://cryptopanic.com/news/rss/",
+        "https://theblock.co/rss.xml",
+        "https://decrypt.co/feed",
+    ],
+    "tech": [
+        "https://www.technologyreview.com/stories.rss",
+        "https://www.wired.com/feed/rss",
+        "https://www.futura-sciences.com/rss/actualites.xml",
+        "https://feeds.arstechnica.com/arstechnica/index",
+        "https://hnrss.org/frontpage",
+        "https://www.01net.com/rss/",
+        "https://next.ink/feed/",
+    ],
+    "france": [
+        "https://www.lemonde.fr/rss/une.xml",
+        "https://www.lemonde.fr/rss/en_continu.xml",
+        "https://www.liberation.fr/arc/outboundfeeds/rss/",
+        "https://www.lefigaro.fr/rss/figaro_actualites.xml",
+        "https://www.courrierinternational.com/feed/rubrique/france/rss.xml",
+        "https://www.courrierinternational.com/feed/rubrique/societe/rss.xml",
+    ],
+    "monde": [
+        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+        "https://feeds.nbcnews.com/nbcnews/public/world",
+        "https://www.courrierinternational.com/feed/all/rss.xml",
+        "https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr",
+        "https://news.google.com/rss?hl=en&gl=EN&ceid=EN:en",
+        "https://www.theatlantic.com/feed/all/",
+    ],
+    "science": [
+        "https://www.futura-sciences.com/rss/actualites.xml",
+        "https://www.sciencesetavenir.fr/rss.xml",
+        "https://feeds.feedburner.com/sciencedaily",
+        "https://www.nature.com/nature.rss",
+        "https://www.who.int/rss-feeds/news-english.xml",
+    ],
+    "environnement": [
+        "https://www.theguardian.com/environment/rss",
+        "https://www.courrierinternational.com/feed/rubrique/science-environnement/rss.xml",
+        "https://reporterre.net/spip.php?page=backend",
+        "https://www.revolution-energetique.com/feed/",
+        "https://www.goodplanet.info/feed/",
+    ],
+    "societe": [
+        "https://www.amnesty.org/en/feed/",
+        "https://www.hrw.org/rss",
+        "https://theconversation.com/global/articles.atom",
+        "https://www.courrierinternational.com/feed/rubrique/expat/rss.xml",
+    ],
+    "culture": [
+        "https://www.premiere.fr/rss/actu-cinema",
+        "https://www.lemonde.fr/arts/rss/une.xml",
+        "https://pitchfork.com/rss/news/",
+        "https://www.courrierinternational.com/feed/rubrique/culture/rss.xml",
+        "https://www.lesinrocks.com/feed/",
+    ],
+    "sport": [
+        
+        "https://worldathletics.org/rss/news/",
+        "https://trackandfieldnews.com/feed/",
+        "https://feeds.bbci.co.uk/sport/athletics/rss.xml"        
+        "https://rmcsport.bfmtv.com/rss/news-flux-rss/",
+        "https://www.bbc.co.uk/sport/rss.xml",
+        "https://www.espn.com/espn/rss/news",
+    ],
+}
+
+MIN_TITLE_LEN     = 25
+MAX_ARTICLE_CHARS = 3500
+FETCH_TIMEOUT_HTTP = 10
+
+
+# ─── CLASSE PRINCIPALE ────────────────────────────────────────────────────────
+
+class ArticleFetcher:
+    """
+    Collecte RSS + résumé Ollama.
+    Équivalent de run_fetch_cycle() mais encapsulé pour Nova-Atlas.
+    """
+
+    def __init__(self, config: dict):
+        self._config = config   # conservé pour reload à chaud
+        self._apply_config(config)
+        init_ollama(config)
+        self.log = logging.getLogger("nova.fetch")
+
+    def _apply_config(self, config: dict):
+        """Applique (ou reapplique) la config — appelé au __init__ et au reload."""
+        paths = config.get("paths", {})
+        self.data_dir  = Path(paths.get("articles_dir", "data/articles"))
+        self.seen_file = Path(paths.get("data_dir", "data")) / "seen_hashes.json"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        rss_cfg = config.get("rss", {})
+        self.max_per_feed = int(rss_cfg.get("max_articles_per_feed", 8))
+
+        # retry_summaries : False par défaut — désactivé pour garder un flux continu
+        fetch_cfg = config.get("fetch", {})
+        self.retry_summaries = fetch_cfg.get("retry_summaries", False)
+
+    def reload_config(self, config: dict):
+        """Recharge la config à chaud sans redémarrer le processus."""
+        self._config = config
+        self._apply_config(config)
+        # Recharge aussi le client Ollama (modèle peut avoir changé)
+        from modules.core.ollama import init_ollama as _init
+        _init(config)
+        self.log.info("[FETCH] Config rechargée à chaud.")
+
+    # ── Seen hashes ───────────────────────────────────────────────────────────
+
+    def _load_seen(self) -> set:
+        if not self.seen_file.exists():
+            return set()
+        with open(self.seen_file, encoding="utf-8") as f:
+            data = json.load(f)
+        today_int = int(datetime.now().strftime("%Y%m%d"))
+        return {h for h, d in data.items() if today_int - int(d) <= 7}
+
+    def _save_seen(self, seen: set):
+        today = datetime.now().strftime("%Y%m%d")
+        existing = {}
+        if self.seen_file.exists():
+            with open(self.seen_file, encoding="utf-8") as f:
+                existing = json.load(f)
+        for h in seen:
+            if h not in existing:
+                existing[h] = today
+        with open(self.seen_file, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False)
+
+    @staticmethod
+    def _hash(url: str) -> str:
+        return hashlib.md5(url.strip().encode()).hexdigest()
+
+    # ── Fichier articles du jour ───────────────────────────────────────────────
+
+    def _today_file(self) -> Path:
+        return self.data_dir / f"{datetime.now().strftime('%Y%m%d')}_articles.json"
+
+    def _load_today(self) -> list:
+        f = self._today_file()
+        if not f.exists():
+            return []
+        try:
+            with open(f, encoding="utf-8") as fp:
+                return json.load(fp)
+        except json.JSONDecodeError:
+            import shutil
+            shutil.copy(f, str(f) + ".corrupted")
+            self.log.warning(f"JSON corrompu — sauvegardé : {f}.corrupted")
+            return []
+
+    def _save_today(self, articles: list):
+        target = self._today_file()
+        tmp    = Path(str(target) + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as fp:
+            json.dump(articles, fp, ensure_ascii=False, indent=2)
+        for attempt in range(5):
+            try:
+                os.replace(tmp, target)
+                return
+            except PermissionError:
+                time.sleep(0.3 * (attempt + 1))
+        import shutil
+        shutil.copy2(tmp, target)
+        tmp.unlink(missing_ok=True)
+
+    # ── RSS fetch ─────────────────────────────────────────────────────────────
+
+    def _fetch_rss(self, url: str) -> list:
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; AtlasNews/2.0)"}
+        try:
+            r = requests.get(url, headers=headers, timeout=FETCH_TIMEOUT_HTTP)
+            r.raise_for_status()
+            soup  = BeautifulSoup(r.content, "xml")
+            items = []
+            for item in soup.find_all("item")[:self.max_per_feed]:
+                title_tag = item.find("title")
+                link_tag  = item.find("link")
+                pub_tag   = item.find("pubDate")
+                title = title_tag.get_text().strip() if title_tag else ""
+                link  = link_tag.get_text().strip()  if link_tag  else ""
+                pub   = pub_tag.get_text().strip()   if pub_tag   else ""
+                if title and link:
+                    items.append({"title": title, "link": link, "pub_date": pub})
+            return items
+        except Exception as e:
+            self.log.debug(f"RSS fail [{url[:60]}]: {e}")
+            return []
+
+    # ── Article content ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _fetch_content(url: str) -> str:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        try:
+            r = requests.get(url, headers=headers, timeout=FETCH_TIMEOUT_HTTP)
+            r.raise_for_status()
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tag in soup(["script","style","nav","header","footer",
+                              "aside","form","iframe","noscript"]):
+                tag.decompose()
+            for sel in ["article","main","[role='main']",".article-body",
+                         ".post-content",".entry-content",".content"]:
+                c = soup.select_one(sel)
+                if c:
+                    text = c.get_text(separator="\n", strip=True)
+                    if len(text) > 200:
+                        return text[:MAX_ARTICLE_CHARS]
+            paras = [p.get_text(strip=True) for p in soup.find_all("p")
+                     if len(p.get_text(strip=True)) > 50]
+            return "\n".join(paras)[:MAX_ARTICLE_CHARS]
+        except Exception:
+            return ""
+
+    # ── Résumé Ollama ─────────────────────────────────────────────────────────
+
+    def _summarize(self, title: str, content: str, category: str) -> str:
+        if not content.strip():
+            return ""
+        lang = get_language()
+        prompt = (
+            f"Tu es un journaliste analytique. Résume cet article en 3 à 4 phrases précises en {lang}.\n"
+            f"Catégorie : {category}\n"
+            f"Titre : {title}\n\n"
+            f"Contenu :\n{content[:2000]}\n\n"
+            f"Règles strictes :\n"
+            f"- 3 à 4 phrases seulement\n"
+            f"- Faits précis, chiffres si disponibles\n"
+            f"- Ton neutre et factuel\n"
+            f"- Rédige UNIQUEMENT en {lang}\n"
+            f"- Pas de formules introductives\n"
+            f"- Commence directement par les faits\n\n"
+            f"Résumé :"
+        )
+        output = ollama_call(prompt, timeout=get_fetch_timeout(), caller="fetch")
+        if not output:
+            self.log.warning(f"Ollama vide/timeout : {title[:60]}")
+        return output
+
+    # ── Retry résumés en attente ───────────────────────────────────────────────
+
+    def _translate_title(self, title: str) -> str:
+        """Traduit le titre dans la langue cible si elle diffère de l'original.
+        Utilise un prompt ultra-court pour minimiser le temps Ollama."""
+        from modules.core.ollama import get_language
+        lang = get_language()
+        # Ne traduit pas si la langue cible est l'anglais ou le français
+        # et que le titre semble déjà dans une de ces langues (heuristique rapide)
+        if not title or not title.strip():
+            return title
+        prompt = (
+            f"Translate this news headline to {lang}. "
+            f"Return ONLY the translated headline, nothing else:\n{title}"
+        )
+        translated = ollama_call(prompt, timeout=30, caller="fetch")
+        if translated and len(translated) > 3 and not translated.startswith("["):
+            return translated.strip().strip('"').strip("'")
+        return title  # fallback sur l'original si échec
+
+    def _retry_pending(self, articles: list) -> tuple:
+        """
+        Re-résume les articles sans résumé (Ollama était occupé au cycle précédent).
+        Désactivé par défaut (fetch.retry_summaries: false dans config.yaml)
+        pour garantir un flux continu sans bloquer sur les timeouts.
+        """
+        if not self.retry_summaries:
+            pending_count = sum(
+                1 for a in articles
+                if not a.get("summary") or a["summary"].startswith("[Timeout]")
+            )
+            if pending_count:
+                self.log.debug(
+                    f"[RETRY] {pending_count} articles sans résumé ignorés "
+                    f"(retry_summaries désactivé)"
+                )
+            return articles, 0
+
+        pending = [a for a in articles
+                   if not a.get("summary") or a["summary"].startswith("[Timeout]")]
+        if not pending:
+            return articles, 0
+        self.log.info(f"Re-résumé de {len(pending)} articles en attente...")
+        count = 0
+        for a in pending:
+            content = self._fetch_content(a.get("link", ""))
+            summary = self._summarize(a["title"], content, a.get("category", "monde"))
+            if summary and not summary.startswith("["):
+                a["summary"] = summary
+                count += 1
+        if count:
+            self.log.info(f"Re-résumé : {count}/{len(pending)} récupérés")
+        return articles, count
+
+    # ── Traitement d'un article ───────────────────────────────────────────────
+
+    def _process_item(self, item: dict, category: str,
+                      seen: set, existing_hashes: set,
+                      articles: list) -> bool:
+        h = self._hash(item["link"])
+        if h in seen or h in existing_hashes:
+            return False
+
+        title   = item["title"].strip()
+        content = self._fetch_content(item["link"])
+        try:
+            domain = urlparse(item["link"]).netloc.replace("www.", "")
+        except Exception:
+            domain = "source inconnue"
+
+        if not content.strip():
+            if len(title) < MIN_TITLE_LEN:
+                self.log.debug(f"  Skip (titre court + pas de contenu): {title[:50]}")
+                seen.add(h)
+                existing_hashes.add(h)
+                return False
+            # Contenu inaccessible (paywall, anti-scraping, lien mort…) → on ignore
+            # Le titre seul sans résumé ne sert ni aux éditions, ni à la radio,
+            # ni au fil live. Marquer comme vu pour ne pas retenter.
+            self.log.debug(
+                f"  [{category[:4].upper()}] Ignoré (contenu inaccessible): {title[:65]}"
+            )
+            seen.add(h)
+            existing_hashes.add(h)
+            return False
+        else:
+            self.log.info(f"  [{category[:4].upper()}] {title[:65]}…")
+            summary = self._summarize(title, content, category)
+            # Traduction du titre dans la langue cible (si différente)
+            from modules.core.ollama import get_language
+            lang = get_language()
+            translated_title = self._translate_title(title) if lang not in ("français","french","fr") else title
+            article = {
+                "hash":          h,
+                "timestamp":     datetime.now().isoformat(),
+                "category":      category,
+                "title":         translated_title,
+                "title_original": title if translated_title != title else "",
+                "link":          item["link"],
+                "source":        domain,
+                "pub_date":      item.get("pub_date", ""),
+                "summary":       summary,
+            }
+
+        articles.append(article)
+        existing_hashes.add(h)
+        seen.add(h)
+        self._save_today(articles)
+        time.sleep(0.3 if content.strip() else 0.1)
+        return True
+
+    # ── Nettoyage du JSON du jour ─────────────────────────────────────────────
+
+    def cleanup(self, dry_run: bool = False) -> int:
+        """
+        Supprime du JSON du jour toutes les entrées inutilisables :
+          - summary vide ou None
+          - summary commençant par [ (Timeout, Contenu inaccessible, etc.)
+          - no_content=True (articles stockés avant ce patch)
+
+        dry_run=True : affiche ce qui serait supprimé sans écrire.
+        Retourne le nombre d'articles supprimés.
+
+        Note : les hashes restent dans seen_hashes — on ne retente pas
+        les articles sans contenu, ils resteront inaccessibles.
+        """
+        articles = self._load_today()
+        if not articles:
+            self.log.info("[CLEANUP] Aucun article aujourd'hui.")
+            return 0
+
+        def _is_bad(a: dict) -> bool:
+            s = a.get("summary") or ""
+            return (
+                not s.strip()
+                or s.startswith("[")
+                or a.get("no_content") is True
+            )
+
+        bad  = [a for a in articles if _is_bad(a)]
+        good = [a for a in articles if not _is_bad(a)]
+
+        if not bad:
+            self.log.info(
+                f"[CLEANUP] Rien à nettoyer — {len(articles)} articles tous valides."
+            )
+            return 0
+
+        self.log.info(
+            f"[CLEANUP] {len(bad)} articles à supprimer sur {len(articles)} :"
+        )
+        for a in bad[:10]:
+            s = (a.get("summary") or "")[:50] or "(vide)"
+            self.log.info(
+                f"  - [{a.get('category','?')}] "
+                f"{a.get('title','')[:55]}  →  {s}"
+            )
+        if len(bad) > 10:
+            self.log.info(f"  ... et {len(bad) - 10} autres")
+
+        if not dry_run:
+            self._save_today(good)
+            self.log.info(
+                f"[CLEANUP] ✅ {len(bad)} supprimés → {len(good)} articles conservés."
+            )
+        else:
+            self.log.info("[CLEANUP] (dry-run — rien écrit)")
+
+        return len(bad)
+
+    # ── Point d'entrée principal ──────────────────────────────────────────────
+
+    def run(self) -> int:
+        """
+        Cycle de collecte en round-robin par catégorie.
+        Retourne le nombre de nouveaux articles ajoutés.
+        Équivalent direct de run_fetch_cycle() dans atlas_fetch.py.
+        """
+        self.log.info("═" * 50)
+        self.log.info("Début cycle de collecte (round-robin)")
+        self.log.info("═" * 50)
+
+        seen            = self._load_seen()
+        articles        = self._load_today()
+        existing_hashes = {a["hash"] for a in articles}
+        new_count       = 0
+
+        # Phase 0 — Retry résumés en attente
+        articles, retried = self._retry_pending(articles)
+        if retried:
+            self._save_today(articles)
+            self.log.info(f"Phase 0 : {retried} résumés récupérés")
+
+        # Phase 1 — Collecte RSS
+        self.log.info("Collecte des flux RSS...")
+        queues: dict = {}
+        for category, feeds in RSS_SOURCES.items():
+            pending = []
+            for feed_url in feeds:
+                items = self._fetch_rss(feed_url)
+                for item in items:
+                    h = self._hash(item["link"])
+                    if h not in seen and h not in existing_hashes:
+                        pending.append((item, category))
+            if pending:
+                queues[category] = pending
+                self.log.info(f"  {category:15} : {len(pending)} nouveaux")
+
+        total_pending = sum(len(v) for v in queues.values())
+        self.log.info(f"Total à traiter : {total_pending} articles")
+
+        if not total_pending:
+            self.log.info("Aucun nouvel article — cycle terminé")
+            self._save_seen(seen)
+            return 0
+
+        # Phase 2 — Round-robin
+        cat_keys = list(queues.keys())
+        while any(queues.values()):
+            for cat in cat_keys:
+                if not queues.get(cat):
+                    continue
+                item, category = queues[cat].pop(0)
+                added = self._process_item(item, category, seen, existing_hashes, articles)
+                if added:
+                    new_count += 1
+
+        self._save_seen(seen)
+        self.log.info(
+            f"Cycle terminé : {new_count} nouveaux articles "
+            f"({len(articles)} total aujourd'hui)"
+        )
+        return new_count
