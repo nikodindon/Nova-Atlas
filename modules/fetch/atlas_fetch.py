@@ -338,6 +338,11 @@ class ArticleFetcher:
         tmp    = Path(str(target) + ".tmp")
         with open(tmp, "w", encoding="utf-8") as fp:
             json.dump(articles, fp, ensure_ascii=False, indent=2)
+            fp.flush()
+            try:
+                os.fsync(fp.fileno())
+            except Exception:
+                pass  # ignorer sur les systèmes où fsync n’est pas disponible
         for attempt in range(5):
             try:
                 os.replace(tmp, target)
@@ -469,8 +474,12 @@ class ArticleFetcher:
         for a in pending:
             content = self._fetch_content(a.get("link", ""))
             summary = self._summarize(a["title"], content, a.get("category", "monde"))
+            self.log.debug(f"[FETCH] summary raw for {a.get('hash','?')}: {repr(summary[:80])}")
             if summary and not summary.startswith("["):
                 a["summary"] = summary
+                self.log.debug(f"[FETCH] summary written to article {a.get('hash','?')}")
+            else:
+                self.log.warning(f"[FETCH] empty/invalid summary for {a.get('hash','?')}")
                 count += 1
         if count:
             self.log.info(f"Re-résumé : {count}/{len(pending)} récupérés")
@@ -650,6 +659,12 @@ class ArticleFetcher:
                     new_count += 1
 
         self._save_seen(seen)
+        # Force une sauvegarde finale du jour pour s'assurer que tous les articles sont persistés
+        try:
+            self._save_today(articles)
+            self.log.info("[FETCH] Sauvegarde finale du jour effectuée")
+        except Exception as e:
+            self.log.error(f"[FETCH] Échec de la sauvegarde finale du jour : {e}")
         self.log.info(
             f"Cycle terminé : {new_count} nouveaux articles "
             f"({len(articles)} total aujourd'hui)"

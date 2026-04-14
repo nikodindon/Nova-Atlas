@@ -1,0 +1,52 @@
+service:
+  name: "Nova Media"
+  tagline: "Your personal AI news engine & radio"
+  default_language: "fr"
+
+llm:
+  provider: "openrouter"
+
+  ollama:
+    model: "qwen3:8b"
+    timeout_fetch: 240
+    timeout_report: 600
+    timeout_edition: 900
+
+  openrouter:
+    api_key: "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"
+    model: "openrouter/free"
+    timeout_fetch: 60
+    timeout_report: 180
+    timeout_edition: 180
+
+ollama:
+  model: "qwen3:8b"
+  timeout_fetch: 240
+  timeout_report: 600
+  timeout_edition: 900
+
+radio:
+  post_hours: [7, 9, 11, 13, 15, 17, 19, 21]
+  news_per_bulletin: 5
+  news_interval_seconds: 30
+  background_volume: 0.30
+  voices:
+    fr:
+      - "fr-FR-HenriNeural"
+      - "fr-FR-DeniseNeural"
+
+web:
+  host: "0.0.0.0"
+  port: 5055
+
+paths:
+  data_dir: "data"
+  articles_dir: "data/articles"
+  reports_dir: "data/reports"
+  editions_dir: "data/editions"
+  posts_dir: "data/posts"
+  site_dir: "site"
+  audio_queue: "audio_queue"
+  tmp_dir: "tmp"
+  background_music: "background_music"
+  music: "music"
