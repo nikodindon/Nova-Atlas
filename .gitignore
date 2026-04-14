@@ -18,8 +18,11 @@ tmp/
 audio_queue/
 *.tmp
 
+# Music (gros fichiers — ne pas committer)
+music/
+background_music/
+
 # Data (ne pas committer les gros fichiers générés)
-data/music/
 data/articles/
 data/reports/
 data/editions/

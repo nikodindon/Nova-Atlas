@@ -130,22 +130,79 @@ FETCH_TIMEOUT_HTTP = 10
 
 def _clean_summary(text: str) -> str:
     """
-    Supprime les artefacts de répétition produits par certains modèles Ollama.
+    Supprime les artefacts de répétition / bégaiement produits par Ollama.
+
+    Problème racine : Ollama (via subprocess CLI) stream sa réponse et
+    coupe parfois en milieu de mot avec un saut de ligne, puis recommence
+    le mot complet sur la ligne suivante.
+    Exemples réels observés :
+      "ainsi u\\nune étape"          → "ainsi une étape"
+      "crypto-mon\\ncrypto-monnaies" → "crypto-monnaies"
+      "de l\\nl'offre totale"        → "de l'offre totale"
+      "des e\\nexperts"              → "des experts"
+      "contre l失败的establishm\\nestablishment" → "contre l'établissement"
 
     Cas traités :
+    0. TRONCATURE + \n + mot complet (PRIORITAIRE — nettoie d'abord)
     1. Préfixe≥2 + mot complet  : "avr avril"  → "avril"
     2. Consonne isolée + mot    : "r responsables" "n ne" "b baissé" → mot complet
-       (les consonnes seules ne sont jamais des mots valides en fr/en)
-    3. Article/prép. doublé     : "à à" "de de" → un seul (sans toucher "à dire")
-    4. Mot entier répété        : "titre titre" "Midlothian Midlothian" → un seul
+    3. Article/prép. doublé     : "à à" "de de" → un seul
+    4. Mot entier répété        : "titre titre" → un seul
     5. Nombre partiel           : "202 2026" → "2026"
-    6. Parenthèse non fermée    : "(heu (heure du Pacifique)" → "(heure du Pacifique)"
-    7. Consonne tronquée en fin : "...les bécassines wh" → supprime le fragment
+    6. Parenthèse non fermée    : "(heu (heure)" → "(heure)"
+    7. Consonne tronquée en fin → supprime
+    8. Caractères non-latins parasites (CJK, etc.) dans texte fr/en
     """
     import re as _re
 
     if not text:
         return text
+
+    # ── 8. Nettoyage CJK / caractères non-latins parasites ────────────────────
+    # Ollama injecte parfois des fragments CJK (bug modèle)
+    text = _re.sub(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uff00-\uffef]', '', text)
+
+    # ── 0. TRONCATURE + \n + reprise du mot (CAS PRINCIPAL) ──────────────────
+    # Pattern : fragment de mot (1+ chars) + \n + mot complet qui commence
+    # par ce même fragment. Le fragment tronqué peut contenir un tiret.
+    # Ex: "crypto-mon\ncrypto-monnaies" → "crypto-monnaies"
+    # Ex: "u\nune" → "une"
+    # Ex: "l\nl'offre" → "l'offre"
+    # Ex: "e\nexperts" → "experts"
+    # Ex: "d'\nd'une" → "d'une"
+    changed = True
+    while changed:
+        changed = False
+        # Cas avec apostrophe : "l\nl'offre" → "l'offre"
+        new = _re.sub(
+            r"(?<!\S)([A-Za-zÀ-ÿ'-]{1,20})\n\1([A-Za-zÀ-ÿà-ÿ'-]+)",
+            r"\1\2", text
+        )
+        if new != text:
+            text = new
+            changed = True
+            continue
+        # Cas standard : "mottronqué\nmotcomplet"
+        # Le fragment tronqué (2-30 chars) est un préfixe du mot suivant
+        new = _re.sub(
+            r'(?<!\S)([A-Za-zÀ-ÿ]{2,30})\n\1([A-Za-zÀ-ÿ]+)',
+            r'\1\2', text
+        )
+        if new != text:
+            text = new
+            changed = True
+            continue
+        # Cas espace+newline : "obtenu \n54%" → "obtenu 54%"
+        # (espace avant \n suivi de texte)
+        new = _re.sub(r' \n(\S)', r' \1', text)
+        if new != text:
+            text = new
+            changed = True
+
+    # Normalise les sauts de ligne résiduels en espaces
+    text = text.replace('\n', ' ')
+    # Nettoie les espaces multiples
+    text = _re.sub(r'  +', ' ', text)
 
     # ── 6. Parenthèse orpheline ───────────────────────────────────────────────
     text = _re.sub(r'\([A-Za-zÀ-ÿ]{2,6}\s+\(', '(', text)
@@ -164,11 +221,10 @@ def _clean_summary(text: str) -> str:
     text = _re.sub(r'\b(\d{2,})\s+\1(\d+)\b', r'\1\2', text)
 
     # ── 2. Consonne seule + mot : "r responsables" "n ne" "b baissé" ──────────
-    # Lookbehind : la consonne doit être précédée d'un espace ou d'une parenthèse
     _consonnes = r'(?:(?<=\s)|(?<=\())([bcdfghjklmnpqrstvwxzBCDFGHJKLMNPQRSTVWXZ])\s+(\1[A-Za-zÀ-ÿ]+)'
     text = _re.sub(_consonnes, r'\2', text)
 
-    # ── 3. Article/préposition doublé : "à à" → "à" (mais PAS "à dire") ───────
+    # ── 3. Article/préposition doublé : "à à" → "à" ───────────────────────────
     text = _re.sub(
         r'\b(à|de|du|le|la|les|un|une|des|au|aux|en)\s+\1\b',
         r'\1', text, flags=_re.IGNORECASE

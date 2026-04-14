@@ -8,7 +8,10 @@
       "Bash(git branch *)",
       "Bash(git push *)",
       "Bash(git pull *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(git *)",
+      "Bash(python *)",
+      "Bash(del *)"
     ]
   },
   "$version": 3
