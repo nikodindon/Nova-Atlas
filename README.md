@@ -198,10 +198,12 @@ sudo apt install ffmpeg
 
 ```bash
 git clone https://github.com/nikodindon/Nova-Atlas.git
-cd nova-atlas
+cd Nova-Atlas
 pip install -r requirements.txt
 cp config/config.yaml.example config/config.yaml
 ```
+
+> **Note:** `requirements.txt` installs all Python dependencies. For non-Python tools (ollama/llama-server, icecast, ffmpeg), see the Prerequisites section above.
 
 Edit `config/config.yaml`:
 - Set `llm.provider` to `ollama` or `llama-server`
