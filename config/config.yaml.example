@@ -7,8 +7,10 @@ service:
   tagline: "Your personal AI news engine & radio"
   default_language: "fr"
 
-ollama:
-  model: "qwen3:8b"                     # Modèle Ollama à utiliser
+llm:
+  provider: "ollama"                    # "ollama" (CLI) ou "llama-server" (HTTP API)
+  model: "qwen3:8b"                     # Modèle à utiliser
+  base_url: "http://localhost:8080"      # Utilisé uniquement par llama-server
   timeout_fetch: 240
   timeout_report: 600
   timeout_edition: 900

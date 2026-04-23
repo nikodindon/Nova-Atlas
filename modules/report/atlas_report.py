@@ -50,7 +50,7 @@ class ReportGenerator:
         self.articles_dir = Path(paths.get("articles_dir", "data/articles"))
         self.reports_dir  = Path(paths.get("reports_dir",  "data/reports"))
         self.reports_dir.mkdir(parents=True, exist_ok=True)
-        self.timeout = int(config.get("ollama", {}).get("timeout_report", 600))
+        self.timeout = int(config.get("llm", {}).get("timeout_report", 600))
 
     def reload_config(self, config: dict):
         """Recharge la config à chaud."""

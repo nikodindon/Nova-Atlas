@@ -1,7 +1,7 @@
 # Nova-Atlas
 
-Nova-Atlas is a fully autonomous AI-powered news engine and internet radio station.  
-It collects news from dozens of RSS feeds, analyzes them using local LLMs (Ollama), and generates high-quality spoken bulletins, written editions, daily reports, social media posts, and a modern static website — all running locally.
+Nova-Atlas is a fully autonomous AI-powered news engine and internet radio station.
+It collects news from dozens of RSS feeds, analyzes them using local LLMs (Ollama or llama-server), and generates high-quality spoken bulletins, written editions, daily reports, social media posts, and a modern static website — all running locally.
 
 ---
 
@@ -27,6 +27,40 @@ It collects news from dozens of RSS feeds, analyzes them using local LLMs (Ollam
 
 ---
 
+## LLM Backends
+
+Nova-Atlas supports two LLM backends, configurable in `config/config.yaml` under `llm.provider`:
+
+### llama-server (recommended for production / GPU)
+Uses the llama.cpp HTTP API. Better suited for dedicated GPU machines.
+```yaml
+llm:
+  provider: "llama-server"
+  model: "/path/to/model.gguf"
+  base_url: "http://localhost:8080"   # or your GPU server's IP
+  timeout_fetch: 240
+  timeout_report: 600
+  timeout_edition: 900
+```
+
+Start llama-server yourself:
+```bash
+llama-server -m /path/to/model.gguf --host 0.0.0.0 --port 8080 -c 8192 -t 16
+```
+
+Nova-Atlas can also auto-start llama-server if the binary is in your PATH.
+
+### Ollama CLI (convenient for development)
+Uses `ollama run` interactively. Fine for dev on a laptop CPU, but slower for production volumes.
+```yaml
+llm:
+  provider: "ollama"
+  model: "mistral:7b"
+  base_url: "http://localhost:11434"
+```
+
+---
+
 ## Screenshots
 
 ### Web Interface (Live Feed + Radio Player)
@@ -49,7 +83,7 @@ Nova-Atlas is built around a modular architecture orchestrated by `main.py`.
 ### 1. News Engine (NewsEngine process)
 
 - `atlas_fetch.py` periodically collects articles from a wide range of RSS sources (geopolitics, economy, tech, crypto, science, etc.).
-- Content is extracted, deduplicated using hashes, and summarized using Ollama.
+- Content is extracted, deduplicated using hashes, and summarized using the configured LLM backend (Ollama CLI or llama-server HTTP).
 - Articles are stored as daily JSON files in `data/articles/`.
 - Additional tasks include generating social posts, daily reports, and timed editions on a precise schedule.
 
@@ -81,7 +115,7 @@ Nova-Atlas is built around a modular architecture orchestrated by `main.py`.
 - `main.py` uses multiprocessing to run the three main services independently.
 - Supports hot config reload (via flag file or `/config/restart` endpoint).
 - Includes a watchdog that restarts crashed processes.
-- Ollama calls are protected by a smart file-based lock with priority system to avoid conflicts.
+- LLM calls are protected by a smart file-based lock with priority system to avoid conflicts.
 
 All components communicate through the filesystem (`data/`, `audio_queue/`, `site/`), making the system robust and easy to monitor.
 
@@ -106,7 +140,7 @@ nova-atlas/
 ├── music/
 ├── site/                     # Generated static website
 ├── modules/
-│   ├── core/                 # Config + Ollama client
+│   ├── core/                 # Config + LLM client (Ollama / llama-server)
 │   ├── fetch/
 │   ├── radio/                # NewsWatcher + JournalBuilder + Streamer
 │   ├── report/
@@ -114,27 +148,72 @@ nova-atlas/
 │   ├── posts/
 │   └── web/
 └── requirements.txt
+```
 
-Quick Start
+---
 
-Prerequisites
+## Prerequisites
 
-Python 3.11+
-Ollama installed and running
-Icecast server
-ffmpeg
+- Python 3.11+
+- Ollama **or** llama-server installed and running
+- Icecast server
+- ffmpeg
 
-Installation
+### Ollama CLI
+```bash
+# Install
+curl -fsSL https://ollama.com/install.sh | sh
+# Pull a model
+ollama pull mistral:7b
+# Start server
+ollama serve
+```
 
+### llama-server (llama.cpp)
+```bash
+# Build from source
+git clone https://github.com/ggml-org/llama.cpp.git
+cd llama.cpp/build
+cmake .. -DLLAMA_BUILD_SERVER=ON -DLLAMA_ACCELERATE=on
+cmake --build . --config Release
+# Run
+./bin/llama-server -m /path/to/model.gguf --host 0.0.0.0 --port 8080 -c 8192 -t 16
+```
+
+### Icecast
+```bash
+sudo apt install icecast2
+# Edit /etc/icecast2/icecast.xml to set passwords
+sudo service icecast2 start
+```
+
+### ffmpeg
+```bash
+sudo apt install ffmpeg
+```
+
+---
+
+## Installation
+
+```bash
 git clone https://github.com/nikodindon/Nova-Atlas.git
 cd nova-atlas
 pip install -r requirements.txt
 cp config/config.yaml.example config/config.yaml
+```
 
-Edit config/config.yaml to match your setup (model, language, Icecast credentials, voices, etc.).
+Edit `config/config.yaml`:
+- Set `llm.provider` to `ollama` or `llama-server`
+- Set `llm.model` to your model name or GGUF path
+- Set `llm.base_url` for llama-server (default: `http://localhost:8080`)
+- Configure your language, Icecast credentials, and TTS voices
 
-Running the system
+---
 
+## Running the system
+
+```bash
 # Full stack
 python main.py --all
 
@@ -142,54 +221,50 @@ python main.py --all
 python main.py --news
 python main.py --radio
 python main.py --web
+```
 
 See the Commands section below for one-shot operations.
 
-Available Commands
+---
 
-Command
+## Available Commands
 
---all
-Start News Engine + Radio + Web
+| Command | Description |
+|---|---|
+| `--all` | Start News Engine + Radio + Web |
+| `--news` | News collection, editions, reports & posts |
+| `--radio` | Radio streaming only |
+| `--web` | Web server only |
+| `--fetch` | Run one RSS fetch cycle |
+| `--edition [matin\|midi\|soir]` | Generate a timed edition |
+| `--report` | Generate daily narrative report |
+| `--build` | Rebuild full static website |
+| `--cleanup` | Remove invalid articles |
 
---news
-News collection, editions, reports & posts
+---
 
---radio
-Radio streaming only
+## Technology Stack
 
---web
-Web server only
+- **LLM**: Ollama (CLI) **or** llama-server (llama.cpp HTTP API)
+- **TTS**: edge-tts
+- **Audio Processing**: ffmpeg
+- **Streaming**: Icecast
+- **Web**: Flask + Jinja2 + custom modern CSS
+- **Parsing**: BeautifulSoup4 + lxml + requests
 
---fetch
-Run one RSS fetch cycle
+---
 
-`--edition [matin|midi|soir] --report
-Generate daily narrative report
+## Roadmap
 
---build
-Rebuild full static website
+- [ ] Complete multi-language support for radio messages
+- [ ] Improved cross-fade between music and bulletins
+- [ ] Optional local TTS backend (e.g. Piper)
+- [ ] Unified path management across all modules
+- [ ] Docker / docker-compose support
+- [ ] Enhanced admin dashboard
 
---cleanup
-Remove invalid articles
+---
 
-Technology StackLLM: Ollama (local models)
-TTS: edge-tts
-Audio Processing: ffmpeg
-Streaming: Icecast
-Web: Flask + Jinja2 + custom modern CSS
-Parsing: BeautifulSoup4 + requests
+## License
 
-Roadmap
-
-Complete multi-language support for radio messages
-Improved cross-fade between music and bulletins
-Optional local TTS backend (e.g. Piper)
-Unified Path management across all modules
-Docker / docker-compose support
-Enhanced admin dashboard
-
-LicenseMIT License
-
-
-
+MIT License

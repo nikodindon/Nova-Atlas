@@ -799,7 +799,7 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
     """Page de configuration complète depuis config.yaml."""
     from jinja2 import Template
     svc    = config.get("service",  {})
-    ollama = config.get("ollama",   {})
+    llm    = config.get("llm",   {})
     radio  = config.get("radio",    {})
     rss    = config.get("rss",      {})
     web    = config.get("web",      {})
@@ -2305,17 +2305,34 @@ input[type=range]{width:100%;accent-color:var(--accent);}
     <!-- ────────────────── OLLAMA ────────────────── -->
     <section class="cfg-section" id="sec-ollama">
       <div class="cfg-section-header">
-        <div class="cfg-section-title"><span class="ico">🤖</span> Modèle Ollama</div>
+        <div class="cfg-section-title"><span class="ico">🤖</span> Modèle LLM</div>
       </div>
       <div class="cfg-card">
         <div class="cfg-row">
           <div>
+            <div class="cfg-row-label">Provider</div>
+            <div class="cfg-row-desc">Ollama CLI ou llama-server HTTP</div>
+          </div>
+          <select id="llm-provider">
+            <option value="ollama" {{ 'selected' if llm.get('provider')!='llama-server' }}>ollama (CLI)</option>
+            <option value="llama-server" {{ 'selected' if llm.get('provider')=='llama-server' }}>llama-server (HTTP)</option>
+          </select>
+        </div>
+        <div class="cfg-row" id="row-llm-baseurl" style="{{'display:none' if llm.get('provider')!='llama-server' }}">
+          <div>
+            <div class="cfg-row-label">Base URL (llama-server)</div>
+            <div class="cfg-row-desc">URL du serveur llama-server</div>
+          </div>
+          <input type="text" id="llm-baseurl" value="{{ llm.get('base_url','http://localhost:8080') }}" style="max-width:220px">
+        </div>
+        <div class="cfg-row">
+          <div>
             <div class="cfg-row-label">Modèle actif</div>
-            <div class="cfg-row-desc">Installez via <code style="background:var(--bg3);padding:.1rem .35rem;border-radius:4px;font-size:.8rem;">ollama pull &lt;modèle&gt;</code></div>
+            <div class="cfg-row-desc">Installez via <code style="background:var(--bg3);padding:.1rem .35rem;border-radius:4px;font-size:.8rem;">ollama pull &lt;modèle&gt;</code> ou téléchargez un GGUF</div>
           </div>
           <select id="ollama-model">
             {% for mid, mlabel in [('qwen3:8b','qwen3:8b'),('mistral-small:22b','mistral-small:22b'),('mistral:7b','mistral:7b'),('phi4:14b','phi4:14b'),('llama3.1:8b','llama3.1:8b'),('deepseek-r1:14b','deepseek-r1:14b'),('gemma2:9b','gemma2:9b')] %}
-            <option value="{{ mid }}" {{ 'selected' if ollama.get('model')==mid }}>{{ mlabel }}</option>
+            <option value="{{ mid }}" {{ 'selected' if llm.get('model')==mid }}>{{ mlabel }}</option>
             {% endfor %}
           </select>
         </div>
@@ -2324,27 +2341,34 @@ input[type=range]{width:100%;accent-color:var(--accent);}
             <div class="cfg-row-label">Timeout résumé article (s)</div>
             <div class="cfg-row-desc">Secondes max pour résumer un article</div>
           </div>
-          <input type="number" id="ollama-tfetch" value="{{ ollama.get('timeout_fetch',240) }}" min="60" max="600" step="30">
+          <input type="number" id="ollama-tfetch" value="{{ llm.get('timeout_fetch',240) }}" min="60" max="600" step="30">
         </div>
         <div class="cfg-row">
           <div>
             <div class="cfg-row-label">Timeout rapport (s)</div>
             <div class="cfg-row-desc">Secondes max pour générer le rapport quotidien</div>
           </div>
-          <input type="number" id="ollama-treport" value="{{ ollama.get('timeout_report',600) }}" min="120" max="1800" step="60">
+          <input type="number" id="ollama-treport" value="{{ llm.get('timeout_report',600) }}" min="120" max="1800" step="60">
         </div>
         <div class="cfg-row">
           <div>
             <div class="cfg-row-label">Timeout édition (s)</div>
             <div class="cfg-row-desc">Secondes max pour générer une édition</div>
           </div>
-          <input type="number" id="ollama-tedition" value="{{ ollama.get('timeout_edition',900) }}" min="300" max="3600" step="60">
+          <input type="number" id="ollama-tedition" value="{{ llm.get('timeout_edition',900) }}" min="300" max="3600" step="60">
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-ollama">✓ Sauvegardé</span>
           <button class="btn-save" onclick="saveOllama()">💾 Enregistrer</button>
         </div>
       </div>
+      <script>
+        // Affiche/masque le champ base_url selon le provider
+        document.getElementById('llm-provider').addEventListener('change', function() {
+          document.getElementById('row-llm-baseurl').style.display =
+            this.value === 'llama-server' ? '' : 'none';
+        });
+      </script>
     </section>
 
     <!-- ────────────────── RSS ────────────────── -->
@@ -2601,10 +2625,12 @@ function saveService(){
 
 function saveOllama(){
   Promise.all([
-    post({section:'ollama',key:'model',           value:document.getElementById('ollama-model').value},'ind-ollama'),
-    post({section:'ollama',key:'timeout_fetch',   value:+document.getElementById('ollama-tfetch').value},'ind-ollama'),
-    post({section:'ollama',key:'timeout_report',  value:+document.getElementById('ollama-treport').value},'ind-ollama'),
-    post({section:'ollama',key:'timeout_edition', value:+document.getElementById('ollama-tedition').value},'ind-ollama'),
+    post({section:'llm',key:'provider',         value:document.getElementById('llm-provider').value},'ind-ollama'),
+    post({section:'llm',key:'model',             value:document.getElementById('ollama-model').value},'ind-ollama'),
+    post({section:'llm',key:'base_url',          value:document.getElementById('llm-baseurl').value},'ind-ollama'),
+    post({section:'llm',key:'timeout_fetch',     value:+document.getElementById('ollama-tfetch').value},'ind-ollama'),
+    post({section:'llm',key:'timeout_report',    value:+document.getElementById('ollama-treport').value},'ind-ollama'),
+    post({section:'llm',key:'timeout_edition',   value:+document.getElementById('ollama-tedition').value},'ind-ollama'),
   ]);
 }
 

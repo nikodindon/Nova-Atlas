@@ -15,8 +15,10 @@ DEFAULT_CONFIG = {
         "tagline": "Your personal AI news engine & radio",
         "default_language": "fr"
     },
-    "ollama": {
+    "llm": {
+        "provider": "ollama",
         "model": "qwen3:8b",
+        "base_url": "http://localhost:8080",
         "timeout_fetch": 240,
         "timeout_report": 600,
         "timeout_edition": 900
@@ -68,6 +70,16 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
                 config.setdefault(section, {}).update(values)
             else:
                 config[section] = values
+
+        # ── Backward compat: "ollama" key → "llm" ──────────────────────────────
+        if "ollama" in user_config and "llm" not in user_config:
+            config["llm"] = config.get("llm", {})
+            for k, v in user_config["ollama"].items():
+                if k not in config["llm"]:
+                    config["llm"][k] = v
+            # provider par défaut pour ne pas casser les configs existantes
+            config["llm"].setdefault("provider", "ollama")
+            del config["ollama"]
 
         return config
 

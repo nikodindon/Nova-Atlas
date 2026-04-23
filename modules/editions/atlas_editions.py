@@ -97,9 +97,9 @@ class EditionGenerator:
         self.editions_dir = Path(paths.get("editions_dir", "data/editions"))
         self.editions_dir.mkdir(parents=True, exist_ok=True)
 
-        ollama_cfg    = config.get("ollama", {})
-        self.model    = ollama_cfg.get("model", "mistral:7b")
-        self.timeout  = int(ollama_cfg.get("timeout_edition", 900))
+        llm_cfg      = config.get("llm", {})
+        self.model    = llm_cfg.get("model", "mistral:7b")
+        self.timeout  = int(llm_cfg.get("timeout_edition", 900))
         self.language = config.get("service", {}).get("default_language", "fr")
 
     def reload_config(self, config: dict):

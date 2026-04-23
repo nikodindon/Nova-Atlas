@@ -136,7 +136,7 @@ def run_news_engine(config: dict, debug: bool = False):
                 post_hours = new_cfg.get("radio", {}).get(
                     "post_hours", [7, 9, 11, 13, 15, 17, 19, 21])
                 log.info("✅ [NewsEngine] Config rechargée — modèle=%s langue=%s",
-                         new_cfg.get("ollama",{}).get("model","?"),
+                         new_cfg.get("llm",{}).get("model","?"),
                          new_cfg.get("service",{}).get("default_language","?"))
             except Exception as e:
                 log.error(f"Erreur reload config : {e}", exc_info=True)
