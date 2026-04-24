@@ -403,17 +403,17 @@ class ArticleFetcher:
             return ""
         lang = get_language()
         prompt = (
-            f"Tu es un journaliste analytique. Résume cet article en 3 à 4 phrases précises en {lang}.\n"
+            f"Tu es un journaliste de qualité. Résume cet article de manière claire et complète.\n"
             f"Catégorie : {category}\n"
             f"Titre : {title}\n\n"
-            f"Contenu :\n{content[:2000]}\n\n"
-            f"Règles strictes :\n"
-            f"- 3 à 4 phrases seulement\n"
-            f"- Faits précis, chiffres si disponibles\n"
+            f"Contenu :\n{content[:3000]}\n\n"
+            f"Consignes :\n"
+            f"- Commence par l'information LA PLUS IMPORTANTE (qui, quoi, où, quand)\n"
+            f"- Donne les détails clés (scores, chiffres, dates, noms)\n"
+            f"- Ajoute le contexte nécessaire pour comprendre l'article\n"
             f"- Ton neutre et factuel\n"
-            f"- Rédige UNIQUEMENT en {lang}\n"
-            f"- Pas de formules introductives\n"
-            f"- Commence directement par les faits\n\n"
+            f"- Réponds en {lang}\n"
+            f"- N'invente rien qui ne soit pas dans le texte\n\n"
             f"Résumé :"
         )
         output = ollama_call(prompt, timeout=get_fetch_timeout(), caller="fetch")

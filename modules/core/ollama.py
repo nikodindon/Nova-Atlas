@@ -59,6 +59,7 @@ class OllamaClient:
         self.provider = llm_cfg.get("provider", "ollama")
         self.model    = llm_cfg.get("model", "mistral:7b")
         self.base_url = llm_cfg.get("base_url", "http://localhost:8080")
+        self.threads  = int(llm_cfg.get("threads", 6))
 
         self.timeout_fetch   = int(llm_cfg.get("timeout_fetch",   240))
         self.timeout_report  = int(llm_cfg.get("timeout_report",  600))
@@ -249,7 +250,7 @@ def _find_llama_server() -> str | None:
 
 
 def start_llama_server(model: str, base_url: str = "http://localhost:8080",
-                       n_gpu_layers: int = 0) -> bool:
+                       n_gpu_layers: int = 0, n_threads: int = 6) -> bool:
     """
     Démarre llama-server en arrière-plan si pas déjà running.
     Retourne True si le serveur est prêt.
@@ -291,7 +292,7 @@ def start_llama_server(model: str, base_url: str = "http://localhost:8080",
 
         _llama_server_process = subprocess.Popen(
             [binary, "-m", model, "--host", host, "--port", str(port),
-             "-ngl", str(n_gpu_layers)],
+             "-ngl", str(n_gpu_layers), "-t", str(n_threads)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env={**os.environ, "NO_COLOR": "1"},
@@ -342,7 +343,7 @@ def init_ollama(config: dict) -> OllamaClient:
 
     # Auto-démarrage de llama-server si nécessaire
     if _client.provider == "llama-server":
-        start_llama_server(_client.model, _client.base_url)
+        start_llama_server(_client.model, _client.base_url, n_threads=_client.threads)
 
     return _client
 

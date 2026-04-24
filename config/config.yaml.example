@@ -11,6 +11,7 @@ llm:
   provider: "ollama"                    # "ollama" (CLI) ou "llama-server" (HTTP API)
   model: "qwen3:8b"                     # Modèle à utiliser
   base_url: "http://localhost:8080"      # Utilisé uniquement par llama-server
+  threads: 12                           # Threads CPU pour llama-server (défaut: 6)
   timeout_fetch: 240
   timeout_report: 600
   timeout_edition: 900

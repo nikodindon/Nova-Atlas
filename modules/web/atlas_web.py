@@ -1051,7 +1051,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             abort(404)
 
     print(f"\n✅ {paths["brand_name"]} → http://localhost:{port}/\n")
-    app.run(host=host, port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug, use_reloader=False)
 
 # ─── TEMPLATES HTML ───────────────────────────────────────────────────────────
 # (identiques à la version originale — seules les références aux chemins ont
