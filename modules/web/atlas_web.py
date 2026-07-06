@@ -2248,11 +2248,17 @@ function _applyLiveFilters(){
   var selected = _liveFilterState.selected;
   var showAll = selected.size === 0;
   items.forEach(function(el){
+    var cat = el.dataset.category;
+    // Articles sans catégorie (legacy / non-classés) restent toujours visibles
+    if(!cat){
+      el.style.display = '';
+      el.removeAttribute('aria-hidden');
+      return;
+    }
     if(showAll){
       el.style.display = '';
       el.removeAttribute('aria-hidden');
     } else {
-      var cat = el.dataset.category;
       if(selected.has(cat)){
         el.style.display = '';
         el.removeAttribute('aria-hidden');
