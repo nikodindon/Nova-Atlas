@@ -1379,26 +1379,51 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
 
     @app.route("/config/feeds/toggle", methods=["POST"])
     def feeds_toggle():
-        """Désactive un flux (le met en commentaire [SPRINT0] dans le YAML)."""
+        """Toggle l'état d'un flux (actif ↔ désactivé).
+        Si l'URL est active → la désactive (passe en [SPRINT0]).
+        Si l'URL est désactivée → la ré-active (re-vient en actif)."""
         try:
             data = request.get_json(force=True)
             category = (data.get("category") or "").strip()
             url      = (data.get("url") or "").strip()
+            if not category or not url:
+                return jsonify({"status": "error",
+                                "msg": "category et url requis"}), 400
             from pathlib import Path as _P
-            from modules.core.feeds_loader import load_feeds, save_feeds, remove_feed
+            from modules.core.feeds_loader import (
+                load_feeds, save_feeds, add_feed, remove_feed
+            )
             feeds_path = _P("config/feeds.yaml")
             if not feeds_path.exists():
-                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
             feeds = load_feeds(feeds_path)
-            # Toggle = retirer de actif. Le fichier save_feeds préserve
-            # automatiquement les désactivés.
-            if not remove_feed(feeds, category, url):
+            if url in feeds.get(category, []):
+                # Active → désactiver
+                if not remove_feed(feeds, category, url):
+                    return jsonify({"status": "error",
+                                    "msg": "URL pas trouvée"}), 500
+                save_feeds(feeds_path, feeds)
+                from modules.fetch.atlas_fetch import invalidate_feeds_cache
+                invalidate_feeds_cache()
+                return jsonify({"status": "ok", "msg": f"{url} désactivé",
+                                "new_state": "disabled"})
+            else:
+                # Désactivée ou pas du tout → essayer de l'activer
+                # (re-lecture du source pour voir si elle est en disabled)
+                from modules.core.feeds_loader import _parse_disabled_feeds
+                text = feeds_path.read_text(encoding="utf-8") if feeds_path.exists() else ""
+                disabled, _ = _parse_disabled_feeds(text)
+                if url in disabled.get(category, []):
+                    if not add_feed(feeds, category, url):
+                        return jsonify({"status": "error",
+                                        "msg": "impossible d'activer"}), 500
+                    save_feeds(feeds_path, feeds)
+                    from modules.fetch.atlas_fetch import invalidate_feeds_cache
+                    invalidate_feeds_cache()
+                    return jsonify({"status": "ok", "msg": f"{url} ré-activé",
+                                    "new_state": "active"})
                 return jsonify({"status": "error",
-                                "msg": "URL pas trouvée dans la catégorie"}), 404
-            save_feeds(feeds_path, feeds)
-            from modules.fetch.atlas_fetch import invalidate_feeds_cache
-            invalidate_feeds_cache()
-            return jsonify({"status": "ok", "msg": f"{url} désactivé"})
+                                "msg": "URL pas trouvée (ni active ni désactivée)"}), 404
         except Exception as e:
             return jsonify({"status": "error", "msg": str(e)}), 500
 
