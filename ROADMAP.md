@@ -104,6 +104,7 @@
 - Ajouter une option "test avant ajout" dans le formulaire `/config/feeds/add`
 - Logger le temps moyen de résumé par cycle (perf observability)
 - Mode `--dry-run` pour fetch (télécharge mais ne stocke pas)
+- **Bug streamer radio** : `Pipe cassé → relance ffmpeg` en boucle, le streamer ne tient pas la connexion Icecast. À investiguer (format audio ou config Icecast). Vu le 2026-07-06 ~18:45.
 
 ## Idées à valider
 
