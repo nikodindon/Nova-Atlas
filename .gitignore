@@ -46,8 +46,10 @@ data/articles/
 data/reports/
 data/editions/
 data/posts/
-data/llm_cache/        # cache LLM (TTL 7j, regénéré à la demande)
-data/seen_hashes.json  # dédup cross-cycles (regénéré à chaque fetch)
+# Cache LLM (TTL 7j, regénéré à la demande)
+data/llm_cache/
+# Déduplication cross-cycles (regénéré à chaque fetch)
+data/seen_hashes.json
 data/processed_hashes.json
 data/ollama.lock
 
