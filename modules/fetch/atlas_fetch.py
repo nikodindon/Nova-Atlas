@@ -275,6 +275,8 @@ class ArticleFetcher:
 
         rss_cfg = config.get("rss", {})
         self.max_per_feed = int(rss_cfg.get("max_articles_per_feed", 8))
+        # 0 = pas de cap global. Active via config: rss.max_total_articles: 50
+        self.max_total = int(rss_cfg.get("max_total_articles", 0))
 
         # retry_summaries : False par défaut — désactivé pour garder un flux continu
         fetch_cfg = config.get("fetch", {})
@@ -401,6 +403,11 @@ class ArticleFetcher:
     def _summarize(self, title: str, content: str, category: str) -> str:
         if not content.strip():
             return ""
+        from modules.core.llm_cache import cache_key as _cache_key
+        # La clé ne dépend PAS du prompt (qui peut évoluer) ni de la
+        # catégorie (peut être reclassifiée). Uniquement du contenu
+        # de l'article (title + content tronqué = signature stable).
+        key = _cache_key(title, content[:500])
         lang = get_language()
         prompt = (
             f"Tu es un journaliste de qualité. Résume cet article de manière claire et complète.\n"
@@ -416,7 +423,8 @@ class ArticleFetcher:
             f"- N'invente rien qui ne soit pas dans le texte\n\n"
             f"Résumé :"
         )
-        output = ollama_call(prompt, timeout=get_fetch_timeout(), caller="fetch")
+        output = ollama_call(prompt, timeout=get_fetch_timeout(),
+                             caller="fetch", cache_key=key)
         if not output:
             self.log.warning(f"Ollama vide/timeout : {title[:60]}")
             return output
@@ -631,6 +639,20 @@ class ArticleFetcher:
                 self.log.info(f"  {category:15} : {len(pending)} nouveaux")
 
         total_pending = sum(len(v) for v in queues.values())
+
+        # Cap global (rss.max_total_articles). On tronque les queues
+        # proportionnellement à leur taille pour préserver la diversité
+        # des catégories plutôt que de tout prendre dans la première.
+        max_total = self.max_total
+        if max_total and total_pending > max_total:
+            self.log.warning(
+                f"Cap global rss.max_total_articles={max_total} — "
+                f"tronque {total_pending} articles pour préserver la diversité"
+            )
+            queues = self._cap_queues(queues, max_total)
+            total_pending = sum(len(v) for v in queues.values())
+            self.log.info(f"Total après cap : {total_pending} articles")
+
         self.log.info(f"Total à traiter : {total_pending} articles")
 
         if not total_pending:
@@ -648,6 +670,15 @@ class ArticleFetcher:
                 added = self._process_item(item, category, seen, existing_hashes, articles)
                 if added:
                     new_count += 1
+                    # Si le cap a été appliqué, on s'arrête dès qu'on l'atteint
+                    if max_total and new_count >= max_total:
+                        self.log.info(
+                            f"Cap global atteint ({new_count} traités) — "
+                            f"reste {sum(len(v) for v in queues.values())} "
+                            f"non traités cette fois"
+                        )
+                        self._save_seen(seen)
+                        return new_count
 
         self._save_seen(seen)
         self.log.info(
@@ -655,3 +686,42 @@ class ArticleFetcher:
             f"({len(articles)} total aujourd'hui)"
         )
         return new_count
+
+    @staticmethod
+    def _cap_queues(queues: dict, cap: int) -> dict:
+        """
+        Réduit chaque queue proportionnellement pour atteindre `cap` au total,
+        en préservant au minimum 1 article par catégorie non vide.
+        """
+        non_empty = [c for c, v in queues.items() if v]
+        if not non_empty or cap <= 0:
+            return {}
+        # 1 article garanti par catégorie, le reste au prorata
+        per_cat_min = 1
+        leftover = cap - per_cat_min * len(non_empty)
+        if leftover < 0:
+            # Cap trop petit pour garantir 1 par cat : on prend round-robin jusqu'à épuisement
+            return {c: queues[c] for c in non_empty[:cap]}
+        sizes = {c: len(queues[c]) for c in non_empty}
+        total = sum(sizes.values())
+        if total <= 0:
+            return {c: queues[c] for c in non_empty}
+        out = {}
+        for c in non_empty:
+            share = per_cat_min + int(round(leftover * sizes[c] / total))
+            out[c] = queues[c][:share]
+        # Ajustement final : si on a dépassé ou sous-estimé, on rectifie sur les + gros
+        diff = cap - sum(len(v) for v in out.values())
+        if diff != 0:
+            order = sorted(non_empty, key=lambda c: -sizes[c])
+            i = 0
+            while diff != 0 and i < 1000:
+                c = order[i % len(order)]
+                if diff > 0 and len(out[c]) < sizes[c]:
+                    out[c] = queues[c][:len(out[c]) + 1]
+                    diff -= 1
+                elif diff < 0 and len(out[c]) > per_cat_min:
+                    out[c] = out[c][:-1]
+                    diff += 1
+                i += 1
+        return out
