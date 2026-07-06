@@ -870,7 +870,7 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
         **_branding(paths),
         global_script=GLOBAL_SCRIPT,
         icecast_url=_get_icecast_url(paths),
-        svc=svc, ollama=ollama, radio=radio, rss=rss,
+        svc=svc, llm=llm, ollama=llm, radio=radio, rss=rss,
         web=web, posts=posts, ic=ic,
         active_voices=voices,
         all_voices=ALL_VOICES,
@@ -1867,6 +1867,34 @@ footer strong{color:var(--accent);}
 .edition-body p{margin-bottom:1.4rem;text-align:justify;}
 .edition-body hr{border:none;border-top:1px solid var(--border);margin:2rem 0;}
 .edition-body em{color:var(--text-muted);font-size:.85rem;}
+
+/* ── Filtres chips (live feed) ─────────────────────────────────────────── */
+.live-filters {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 8px 12px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 8px;
+  margin: 8px 16px;
+}
+.live-filters-label {
+  font-size: 12px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+.filter-chip {
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-muted); font-size: 12px; cursor: pointer;
+  text-transform: capitalize;
+  transition: all 0.15s;
+}
+.filter-chip:hover { border-color: var(--accent); color: var(--text); }
+.filter-chip[aria-pressed="true"] {
+  background: var(--accent); color: var(--bg);
+  border-color: var(--accent);
+}
+.filter-chip.filter-all {
+  font-weight: bold; border-color: var(--accent);
+}
 """
 
 LIVE_CSS_EXTRA = """
@@ -2153,7 +2181,50 @@ function _startLiveRefresh(){
 document.addEventListener('DOMContentLoaded', function(){
   if(document.body.dataset.page === 'live') _startLiveRefresh();
   _applyCategoryPreferences();
+  _initLiveFilters();
 });
+
+// ── Filtres chips du live feed (toggle par catégorie) ──────────────────────
+async function _initLiveFilters(){
+  var bar = document.getElementById('live-filters');
+  if(!bar) return;
+  if(bar.dataset.loaded === '1') return;
+  try {
+    // Charger la liste des catégories + l'état hidden
+    var r1 = await fetch('/api/preferences');
+    var pData = await r1.json();
+    var hidden = new Set((pData.preferences && pData.preferences.hidden_categories) || []);
+    var r2 = await fetch('/config/feeds');
+    var fData = await r2.json();
+    var cats = Object.keys(fData.feeds || {}).sort();
+    cats.forEach(function(cat){
+      var b = document.createElement('button');
+      b.className = 'filter-chip';
+      b.dataset.cat = cat;
+      b.setAttribute('aria-pressed', hidden.has(cat) ? 'false' : 'true');
+      b.textContent = cat.replace(/_/g, ' ');
+      bar.appendChild(b);
+    });
+    bar.dataset.loaded = '1';
+    // Handlers
+    bar.addEventListener('click', async function(e){
+      var btn = e.target.closest('.filter-chip');
+      if(!btn) return;
+      var cat = btn.dataset.cat;
+      if(cat === '__all') {
+        // Reset : tout afficher
+        await fetch('/api/preferences/reset', {method:'POST'});
+      } else {
+        await fetch('/api/preferences/toggle', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({category: cat})
+        });
+      }
+      // Reload pour appliquer
+      location.reload();
+    });
+  } catch(e) { console.warn('initLiveFilters:', e); }
+}
 
 // ── Préférences : cacher les articles des catégories désactivées ────────────
 async function _applyCategoryPreferences(){
@@ -2417,6 +2488,12 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
 <style>{{ css }}</style></head><body data-page="live" data-radio-label="{{ brand_name }}">
 <nav class="topbar">
   <a href="/" class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></a>
+  <!-- Filtres catégories (live feed) -->
+  <div class="live-filters" id="live-filters" data-loaded="0">
+    <span class="live-filters-label">Filtrer :</span>
+    <button class="filter-chip filter-all" data-cat="__all" aria-pressed="true">Tout</button>
+    <!-- Chips catégories chargés via JS depuis /api/preferences + /config/feeds -->
+  </div>
   <!-- Player radio + Theme switcher -->
   <div class="radio-player" id="radio-player">
     <button class="radio-btn" id="radio-btn" aria-label="Écouter la radio"
@@ -2464,7 +2541,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
   <div class="live-grid" id="live-grid">
     {% for a in articles %}
     {% set cat = a.get('category', 'monde') %}
-    <div class="live-item" data-cat="{{ cat }}">
+    <div class="live-item" data-category="{{ cat }}" data-cat="{{ cat }}">
 
       <!-- Bande couleur + icône + titre -->
       <div class="live-item-row" style="border-left:3px solid var(--cat-color-{{ cat }},var(--accent))">
