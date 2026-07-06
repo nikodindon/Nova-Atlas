@@ -2184,46 +2184,84 @@ document.addEventListener('DOMContentLoaded', function(){
   _initLiveFilters();
 });
 
-// ── Filtres chips du live feed (toggle par catégorie) ──────────────────────
+// ── Filtres chips du live feed (multi-sélection cumulative, session-only) ──
+// État en mémoire uniquement (pas de reload, pas d'API, pas de coupure radio)
+// - Clic sur une catégorie : toggle (sélectionner / désélectionner)
+// - Clic sur "Tout" : clear la sélection (réaffiche tout)
+// - Les catégories sélectionnées sont cumulatives (filtre "ou bien")
+// - DOM-only : on cache les articles dont la catégorie n'est pas sélectionnée
+let _liveFilterState = { selected: new Set(), all: '__all' };
+
 async function _initLiveFilters(){
   var bar = document.getElementById('live-filters');
   if(!bar) return;
   if(bar.dataset.loaded === '1') return;
   try {
-    // Charger la liste des catégories + l'état hidden
-    var r1 = await fetch('/api/preferences');
-    var pData = await r1.json();
-    var hidden = new Set((pData.preferences && pData.preferences.hidden_categories) || []);
-    var r2 = await fetch('/config/feeds');
-    var fData = await r2.json();
+    // Charger la liste des catégories (depuis /config/feeds, qui est léger)
+    var r = await fetch('/config/feeds');
+    var fData = await r.json();
     var cats = Object.keys(fData.feeds || {}).sort();
     cats.forEach(function(cat){
       var b = document.createElement('button');
       b.className = 'filter-chip';
       b.dataset.cat = cat;
-      b.setAttribute('aria-pressed', hidden.has(cat) ? 'false' : 'true');
+      b.setAttribute('aria-pressed', 'false');
       b.textContent = cat.replace(/_/g, ' ');
       bar.appendChild(b);
     });
     bar.dataset.loaded = '1';
-    // Handlers
-    bar.addEventListener('click', async function(e){
+    // Handler : toggle cumulatif, pas de reload
+    bar.addEventListener('click', function(e){
       var btn = e.target.closest('.filter-chip');
       if(!btn) return;
       var cat = btn.dataset.cat;
       if(cat === '__all') {
         // Reset : tout afficher
-        await fetch('/api/preferences/reset', {method:'POST'});
-      } else {
-        await fetch('/api/preferences/toggle', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({category: cat})
+        _liveFilterState.selected.clear();
+        bar.querySelectorAll('.filter-chip').forEach(function(b){
+          b.setAttribute('aria-pressed', b.dataset.cat === '__all' ? 'true' : 'false');
         });
+      } else {
+        // Toggle cette catégorie (cumulatif)
+        if(_liveFilterState.selected.has(cat)){
+          _liveFilterState.selected.delete(cat);
+          btn.setAttribute('aria-pressed', 'false');
+        } else {
+          _liveFilterState.selected.add(cat);
+          btn.setAttribute('aria-pressed', 'true');
+        }
+        // "Tout" n'est plus pressed si on a des sélections custom
+        var allBtn = bar.querySelector('.filter-all');
+        if(allBtn){
+          allBtn.setAttribute('aria-pressed', _liveFilterState.selected.size === 0 ? 'true' : 'false');
+        }
       }
-      // Reload pour appliquer
-      location.reload();
+      // Appliquer le filtre (DOM-only, pas de reload)
+      _applyLiveFilters();
     });
   } catch(e) { console.warn('initLiveFilters:', e); }
+}
+
+// ── Filtre live : cache les articles dont la catégorie n'est pas sélectionnée ──
+function _applyLiveFilters(){
+  var items = document.querySelectorAll('[data-category]');
+  var selected = _liveFilterState.selected;
+  var showAll = selected.size === 0;
+  items.forEach(function(el){
+    if(showAll){
+      el.style.display = '';
+      el.removeAttribute('aria-hidden');
+    } else {
+      var cat = el.dataset.category;
+      if(selected.has(cat)){
+        el.style.display = '';
+        el.removeAttribute('aria-hidden');
+      } else {
+        el.style.display = 'none';
+        el.setAttribute('aria-hidden', 'true');
+      }
+    }
+  });
 }
 
 // ── Préférences : cacher les articles des catégories désactivées ────────────
