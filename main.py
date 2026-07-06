@@ -277,13 +277,22 @@ def run_news_engine(config: dict, debug: bool = False):
                 run_in_thread(f"edition_{ed_name}", edition_and_rebuild, ed_name, today)
 
         # Bulletins radio "30 min" : 2×/h (à :00 et :30)
-        # Slot = h*60 + (m//30)*30 (0 ou 30)
-        bulletin_slot = f"{h:02d}:{(m // 30) * 30:02d}"
-        if (h in post_hours and m % 30 < 2
-                and bulletin_slot != last_bulletin_slot):
-            last_bulletin_slot = bulletin_slot
-            log.info(f"[BULLETIN] Génération slot {bulletin_slot}")
-            run_in_thread(f"bulletin_{bulletin_slot}", bulletin_job)
+        # On déclenche 5 min AVANT le slot cible (à :25 et :55) pour que
+        # la génération (LLM ~30s + TTS × 5 + mix) soit prête à l'heure pile.
+        # Le bulletin cible = h:00 si on est entre :25-:30, h:30 si on est entre :55-:00.
+        if 25 <= m < 27 and h in post_hours:
+            target_slot = f"{h:02d}:00"
+            if target_slot != last_bulletin_slot:
+                last_bulletin_slot = target_slot
+                log.info(f"[BULLETIN] Pré-génération pour slot cible {target_slot}")
+                run_in_thread(f"bulletin_{target_slot}", bulletin_job)
+        elif 55 <= m < 57 and h in post_hours:
+            # Slot cible = h:30 ; si h=23, on tombe hors plage
+            target_slot = f"{h:02d}:30"
+            if target_slot != last_bulletin_slot:
+                last_bulletin_slot = target_slot
+                log.info(f"[BULLETIN] Pré-génération pour slot cible {target_slot}")
+                run_in_thread(f"bulletin_{target_slot}", bulletin_job)
 
         time.sleep(60)
 
@@ -363,18 +372,25 @@ def run_radio(config: dict, debug: bool = False):
     ic = config.get("icecast", {})
     log.info(f"✅ Radio → http://localhost:{ic.get('port',8000)}{ic.get('mount','/nova')}")
 
-    # Scheduler 2×/h (X:00, X:30) — déclenche un bulletin
+    # Scheduler 2×/h (X:00, X:30) — pré-déclenchement à :25 et :55
+    # pour que la génération (1-2 min) soit prête à l'heure pile
     from datetime import datetime
     post_hours = config.get("radio", {}).get("post_hours", [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21])
     last_slot = ""
     while True:
         now = datetime.now()
-        slot = f"{now.hour:02d}:{(now.minute // 30) * 30:02d}"
-        if (now.hour in post_hours and now.minute % 30 < 1
-                and slot != last_slot):
-            last_slot = slot
-            log.info(f"⏰ Slot {slot} → génération bulletin")
-            threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{slot}").start()
+        m, h = now.minute, now.hour
+        # Slot cible = h:00 (à :25-:26) ou h:30 (à :55-:56)
+        if 25 <= m < 27 and h in post_hours:
+            target_slot = f"{h:02d}:00"
+        elif 55 <= m < 57 and h in post_hours:
+            target_slot = f"{h:02d}:30"
+        else:
+            target_slot = ""
+        if target_slot and target_slot != last_slot:
+            last_slot = target_slot
+            log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
+            threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
         time.sleep(30)  # check 2×/min pour réactivité
 
 
