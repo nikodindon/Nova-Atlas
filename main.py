@@ -100,6 +100,7 @@ def run_news_engine(config: dict, debug: bool = False):
     from modules.editions.atlas_editions import EditionGenerator
     from modules.posts.atlas_posts       import PostsGenerator
     from modules.web.atlas_web           import generate_static_site
+    from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
 
     init_ollama(config)
 
@@ -109,6 +110,16 @@ def run_news_engine(config: dict, debug: bool = False):
     reporter  = ReportGenerator(config)
     editioner = EditionGenerator(config)
     poster    = PostsGenerator(config)
+    # BulletinGenerator (radio "30 minutes", 2×/h)
+    news_paths = {
+        "root":            proj,
+        "data":            proj / "data",
+        "articles":        proj / "data" / "articles",
+        "audio_queue":     proj / "audio_queue",
+        "tmp":             proj / "tmp",
+        "background_music": proj / "background_music",
+    }
+    bulletin_gen = BulletinGenerator(config, news_paths)
 
     post_hours = config.get("radio", {}).get("post_hours",
                  [7, 9, 11, 13, 15, 17, 19, 21])
@@ -147,6 +158,7 @@ def run_news_engine(config: dict, debug: bool = False):
     last_build_day   = ""
     last_post_hour   = -1
     last_edition_day: dict = {}
+    last_bulletin_slot = ""   # pour les bulletins radio 30 min (2×/h)
     active_threads:   dict = {}
 
     def run_in_thread(name: str, fn, *args):
@@ -190,12 +202,27 @@ def run_news_engine(config: dict, debug: bool = False):
         except Exception as e:
             log.error(f"Erreur posts : {e}", exc_info=True)
 
-    log.info("╔══════════════════════════════════════╗")
-    log.info("║    Nova-Atlas — News Engine prêt     ║")
-    log.info("║  Fetch        : toutes les 30 min    ║")
-    log.info("║  Éditions     : 06h · 12h · 19h     ║")
-    log.info(f"║  Rapport      : {REPORT_HOUR:02d}h{REPORT_MIN:02d}                ║")
-    log.info("╚══════════════════════════════════════╝")
+    def bulletin_job():
+        """Génère un bulletin radio "30 minutes" à partir des articles récents."""
+        try:
+            from modules.radio.bulletin_generator import load_bulletins_config
+            bulletins_cfg = load_bulletins_config(news_paths)
+            window = bulletins_cfg.get("window_minutes", 30)
+            articles = get_recent_articles(news_paths, window_minutes=window)
+            log.info(f"[BULLETIN] {len(articles)} articles des {window} dernières min")
+            path = bulletin_gen.build(articles)
+            if path:
+                log.info(f"[BULLETIN] ✅ {path}")
+        except Exception as e:
+            log.error(f"Erreur bulletin : {e}", exc_info=True)
+
+    log.info("╔══════════════════════════════════════════════╗")
+    log.info("║       Nova-Atlas — News Engine prêt         ║")
+    log.info("║  Fetch        : toutes les 30 min           ║")
+    log.info("║  Bulletins    : 2×/h (X:00, X:30)            ║")
+    log.info("║  Éditions     : 06h · 12h · 19h             ║")
+    log.info(f"║  Rapport      : {REPORT_HOUR:02d}h{REPORT_MIN:02d}                       ║")
+    log.info("╚══════════════════════════════════════════════╝")
 
     log.info("Fetch initial au démarrage...")
     try:
@@ -246,6 +273,15 @@ def run_news_engine(config: dict, debug: bool = False):
                 last_edition_day[key] = True
                 log.info(f"[EDITION] Génération {ed_name}")
                 run_in_thread(f"edition_{ed_name}", edition_and_rebuild, ed_name, today)
+
+        # Bulletins radio "30 min" : 2×/h (à :00 et :30)
+        # Slot = h*60 + (m//30)*30 (0 ou 30)
+        bulletin_slot = f"{h:02d}:{(m // 30) * 30:02d}"
+        if (h in post_hours and m % 30 < 2
+                and bulletin_slot != last_bulletin_slot):
+            last_bulletin_slot = bulletin_slot
+            log.info(f"[BULLETIN] Génération slot {bulletin_slot}")
+            run_in_thread(f"bulletin_{bulletin_slot}", bulletin_job)
 
         time.sleep(60)
 
