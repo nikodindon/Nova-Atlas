@@ -298,41 +298,84 @@ def run_radio(config: dict, debug: bool = False):
       Streamer     — flux Icecast continu via pipe ffmpeg
 
     Le config.yaml de la radio est déjà dans config (sections icecast, radio, tts).
-    Le fichier messages.yaml (intros, transitions, outros) est lu par journal_builder
+    Le fichier messages.yaml (intros, transitions, outros) est lu par bulletin_generator
     depuis config/messages.yaml — chemin résolu par le module radio.
     """
     setup_logging(debug)
     from modules.radio.news_watcher    import NewsWatcher
-    from modules.radio.journal_builder import JournalBuilder
     from modules.radio.streamer        import Streamer
+    from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
+    from pathlib import Path as _P
+    import threading
 
     log = logging.getLogger("nova.radio")
     log.info("Initialisation radio...")
 
     streamer = Streamer(config)
-    builder  = JournalBuilder(config)
+    # BulletinGenerator remplace l'ancien JournalBuilder
+    _proj = _P(__file__).parent.resolve()
+    radio_paths = {
+        "root":             _proj,
+        "data":             _proj / "data",
+        "articles":         _proj / "data" / "articles",
+        "audio_queue":      _proj / "audio_queue",
+        "tmp":              _proj / "tmp",
+        "background_music":  _proj / "background_music",
+    }
+    builder = BulletinGenerator(config, radio_paths)
 
-    def on_bulletin_ready(articles: list):
-        def _gen():
-            try:
-                path = builder.build(articles)
-                if path:
-                    streamer.enqueue_bulletin(path)
-                else:
-                    log.error("Échec génération bulletin")
-            except Exception as e:
-                log.error(f"Erreur bulletin : {e}", exc_info=True)
-        threading.Thread(target=_gen, daemon=True, name="BulletinGen").start()
+    # Le watcher remplit le pool, le scheduler cadence les bulletins
+    pool_lock = threading.Lock()
+    pending_batches: list = []   # batches en attente (au cas où 2 bulletins se chevauchent)
 
-    watcher = NewsWatcher(config.get("radio", {}), on_bulletin_ready)
+    def on_news_ready(articles: list):
+        """Le watcher appelle ça à chaque nouvelle news. On accumule, on ne déclenche plus."""
+        with pool_lock:
+            pending_batches.append(articles)
+        # Log discret : on ne génère plus un journal par 5 news
+        log.debug(f"  Pool: +{len(articles)} news (total pending: {sum(len(b) for b in pending_batches)})")
+
+    def generate_bulletin():
+        """Génère un bulletin avec les articles des 30 dernières minutes."""
+        try:
+            from modules.radio.bulletin_generator import load_bulletins_config
+            bulletins_cfg = load_bulletins_config(radio_paths)
+            window = bulletins_cfg.get("window_minutes", 30)
+            articles = get_recent_articles(radio_paths, window_minutes=window)
+            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min")
+            path = builder.build(articles)
+            if path:
+                streamer.enqueue_bulletin(path)
+                log.info(f"📥 Bulletin en file: {path.name}")
+            else:
+                log.info("⏭️ Bulletin skippé (pas assez d'articles ou erreur)")
+        except Exception as e:
+            log.error(f"Erreur bulletin : {e}", exc_info=True)
+
+    # Le watcher ne déclenche plus rien par 5 news : on remplace son seuil
+    # par un seuil élevé (1000) pour qu'il accumule, et on cadence nous-mêmes.
+    radio_cfg = dict(config.get("radio", {}))
+    radio_cfg["per_bulletin"] = 1000  # désactive le déclenchement auto
+    watcher = NewsWatcher(radio_cfg, on_news_ready)
     threading.Thread(target=watcher.run,  daemon=True, name="NewsWatcher").start()
     threading.Thread(target=streamer.run, daemon=True, name="Streamer").start()
 
     ic = config.get("icecast", {})
     log.info(f"✅ Radio → http://localhost:{ic.get('port',8000)}{ic.get('mount','/nova')}")
 
+    # Scheduler 2×/h (X:00, X:30) — déclenche un bulletin
+    from datetime import datetime
+    post_hours = config.get("radio", {}).get("post_hours", [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21])
+    last_slot = ""
     while True:
-        time.sleep(1)
+        now = datetime.now()
+        slot = f"{now.hour:02d}:{(now.minute // 30) * 30:02d}"
+        if (now.hour in post_hours and now.minute % 30 < 1
+                and slot != last_slot):
+            last_slot = slot
+            log.info(f"⏰ Slot {slot} → génération bulletin")
+            threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{slot}").start()
+        time.sleep(30)  # check 2×/min pour réactivité
 
 
 # ─── PROCESSUS : WEB SERVER ───────────────────────────────────────────────────
