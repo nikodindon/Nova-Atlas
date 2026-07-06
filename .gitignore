@@ -10,13 +10,32 @@ ENV/
 env.bak/
 venv.bak/
 
+# Backups de fichiers (jamais committer les .old / .bak / ~ / .swp)
+*.old
+*.old[0-9]
+*.bak
+*.tmp
+*~
+*.swp
+*.swo
+*.py.orig
+# Doublons accidentels avec espaces/parenthèses dans le nom
+# (ex: "atlas_fetch (1).py" — ne pas committer)
+* (*.py
+* (*.md
+* (*.txt
+
+# Config d'éditeurs IA locaux
+.qwen/
+.aider/
+.cursor/
+
 # Logs & temporary files
 *.log
 nova.log
 logs/
 tmp/
 audio_queue/
-*.tmp
 
 # Music (gros fichiers — ne pas committer)
 music/
@@ -29,7 +48,6 @@ data/editions/
 data/posts/
 data/processed_hashes.json
 data/ollama.lock
-modules/web/*.old
 
 # Site généré
 site/
@@ -48,5 +66,3 @@ docker-compose.override.yml
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
