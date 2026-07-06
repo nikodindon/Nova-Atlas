@@ -11,8 +11,7 @@ env.bak/
 venv.bak/
 
 # Backups de fichiers (jamais committer les .old / .bak / ~ / .swp)
-*.old
-*.old[0-9]
+*.old*
 *.bak
 *.tmp
 *~
