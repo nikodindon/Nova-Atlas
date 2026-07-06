@@ -176,11 +176,12 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
     intro = random.choice(intros) if intros else "Bonjour à tous."
     outro = random.choice(outros) if outros else "C'est tout pour ce journal."
 
-    prompt = f"""Tu es un journaliste radio professionnel français. Tu produis un journal de 30 minutes pour une radio d'information continue.
+    prompt = f"""Tu es un journaliste radio professionnel français. Tu produis un BULLETIN D'INFORMATION qui couvre les 30 dernières minutes d'actualité. Le bulletin est diffusé sur une radio d'information continue.
 
 CONTEXTE :
-- Heure du journal : ~{datetime.now().strftime("%Hh%M")}
-- Cible mots : {target} (±200 mots, ~10 minutes de parole)
+- Heure du bulletin : ~{datetime.now().strftime("%Hh%M")}
+- Durée cible du bulletin : 10 minutes de parole (~{target} mots, ±200)
+- Fenêtre temporelle couverte : 30 dernières minutes d'actualité
 - Audience : auditeur français cultivé
 - Style : France Inter / France Info, professionnel, neutre
 
