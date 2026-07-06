@@ -111,13 +111,15 @@ def run_news_engine(config: dict, debug: bool = False):
     editioner = EditionGenerator(config)
     poster    = PostsGenerator(config)
     # BulletinGenerator (radio "30 minutes", 2×/h)
+    from pathlib import Path as _P
+    _proj = _P(__file__).parent.resolve()
     news_paths = {
-        "root":            proj,
-        "data":            proj / "data",
-        "articles":        proj / "data" / "articles",
-        "audio_queue":     proj / "audio_queue",
-        "tmp":             proj / "tmp",
-        "background_music": proj / "background_music",
+        "root":            _proj,
+        "data":            _proj / "data",
+        "articles":        _proj / "data" / "articles",
+        "audio_queue":     _proj / "audio_queue",
+        "tmp":             _proj / "tmp",
+        "background_music": _proj / "background_music",
     }
     bulletin_gen = BulletinGenerator(config, news_paths)
 
