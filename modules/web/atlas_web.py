@@ -1868,33 +1868,7 @@ footer strong{color:var(--accent);}
 .edition-body hr{border:none;border-top:1px solid var(--border);margin:2rem 0;}
 .edition-body em{color:var(--text-muted);font-size:.85rem;}
 
-/* ── Filtres chips (live feed) ─────────────────────────────────────────── */
-.live-filters {
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  padding: 8px 12px; background: var(--bg-card);
-  border: 1px solid var(--border); border-radius: 8px;
-  margin: 8px 16px;
-}
-.live-filters-label {
-  font-size: 12px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.5px;
-  margin-right: 4px;
-}
-.filter-chip {
-  padding: 4px 10px; border-radius: 999px;
-  border: 1px solid var(--border); background: transparent;
-  color: var(--text-muted); font-size: 12px; cursor: pointer;
-  text-transform: capitalize;
-  transition: all 0.15s;
-}
-.filter-chip:hover { border-color: var(--accent); color: var(--text); }
-.filter-chip[aria-pressed="true"] {
-  background: var(--accent); color: var(--bg);
-  border-color: var(--accent);
-}
-.filter-chip.filter-all {
-  font-weight: bold; border-color: var(--accent);
-}
+
 """
 
 LIVE_CSS_EXTRA = """
@@ -2181,94 +2155,9 @@ function _startLiveRefresh(){
 document.addEventListener('DOMContentLoaded', function(){
   if(document.body.dataset.page === 'live') _startLiveRefresh();
   _applyCategoryPreferences();
-  _initLiveFilters();
+  // Les filtres multi-select sous "Fil en direct" sont gérés par un
+  // IIFE attaché à #filter-bar dans le template LIVE_TEMPLATE (voir plus bas).
 });
-
-// ── Filtres chips du live feed (multi-sélection cumulative, session-only) ──
-// État en mémoire uniquement (pas de reload, pas d'API, pas de coupure radio)
-// - Clic sur une catégorie : toggle (sélectionner / désélectionner)
-// - Clic sur "Tout" : clear la sélection (réaffiche tout)
-// - Les catégories sélectionnées sont cumulatives (filtre "ou bien")
-// - DOM-only : on cache les articles dont la catégorie n'est pas sélectionnée
-let _liveFilterState = { selected: new Set(), all: '__all' };
-
-async function _initLiveFilters(){
-  var bar = document.getElementById('live-filters');
-  if(!bar) return;
-  if(bar.dataset.loaded === '1') return;
-  try {
-    // Charger la liste des catégories (depuis /config/feeds, qui est léger)
-    var r = await fetch('/config/feeds');
-    var fData = await r.json();
-    var cats = Object.keys(fData.feeds || {}).sort();
-    cats.forEach(function(cat){
-      var b = document.createElement('button');
-      b.className = 'filter-chip';
-      b.dataset.cat = cat;
-      b.setAttribute('aria-pressed', 'false');
-      b.textContent = cat.replace(/_/g, ' ');
-      bar.appendChild(b);
-    });
-    bar.dataset.loaded = '1';
-    // Handler : toggle cumulatif, pas de reload
-    bar.addEventListener('click', function(e){
-      var btn = e.target.closest('.filter-chip');
-      if(!btn) return;
-      var cat = btn.dataset.cat;
-      if(cat === '__all') {
-        // Reset : tout afficher
-        _liveFilterState.selected.clear();
-        bar.querySelectorAll('.filter-chip').forEach(function(b){
-          b.setAttribute('aria-pressed', b.dataset.cat === '__all' ? 'true' : 'false');
-        });
-      } else {
-        // Toggle cette catégorie (cumulatif)
-        if(_liveFilterState.selected.has(cat)){
-          _liveFilterState.selected.delete(cat);
-          btn.setAttribute('aria-pressed', 'false');
-        } else {
-          _liveFilterState.selected.add(cat);
-          btn.setAttribute('aria-pressed', 'true');
-        }
-        // "Tout" n'est plus pressed si on a des sélections custom
-        var allBtn = bar.querySelector('.filter-all');
-        if(allBtn){
-          allBtn.setAttribute('aria-pressed', _liveFilterState.selected.size === 0 ? 'true' : 'false');
-        }
-      }
-      // Appliquer le filtre (DOM-only, pas de reload)
-      _applyLiveFilters();
-    });
-  } catch(e) { console.warn('initLiveFilters:', e); }
-}
-
-// ── Filtre live : cache les articles dont la catégorie n'est pas sélectionnée ──
-function _applyLiveFilters(){
-  var items = document.querySelectorAll('[data-category]');
-  var selected = _liveFilterState.selected;
-  var showAll = selected.size === 0;
-  items.forEach(function(el){
-    var cat = el.dataset.category;
-    // Articles sans catégorie (legacy / non-classés) restent toujours visibles
-    if(!cat){
-      el.style.display = '';
-      el.removeAttribute('aria-hidden');
-      return;
-    }
-    if(showAll){
-      el.style.display = '';
-      el.removeAttribute('aria-hidden');
-    } else {
-      if(selected.has(cat)){
-        el.style.display = '';
-        el.removeAttribute('aria-hidden');
-      } else {
-        el.style.display = 'none';
-        el.setAttribute('aria-hidden', 'true');
-      }
-    }
-  });
-}
 
 // ── Préférences : cacher les articles des catégories désactivées ────────────
 async function _applyCategoryPreferences(){
@@ -2532,12 +2421,6 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
 <style>{{ css }}</style></head><body data-page="live" data-radio-label="{{ brand_name }}">
 <nav class="topbar">
   <a href="/" class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></a>
-  <!-- Filtres catégories (live feed) -->
-  <div class="live-filters" id="live-filters" data-loaded="0">
-    <span class="live-filters-label">Filtrer :</span>
-    <button class="filter-chip filter-all" data-cat="__all" aria-pressed="true">Tout</button>
-    <!-- Chips catégories chargés via JS depuis /api/preferences + /config/feeds -->
-  </div>
   <!-- Player radio + Theme switcher -->
   <div class="radio-player" id="radio-player">
     <button class="radio-btn" id="radio-btn" aria-label="Écouter la radio"
@@ -2568,13 +2451,14 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
     <div class="live-status"><span class="live-dot"></span> {{ ui.live_status }}</div>
   </div>
 
-  <!-- Filtres par catégorie — masquage JS côté client -->
-  <div class="filter-bar">
-    <button class="filter-btn active" data-cat="all" onclick="filterCat('all',this)">
+  <!-- Filtres par catégorie — multi-sélection cumulative, client-side -->
+  <!-- Click sur "Tout" clear la sélection. Click sur une cat toggle. -->
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-cat="__all" aria-pressed="true">
       {{ ui.filter_all }} <span class="filter-count">{{ total }}</span>
     </button>
     {% for cat, count in cat_counts %}
-    <button class="filter-btn" data-cat="{{ cat }}" onclick="filterCat('{{ cat }}',this)">
+    <button class="filter-btn" data-cat="{{ cat }}" aria-pressed="false">
       {{ cat_icons.get(cat,'') }} {{ cat_labels.get(cat,cat) }}
       <span class="filter-count">{{ count }}</span>
     </button>
@@ -2618,13 +2502,67 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
 </div>
 <footer><strong>{{ brand_name }}</strong> — Fil en direct · © {{ year }}</footer>
 <script>
-function filterCat(cat, btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('#live-grid .live-item').forEach(el => {
-    el.style.display = (cat === 'all' || el.dataset.cat === cat) ? '' : 'none';
+// ── Filtres cumulatifs multi-sélection sous "Fil en direct" ──
+// État en mémoire (session-only, pas de reload, pas d'API)
+// - Click sur "Tout" : clear → tout s'affiche
+// - Click sur une cat : toggle (sélectionner / désélectionner)
+// - Multi-sélection : on peut sélectionner N catégories en même temps
+// - Articles sans data-category : toujours visibles
+(function(){
+  var bar = document.getElementById('filter-bar');
+  if(!bar) return;
+  var selected = new Set();
+  function applyFilters(){
+    var items = document.querySelectorAll('#live-grid [data-category]');
+    var showAll = selected.size === 0;
+    items.forEach(function(el){
+      var cat = el.dataset.category;
+      // Articles sans catégorie : toujours visibles
+      if(!cat){ el.style.display = ''; el.removeAttribute('aria-hidden'); return; }
+      if(showAll || selected.has(cat)){
+        el.style.display = '';
+        el.removeAttribute('aria-hidden');
+      } else {
+        el.style.display = 'none';
+        el.setAttribute('aria-hidden', 'true');
+      }
+    });
+  }
+  bar.addEventListener('click', function(e){
+    var btn = e.target.closest('.filter-btn');
+    if(!btn) return;
+    var cat = btn.dataset.cat;
+    if(cat === '__all'){
+      selected.clear();
+      bar.querySelectorAll('.filter-btn').forEach(function(b){
+        b.classList.toggle('active', b.dataset.cat === '__all');
+        b.setAttribute('aria-pressed', b.dataset.cat === '__all' ? 'true' : 'false');
+      });
+    } else {
+      // Toggle cette catégorie (cumulatif)
+      if(selected.has(cat)){
+        selected.delete(cat);
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+      } else {
+        selected.add(cat);
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+      }
+      // "Tout" n'est plus actif si on a des sélections custom
+      var allBtn = bar.querySelector('[data-cat="__all"]');
+      if(allBtn){
+        var allActive = selected.size === 0;
+        allBtn.classList.toggle('active', allActive);
+        allBtn.setAttribute('aria-pressed', allActive ? 'true' : 'false');
+      }
+    }
+    applyFilters();
   });
-}
+  // Expose pour debug (pas utilisé par le code)
+  window._filterState = selected;
+  window._applyFilters = applyFilters;
+})();
 
 function toggleSummary(btn, id) {
   const el   = document.getElementById(id);
