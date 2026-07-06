@@ -173,8 +173,11 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
     articles_text = _format_articles_for_prompt(articles)
 
     # Choisit 1 intro et 1 outro au hasard parmi les options
-    intro = random.choice(intros) if intros else "Bonjour à tous."
-    outro = random.choice(outros) if outros else "C'est tout pour ce journal."
+    # On remplit {{heure}} et {{date}} maintenant pour que le LLM n'ait pas à le faire
+    now_str = datetime.now().strftime("%Hh%M")
+    date_str = datetime.now().strftime("%d/%m/%Y")
+    intro = random.choice(intros).format(heure=now_str, date=date_str) if intros else f"Bonjour à tous, il est {now_str}."
+    outro = random.choice(outros).format(heure=now_str, date=date_str) if outros else "C'est tout pour ce bulletin."
 
     prompt = f"""Tu es un journaliste radio professionnel français. Tu produis un BULLETIN D'INFORMATION qui couvre les 30 dernières minutes d'actualité. Le bulletin est diffusé sur une radio d'information continue.
 
@@ -188,7 +191,7 @@ CONTEXTE :
 ARTICLES À TRAITER (les plus importants en premier) :
 {articles_text}
 
-STRUCTURE DU JOURNAL :
+STRUCTURE DU BULLETIN :
 1. INTRO ({structure.get("intro", {}).get("target_words", 100)} mots) — Voix 1
 2. {news_blocks[0] if len(news_blocks) > 0 else "news_block_1"} ({total_news_words // max(1, len(news_blocks))} mots) — Voix 1
    {len(news_blocks[0:1]) if news_blocks else 0}-3 news principales
@@ -203,8 +206,8 @@ STRUCTURE DU JOURNAL :
 CONSIGNES STRICTES :
 - Utilise les BALISES [VOIX1] et [VOIX2] pour marquer les changements de voix
   Format : [VOIX1] texte parlé par la voix 1. [VOIX2] texte parlé par la voix 2. [VOIX1] retour voix 1.
-- INTRO (Voix 1) : "{intro}" (à adapter si besoin : remplace {{heure}} et {{date}} par les valeurs réelles)
-- OUTRO (Voix 1) : utilise une variation de "{outro}"
+- INTRO (Voix 1) : adapte l'inspiration suivante au contexte — "{intro}"
+- OUTRO (Voix 1) : utilise une variation de — "{outro}"
 - TRANSITIONS (Voix 2 ou Voix 1) : varie les expressions, n'utilise pas la même deux fois
 - Classement par ordre d'importance décroissante (grosse news en premier)
 - Chaque news est reformulée pour être naturelle à l'oral, pas lue
