@@ -18,7 +18,8 @@ import pytest
 from pathlib import Path
 
 from modules.core.feeds_loader import (
-    load_feeds, save_feeds, add_feed, remove_feed, toggle_feed
+    load_feeds, save_feeds, add_feed, remove_feed, toggle_feed,
+    move_feed, reorder_feeds, add_category
 )
 
 
@@ -225,3 +226,185 @@ def test_full_workflow_load_edit_save_reload(tmp_path):
     # 6) Le désactivé SPRINT0 est préservé dans le fichier
     text = p.read_text()
     assert "[SPRINT0] https://feeds.reuters.com/reuters/topNews" in text
+
+
+# ─── Tests pour move_feed ──────────────────────────────────────────────────────
+
+def test_move_feed_up_basic():
+    feeds = {"cat": ["a", "b", "c"]}
+    assert move_feed(feeds, "cat", "b", "up") is True
+    assert feeds["cat"] == ["b", "a", "c"]
+
+
+def test_move_feed_down_basic():
+    feeds = {"cat": ["a", "b", "c"]}
+    assert move_feed(feeds, "cat", "b", "down") is True
+    assert feeds["cat"] == ["a", "c", "b"]
+
+
+def test_move_feed_up_at_top():
+    """Le 1er élément ne peut pas monter."""
+    feeds = {"cat": ["a", "b", "c"]}
+    assert move_feed(feeds, "cat", "a", "up") is False
+    assert feeds["cat"] == ["a", "b", "c"]
+
+
+def test_move_feed_down_at_bottom():
+    """Le dernier élément ne peut pas descendre."""
+    feeds = {"cat": ["a", "b", "c"]}
+    assert move_feed(feeds, "cat", "c", "down") is False
+    assert feeds["cat"] == ["a", "b", "c"]
+
+
+def test_move_feed_unknown_category():
+    feeds = {"cat": ["a", "b"]}
+    assert move_feed(feeds, "nope", "a", "up") is False
+
+
+def test_move_feed_unknown_url():
+    feeds = {"cat": ["a", "b"]}
+    assert move_feed(feeds, "cat", "nope", "up") is False
+    assert feeds["cat"] == ["a", "b"]
+
+
+def test_move_feed_swap_is_undoable():
+    """up puis down (sur la même URL) doit revenir à l'état initial."""
+    feeds = {"cat": ["a", "b", "c"]}
+    move_feed(feeds, "cat", "b", "up")
+    assert feeds["cat"] == ["b", "a", "c"]
+    move_feed(feeds, "cat", "b", "down")
+    assert feeds["cat"] == ["a", "b", "c"]
+
+
+def test_move_feed_serialize_to_disk(tmp_path):
+    """Move + save + reload = ordre persisté sur disque."""
+    p = tmp_path / "feeds.yaml"
+    p.write_text("""cat:
+  - https://a.com
+  - https://b.com
+  - https://c.com
+""", encoding="utf-8")
+    feeds = load_feeds(p)
+    move_feed(feeds, "cat", "https://c.com", "up")
+    move_feed(feeds, "cat", "https://c.com", "up")  # c goes from idx 2 → idx 0
+    save_feeds(p, feeds)
+    feeds2 = load_feeds(p)
+    assert feeds2["cat"] == ["https://c.com", "https://a.com", "https://b.com"]
+
+
+def test_move_feed_preserves_disabled_after_save(tmp_path):
+    """Après move + save, les désactivés sont toujours là."""
+    p = tmp_path / "feeds.yaml"
+    p.write_text(SAMPLE_YAML, encoding="utf-8")
+    feeds = load_feeds(p)
+    move_feed(feeds, "geopolitique",
+              "https://www.france24.com/en/rss", "up")
+    save_feeds(p, feeds)
+    text = p.read_text()
+    assert "[SPRINT0] https://feeds.reuters.com/reuters/topNews" in text
+    # Et l'ordre a bien changé
+    feeds2 = load_feeds(p)
+    assert feeds2["geopolitique"][0] == "https://www.france24.com/en/rss"
+
+
+# ─── Tests pour reorder_feeds ────────────────────────────────────────────────
+
+def test_reorder_feeds_full():
+    feeds = {"cat": ["a", "b", "c"]}
+    assert reorder_feeds(feeds, "cat", ["c", "b", "a"]) is True
+    assert feeds["cat"] == ["c", "b", "a"]
+
+
+def test_reorder_feeds_mismatch():
+    """L'ordre ne contient pas les mêmes URLs → False."""
+    feeds = {"cat": ["a", "b", "c"]}
+    assert reorder_feeds(feeds, "cat", ["a", "b", "x"]) is False
+    assert feeds["cat"] == ["a", "b", "c"]
+
+
+def test_reorder_feeds_partial():
+    """L'ordre est incomplet → False."""
+    feeds = {"cat": ["a", "b", "c"]}
+    assert reorder_feeds(feeds, "cat", ["a", "b"]) is False
+
+
+def test_reorder_feeds_unknown_category():
+    feeds = {}
+    assert reorder_feeds(feeds, "nope", ["a"]) is False
+
+
+# ─── Tests pour add_category ──────────────────────────────────────────────────
+
+def test_add_category_new():
+    feeds = {"existing": []}
+    assert add_category(feeds, "new_cat") is True
+    assert "new_cat" in feeds
+    assert feeds["new_cat"] == []
+
+
+def test_add_category_existing():
+    feeds = {"existing": ["x"]}
+    assert add_category(feeds, "existing") is False
+    assert feeds["existing"] == ["x"]
+
+
+def test_add_category_persists_through_save(tmp_path):
+    p = tmp_path / "feeds.yaml"
+    p.write_text(SAMPLE_YAML, encoding="utf-8")
+    feeds = load_feeds(p)
+    add_category(feeds, "nouveauté_2026")
+    save_feeds(p, feeds)
+    feeds2 = load_feeds(p)
+    assert "nouveauté_2026" in feeds2
+
+
+# ─── Tests d'intégration : toggle + save préserve l'URL pour réactivation ────
+
+def test_toggle_then_readd_preserves_disabled_state(tmp_path):
+    """Toggle (disable) puis re-add (re-activate) → l'URL ne doit pas
+    apparaître en double, et l'historique disabled est OK."""
+    p = tmp_path / "feeds.yaml"
+    p.write_text(SAMPLE_YAML, encoding="utf-8")
+    feeds = load_feeds(p)
+    # Disable
+    remove_feed(feeds, "geopolitique", "https://www.france24.com/en/rss")
+    save_feeds(p, feeds)
+    # Re-add (réactive l'URL désactivée, ne la duplique pas)
+    feeds2 = load_feeds(p)
+    add_feed(feeds2, "geopolitique", "https://www.france24.com/en/rss")
+    save_feeds(p, feeds2)
+    # L'URL est revenue en actif
+    feeds3 = load_feeds(p)
+    assert feeds3["geopolitique"].count("https://www.france24.com/en/rss") == 1
+    assert "https://www.france24.com/en/rss" in feeds3["geopolitique"]
+
+
+# ─── Tests pour l'API du toggle ───────────────────────────────────────────────
+# (Le toggle = remove + save → l'URL reste en disabled, peut être ré-activée)
+
+def test_disabled_url_can_be_reactivated(tmp_path):
+    """Quand on désactive une URL (toggle), save_feeds l'écrit en SPRINT0.
+    Un add suivant la réactive : load_feeds la lit comme active, save_feeds
+    la retire de disabled. Aucun doublon en sortie."""
+    p = tmp_path / "feeds.yaml"
+    p.write_text("""geopolitique:
+  - https://a.com
+  - https://b.com
+""", encoding="utf-8")
+    feeds = load_feeds(p)
+    # Disable b
+    remove_feed(feeds, "geopolitique", "https://b.com")
+    save_feeds(p, feeds)
+    # b is now in disabled
+    text = p.read_text()
+    assert "[SPRINT0] https://b.com" in text
+    # Reactivate b
+    feeds2 = load_feeds(p)
+    add_feed(feeds2, "geopolitique", "https://b.com")
+    save_feeds(p, feeds2)
+    # b is back, no duplicate
+    text2 = p.read_text()
+    assert text2.count("https://b.com") == 1
+    assert "[SPRINT0] https://b.com" not in text2
+    # a is still there
+    assert "https://a.com" in text2

@@ -87,10 +87,8 @@ def _parse_disabled_feeds(text: str) -> Dict[str, List[str]]:
     Dans les deux cas, l'URL ne doit PAS apparaître comme active.
     """
     disabled: Dict[str, List[str]] = {}
+    active_in_source: Dict[str, List[str]] = {}
     current_cat: str | None = None
-    # On scanne ligne par ligne en détectant les 2 patterns
-    # Pattern 1: item désactivé "  - # [SPRINT0] ..."
-    # Pattern 2: commentaire orphelin "  # [SPRINT0] ..."
     for raw_line in text.splitlines():
         stripped = raw_line.strip()
         if not stripped:
@@ -99,7 +97,7 @@ def _parse_disabled_feeds(text: str) -> Dict[str, List[str]]:
         if not raw_line.startswith(" ") and stripped.endswith(":"):
             current_cat = stripped[:-1].strip()
             continue
-        # Pattern 1 : "- # ..."
+        # Pattern 1 : item désactivé "- # ..."
         if stripped.startswith("- #"):
             url = stripped[2:].lstrip("#").strip()
             if url.startswith("[SPRINT0]"):
@@ -108,15 +106,19 @@ def _parse_disabled_feeds(text: str) -> Dict[str, List[str]]:
                 disabled.setdefault(current_cat, []).append(url)
             continue
         # Pattern 2 : commentaire orphelin "# [SPRINT0] https://..."
-        # On accepte aussi "# <URL>" simple si ça ressemble à un flux
         if stripped.startswith("#"):
             comment_body = stripped.lstrip("#").strip()
             if comment_body.startswith("[SPRINT0]"):
                 comment_body = comment_body[len("[SPRINT0]"):].strip()
-            # Vérifie que c'est bien une URL (pas un commentaire textuel)
             if current_cat and comment_body.startswith(("http://", "https://")):
                 disabled.setdefault(current_cat, []).append(comment_body)
-    return disabled
+            continue
+        # Item actif "- https://..."
+        if stripped.startswith("- ") and current_cat:
+            url = stripped[2:].strip()
+            if url.startswith(("http://", "https://")):
+                active_in_source.setdefault(current_cat, []).append(url)
+    return disabled, active_in_source
 
 
 def save_feeds(feeds_path: str | Path, feeds: Dict[str, List[str]]) -> None:
@@ -124,19 +126,38 @@ def save_feeds(feeds_path: str | Path, feeds: Dict[str, List[str]]) -> None:
     Écrit le dict feeds dans feeds.yaml (atomique via tempfile+rename).
     Format : hierarchique, comme load_feeds() le parse.
 
-    Préserve automatiquement les URLs désactivées (commentées) qui étaient
-    dans le fichier avant : on les relit, on les réécrit. Aucune perte
-    d'info au save.
+    Préserve automatiquement les URLs désactivées qui étaient dans le
+    fichier source. Si une URL était active dans la source mais absente
+    de `feeds[cat]`, elle est ajoutée à disabled (cas du toggle).
     """
     feeds_path = Path(feeds_path)
 
-    # Récupère les désactivés avant d'écraser
+    # Récupère les désactivés + les actifs du source AVANT d'écraser
     disabled: Dict[str, List[str]] = {}
+    active_in_source: Dict[str, List[str]] = {}
     if feeds_path.exists():
         try:
-            disabled = _parse_disabled_feeds(feeds_path.read_text(encoding="utf-8"))
+            disabled, active_in_source = _parse_disabled_feeds(
+                feeds_path.read_text(encoding="utf-8")
+            )
         except Exception:
             pass
+
+    # Si une URL était active dans la source mais n'est plus dans `feeds`,
+    # c'est qu'on l'a retirée → elle devient disabled.
+    for cat, urls in active_in_source.items():
+        current_active = set(feeds.get(cat, []))
+        for url in urls:
+            if url not in current_active and url not in disabled.get(cat, []):
+                disabled.setdefault(cat, []).append(url)
+
+    # Si une URL est revenue dans les actifs, on la retire de disabled
+    # (cas du re-activate : add_feed après un disable).
+    for cat, urls in list(disabled.items()):
+        active_set = set(feeds.get(cat, []))
+        disabled[cat] = [u for u in urls if u not in active_set]
+        if not disabled[cat]:
+            del disabled[cat]
 
     lines: list[str] = []
     # Header
@@ -158,9 +179,9 @@ def save_feeds(feeds_path: str | Path, feeds: Dict[str, List[str]]) -> None:
     for cat in all_cats:
         active = feeds.get(cat, [])
         dead = disabled.get(cat, [])
-        # Si la catégorie n'a que des flux morts, on l'écrit quand même
-        if not active and not dead:
-            continue
+        # On écrit toujours la catégorie (même vide, pour qu'elle apparaisse
+        # dans l'UI). Le skip "if not active and not dead" supprimait les
+        # catégories nouvellement créées par l'utilisateur.
         lines.append(f"{cat}:")
         for url in active:
             lines.append(f"  - {url}")
@@ -218,3 +239,49 @@ def toggle_feed(feeds: Dict[str, List[str]], category: str, url: str) -> str | N
             del feeds[category]
         return "removed"
     return None
+
+
+def move_feed(feeds: Dict[str, List[str]], category: str, url: str,
+              direction: str) -> bool:
+    """
+    Déplace un flux d'un cran dans la liste. Direction = 'up' ou 'down'.
+    Renvoie True si déplacé, False si pas trouvé ou déjà au bord.
+    """
+    if category not in feeds or url not in feeds[category]:
+        return False
+    lst = feeds[category]
+    idx = lst.index(url)
+    if direction == "up" and idx > 0:
+        lst[idx], lst[idx - 1] = lst[idx - 1], lst[idx]
+        return True
+    if direction == "down" and idx < len(lst) - 1:
+        lst[idx], lst[idx + 1] = lst[idx + 1], lst[idx]
+        return True
+    return False
+
+
+def reorder_feeds(feeds: Dict[str, List[str]], category: str,
+                  order: List[str]) -> bool:
+    """
+    Réordonne toute la catégorie selon la liste 'order' (liste d'URLs dans
+    le nouvel ordre). Renvoie True si OK, False si les URLs ne matchent pas.
+    """
+    if category not in feeds:
+        return False
+    current = set(feeds[category])
+    target = set(order)
+    if current != target:
+        return False
+    feeds[category] = list(order)
+    return True
+
+
+def add_category(feeds: Dict[str, List[str]], category: str) -> bool:
+    """
+    Crée une catégorie vide si elle n'existe pas. Renvoie True si créée,
+    False si elle existait déjà.
+    """
+    if category in feeds:
+        return False
+    feeds[category] = []
+    return True

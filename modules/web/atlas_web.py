@@ -893,6 +893,197 @@ def build_config_page(paths: dict) -> str:
         year=datetime.now().year,
     )
 
+
+# ─── PAGE GESTION DES FLUX RSS ────────────────────────────────────────────────
+
+FEEDS_PAGE_JS = r"""
+<style>
+  .feeds-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .feed-cat { background: #1a1d23; border: 1px solid #2a2e36; border-radius: 8px;
+              padding: 12px 14px; }
+  .feed-cat h3 { margin: 0 0 8px 0; font-size: 14px; color: #6ea8fe;
+                 text-transform: uppercase; letter-spacing: 0.5px; }
+  .feed-item { display: flex; align-items: center; gap: 6px; padding: 4px 0;
+               border-bottom: 1px solid #232830; }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-url { flex: 1; font-family: monospace; font-size: 12px; color: #d4d4d4;
+              word-break: break-all; }
+  .feed-url:hover { color: #6ea8fe; cursor: pointer; }
+  .feed-btn { background: #2a2e36; color: #d4d4d4; border: none; padding: 3px 8px;
+              border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .feed-btn:hover { background: #3a3e46; }
+  .feed-btn.danger:hover { background: #b04848; }
+  .feed-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .add-form { display: flex; gap: 6px; margin-top: 8px; }
+  .add-form input, .add-form select { background: #0d1014; color: #d4d4d4;
+              border: 1px solid #2a2e36; padding: 4px 8px; border-radius: 4px;
+              font-size: 12px; }
+  .add-form input { flex: 1; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #2a2e36;
+           color: #d4d4d4; padding: 10px 16px; border-radius: 6px;
+           box-shadow: 0 4px 12px rgba(0,0,0,0.4); opacity: 0;
+           transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #b04848; }
+  .stats-bar { display: flex; gap: 20px; padding: 8px 14px; background: #1a1d23;
+               border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
+  .stats-bar span { color: #6ea8fe; font-weight: bold; }
+</style>
+
+<div class="stats-bar">
+  <div>Catégories: <span id="stat-cats">–</span></div>
+  <div>Flux actifs: <span id="stat-active">–</span></div>
+  <div>Désactivés: <span id="stat-disabled">–</span></div>
+  <div style="margin-left: auto;"><a href="/config/feeds" class="feed-btn">JSON brut</a></div>
+</div>
+
+<div id="feeds-container" class="feeds-grid">Chargement…</div>
+
+<form id="new-cat-form" class="add-form" style="margin-top: 20px;">
+  <input id="new-cat-name" placeholder="Nouvelle catégorie…" required>
+  <button class="feed-btn" type="submit">+ Catégorie</button>
+</form>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = {
+  list:    () => fetch('/config/feeds').then(r => r.json()),
+  add:     (cat, url)   => fetch('/config/feeds/add',      {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
+  remove:  (cat, url)   => fetch('/config/feeds/remove',   {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
+  toggle:  (cat, url)   => fetch('/config/feeds/toggle',   {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
+  move:    (cat, url, dir) => fetch('/config/feeds/move',  {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url, direction:dir})}).then(r=>r.json()),
+  addCat:  (cat)        => fetch('/config/feeds/category', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat})}).then(r=>r.json()),
+};
+
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2200);
+}
+
+function shortUrl(u) {
+  return u.replace(/^https?:\/\//, '').replace(/^www\./, '').slice(0, 60);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function render(cats) {
+  const c = document.getElementById('feeds-container');
+  c.innerHTML = '';
+  for (const [cat, urls] of Object.entries(cats)) {
+    const div = document.createElement('div');
+    div.className = 'feed-cat';
+    let items = urls.map((u, i) => `
+      <div class="feed-item" data-url="${escapeHtml(u)}">
+        <button class="feed-btn" onclick="mv('${escapeHtml(cat)}', '${escapeHtml(u)}', 'up')"   ${i===0?'disabled':''}>↑</button>
+        <button class="feed-btn" onclick="mv('${escapeHtml(cat)}', '${escapeHtml(u)}', 'down')" ${i===urls.length-1?'disabled':''}>↓</button>
+        <span class="feed-url" title="${escapeHtml(u)}" onclick="window.open('${escapeHtml(u)}','_blank')">${escapeHtml(shortUrl(u))}</span>
+        <button class="feed-btn"        onclick="tg('${escapeHtml(cat)}', '${escapeHtml(u)}')">Désactiver</button>
+        <button class="feed-btn danger" onclick="rm('${escapeHtml(cat)}', '${escapeHtml(u)}')">× Suppr</button>
+      </div>`).join('');
+    div.innerHTML = `<h3>${escapeHtml(cat)} <span style="color:#666;font-size:11px;">(${urls.length})</span></h3>${items}
+      <form class="add-form" onsubmit="return addFeed('${escapeHtml(cat)}', this)">
+        <input placeholder="https://nouveau-flux.example.com/rss.xml" required>
+        <button class="feed-btn" type="submit">+ Ajouter</button>
+      </form>`;
+    c.appendChild(div);
+  }
+}
+
+async function refresh() {
+  const r = await API.list();
+  if (r.status !== 'ok') { toast('Erreur de chargement', true); return; }
+  render(r.feeds);
+  document.getElementById('stat-cats').textContent     = r.stats.categories;
+  document.getElementById('stat-active').textContent   = r.stats.active;
+  document.getElementById('stat-disabled').textContent = r.stats.disabled;
+}
+
+async function addFeed(cat, form) {
+  const url = form.querySelector('input').value.trim();
+  if (!url) return false;
+  const r = await API.add(cat, url);
+  if (r.status === 'ok') { form.reset(); toast('Flux ajouté'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+  return false;  // prevent form submit
+}
+
+async function rm(cat, url) {
+  if (!confirm('Supprimer définitivement ce flux ?\n\n' + url)) return;
+  const r = await API.remove(cat, url);
+  if (r.status === 'ok') { toast('Flux supprimé'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+}
+
+async function tg(cat, url) {
+  const r = await API.toggle(cat, url);
+  if (r.status === 'ok') { toast('Flux désactivé'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+}
+
+async function mv(cat, url, dir) {
+  const r = await API.move(cat, url, dir);
+  if (r.status === 'ok') refresh();
+  else toast(r.msg || 'Erreur', true);
+}
+
+document.getElementById('new-cat-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const cat = document.getElementById('new-cat-name').value.trim();
+  if (!cat) return;
+  const r = await API.addCat(cat);
+  if (r.status === 'ok') { e.target.reset(); toast('Catégorie créée'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+});
+
+refresh();
+</script>
+"""
+
+
+def build_feeds_page(paths: dict) -> str:
+    """Page HTML de gestion des flux RSS (UI niveau 1)."""
+    from jinja2 import Template
+    return Template("""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>{{ brand }} — Gestion des flux</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>{{ css }}</style>
+</head>
+<body>
+  <header style="display:flex;justify-content:space-between;align-items:center;
+                 padding:12px 20px;background:#0d1014;border-bottom:1px solid #2a2e36;">
+    <h1 style="margin:0;font-size:18px;">{{ brand }} — Flux RSS</h1>
+    <nav>
+      <a href="/" style="color:#6ea8fe;text-decoration:none;margin-right:14px;">← Accueil</a>
+      <a href="/config/yaml" style="color:#6ea8fe;text-decoration:none;">Config YAML</a>
+    </nav>
+  </header>
+  <main style="max-width:1100px;margin:0 auto;padding:20px;">
+    <h2 style="font-size:22px;margin:0 0 12px 0;">Gestion des flux RSS</h2>
+    <p style="color:#888;font-size:13px;margin:0 0 16px 0;">
+      Ajouter, supprimer, désactiver ou réorganiser les flux RSS utilisés par Nova-Atlas.
+      Les modifications sont sauvegardées dans <code>config/feeds.yaml</code> et
+      prises en compte au prochain cycle de fetch.
+    </p>
+    {{ extra_js }}
+  </main>
+</body>
+</html>""").render(
+        **_branding(paths),
+        global_script="",  # Pas besoin du global sur cette page
+        icecast_url="",
+        css="",
+        extra_js=FEEDS_PAGE_JS,
+    )
+
 # ─── STATIC SITE GENERATOR ────────────────────────────────────────────────────
 
 def generate_static_site(config: dict, full: bool = False) -> str:
@@ -1156,6 +1347,89 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         from modules.fetch.atlas_fetch import invalidate_feeds_cache
         invalidate_feeds_cache()
         return jsonify({"status": "ok", "msg": "Cache feeds invalidé"})
+
+    @app.route("/config/feeds/move", methods=["POST"])
+    def feeds_move():
+        """Déplace un flux d'un cran dans sa catégorie (up|down)."""
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            direction = (data.get("direction") or "").strip()
+            if direction not in ("up", "down"):
+                return jsonify({"status": "error",
+                                "msg": "direction doit être 'up' ou 'down'"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import (
+                load_feeds, save_feeds, move_feed
+            )
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not move_feed(feeds, category, url, direction):
+                return jsonify({"status": "error",
+                                "msg": "déplacement impossible (au bord ou pas trouvé)"}), 409
+            save_feeds(feeds_path, feeds)
+            from modules.fetch.atlas_fetch import invalidate_feeds_cache
+            invalidate_feeds_cache()
+            return jsonify({"status": "ok", "direction": direction})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/toggle", methods=["POST"])
+    def feeds_toggle():
+        """Désactive un flux (le met en commentaire [SPRINT0] dans le YAML)."""
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import load_feeds, save_feeds, remove_feed
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            # Toggle = retirer de actif. Le fichier save_feeds préserve
+            # automatiquement les désactivés.
+            if not remove_feed(feeds, category, url):
+                return jsonify({"status": "error",
+                                "msg": "URL pas trouvée dans la catégorie"}), 404
+            save_feeds(feeds_path, feeds)
+            from modules.fetch.atlas_fetch import invalidate_feeds_cache
+            invalidate_feeds_cache()
+            return jsonify({"status": "ok", "msg": f"{url} désactivé"})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/category", methods=["POST"])
+    def feeds_add_category():
+        """Crée une nouvelle catégorie vide."""
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            if not category:
+                return jsonify({"status": "error", "msg": "category requise"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import (
+                load_feeds, save_feeds, add_category
+            )
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not add_category(feeds, category):
+                return jsonify({"status": "error",
+                                "msg": f"Catégorie {category} existe déjà"}), 409
+            save_feeds(feeds_path, feeds)
+            return jsonify({"status": "ok", "category": category})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/page", methods=["GET"])
+    def feeds_page():
+        """Page HTML de gestion des flux (UI niveau 1)."""
+        return build_feeds_page(paths)
 
     @app.route("/editions/<path:filename>")
     def serve_edition(filename):
