@@ -135,9 +135,21 @@ def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
             logger.debug(f"  (skip {f.name}: {e})")
             continue
 
+    # Déduplication par hash (cas où les 2 formats coexistent
+    # avec le même article dans les 2 fichiers)
+    seen = set()
+    unique = []
+    for art in found:
+        h = art.get("hash", "")
+        if h and h in seen:
+            continue
+        if h:
+            seen.add(h)
+        unique.append(art)
+
     # Tri par timestamp décroissant (plus récent en premier)
-    found.sort(key=lambda a: a.get("timestamp", ""), reverse=True)
-    return found
+    unique.sort(key=lambda a: a.get("timestamp", ""), reverse=True)
+    return unique
 
 
 # ─────────────────────────────────────────────────────────────────────────────
