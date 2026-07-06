@@ -416,7 +416,9 @@ class ArticleFetcher:
             f"- Ajoute le contexte nécessaire pour comprendre l'article\n"
             f"- Ton neutre et factuel\n"
             f"- Réponds en {lang}\n"
-            f"- N'invente rien qui ne soit pas dans le texte\n\n"
+            f"- N'invente rien qui ne soit pas dans le texte\n"
+            f"- Texte brut, sans markdown : pas d'astérisques (**), pas de dièses (#), "
+            f"pas de backticks (`), pas de liens [texte](url). Juste des phrases.\n\n"
             f"Résumé :"
         )
         output = ollama_call(prompt, timeout=get_fetch_timeout(),
@@ -514,6 +516,11 @@ class ArticleFetcher:
         else:
             self.log.info(f"  [{category[:4].upper()}] {title[:65]}…")
             summary = self._summarize(title, content, category)
+            # Nettoie le résumé des artefacts markdown (filet de sécurité
+            # au cas où le LLM en mettrait encore malgré le prompt).
+            # Sans ça, le site affiche "**bold**" et la radio dit "astérisque".
+            from modules.utils.helpers import clean_for_tts
+            summary = clean_for_tts(summary)
             # Traduction du titre dans la langue cible (si différente)
             from modules.core.llm_client import get_language
             lang = get_language()
