@@ -1,0 +1,103 @@
+# ================================================
+# NOVA-ATLAS — Liste des flux RSS
+# ================================================
+# Format : {catégorie: [url1, url2, ...]}
+# Les URLs commentées (avec "# [SPRINT0]" devant) sont désactivées
+# mais conservées pour traçabilité. Tu peux les décommenter si le
+# site redevient accessible.
+#
+# Pour ajouter un flux : ajoute l'URL dans la catégorie voulue.
+# Pour désactiver un flux : préfixe la ligne par "# ".
+# Rechargement à chaud : POST /config/restart (déclenche le rechargement).
+# ================================================
+
+geopolitique:
+  - https://www.france24.com/fr/rss
+  - https://www.france24.com/en/rss
+  - https://feeds.bbci.co.uk/news/world/rss.xml
+  - https://www.theguardian.com/world/rss
+  - https://www.euronews.com/rss
+  # [SPRINT0] https://feeds.reuters.com/reuters/topNews       # DNS fail
+  # [SPRINT0] https://apnews.com/apf-topnews.rss              # 404
+  - https://www.aljazeera.com/xml/rss/all.xml
+  - https://www.middleeasteye.net/rss
+  - https://rss.dw.com/rdf/rss-en-all
+  - https://rss.dw.com/rdf/rss-fr-all
+  - https://www.courrierinternational.com/feed/rubrique/geopolitique/rss.xml
+
+economie:
+  # [SPRINT0] https://bfmbusiness.bfmtv.com/rss/news-flux-rss/  # 301 → 404
+  - https://www.cnbc.com/id/100003114/device/rss/rss.html
+  - https://foreignpolicy.com/feed/
+  - https://fr.investing.com/rss/news.rss
+  - https://finance.yahoo.com/news/rssindex
+  - https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines
+  - https://www.courrierinternational.com/feed/rubrique/economie/rss.xml
+  - https://www.federalreserve.gov/feeds/press_all.xml
+
+crypto:
+  - https://cointelegraph.com/rss
+  - https://www.coindesk.com/arc/outboundfeeds/rss/
+  - https://cryptopanic.com/news/rss/
+  - https://theblock.co/rss.xml
+  - https://decrypt.co/feed
+
+tech:
+  - https://www.technologyreview.com/stories.rss
+  - https://www.wired.com/feed/rss
+  - https://www.futura-sciences.com/rss/actualites.xml
+  - https://feeds.arstechnica.com/arstechnica/index
+  - https://hnrss.org/frontpage
+  - https://www.01net.com/rss/
+  - https://next.ink/feed/
+
+france:
+  # Lemonde.fr : paywall (402) depuis 2026-07 — articles inutilisables.
+  # On garde les titres via Courrier International / Libé / Le Figaro.
+  # [SPRINT0] https://www.lemonde.fr/rss/une.xml
+  # [SPRINT0] https://www.lemonde.fr/rss/en_continu.xml
+  - https://www.liberation.fr/arc/outboundfeeds/rss/
+  - https://www.lefigaro.fr/rss/figaro_actualites.xml
+  - https://www.courrierinternational.com/feed/rubrique/france/rss.xml
+  - https://www.courrierinternational.com/feed/rubrique/societe/rss.xml
+
+monde:
+  # NYTimes : paywall (403) — articles inutilisables.
+  # [SPRINT0] https://rss.nytimes.com/services/xml/rss/nyt/World.xml
+  - https://feeds.nbcnews.com/nbcnews/public/world
+  - https://www.courrierinternational.com/feed/all/rss.xml
+  - https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr
+  - https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en
+  - https://www.theatlantic.com/feed/all/
+
+science:
+  - https://www.futura-sciences.com/rss/actualites.xml
+  - https://www.sciencesetavenir.fr/rss.xml
+  - https://feeds.feedburner.com/sciencedaily
+  - https://www.nature.com/nature.rss
+  - https://www.who.int/rss-feeds/news-english.xml
+
+environnement:
+  - https://www.theguardian.com/environment/rss
+  - https://www.courrierinternational.com/feed/rubrique/science-environnement/rss.xml
+  - https://reporterre.net/spip.php?page=backend
+  - https://www.revolution-energetique.com/feed/
+  - https://www.goodplanet.info/feed/
+
+societe:
+  - https://www.amnesty.org/en/feed/
+  - https://www.hrw.org/rss
+  - https://theconversation.com/global/articles.atom
+  - https://www.courrierinternational.com/feed/rubrique/expat/rss.xml
+
+culture:
+  # [SPRINT0] https://www.premiere.fr/rss/actu-cinema          # 404
+  # [SPRINT0] https://www.lemonde.fr/arts/rss/une.xml          # 404
+  - https://pitchfork.com/rss/news/
+  - https://www.courrierinternational.com/feed/rubrique/culture/rss.xml
+  # [SPRINT0] https://www.lesinrocks.com/feed/                 # timeout
+
+sport:
+  # [SPRINT0] https://rmcsport.bfmtv.com/rss/news-flux-rss/   # 404
+  - https://www.bbc.co.uk/sport/rss.xml
+  - https://www.espn.com/espn/rss/news

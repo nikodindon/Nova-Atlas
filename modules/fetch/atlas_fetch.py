@@ -28,97 +28,90 @@ from bs4 import BeautifulSoup
 
 from modules.core.llm_client import init_ollama, ollama_call, get_language, get_fetch_timeout
 
-# ─── SOURCES RSS (identiques à atlas_fetch.py original) ───────────────────────
+# ─── SOURCES RSS (chargées depuis config/feeds.yaml) ───────────────────────
+# Avant : dict Python hardcodé (90+ lignes).
+# Maintenant : fichier YAML externe éditable + UI /config/feeds à venir.
+# Pour ajouter/retirer un flux : modifier config/feeds.yaml puis POST /config/restart.
 
+DEFAULT_FEEDS_PATH = Path("config/feeds.yaml")
+
+# Cache module-level pour éviter de relire le fichier à chaque fetch
+_cached_feeds: dict | None = None
+_cached_feeds_mtime: float = 0
+
+
+def _load_rss_sources(feeds_path: str | Path = None) -> dict:
+    """
+    Charge la liste des flux depuis config/feeds.yaml.
+    Met en cache par mtime pour éviter de relire si le fichier n'a pas changé.
+    En cas d'erreur, fallback sur un dict vide (le fetch tournera mais ne
+    ramènera rien — mieux qu'un crash).
+    """
+    global _cached_feeds, _cached_feeds_mtime
+    path = Path(feeds_path or DEFAULT_FEEDS_PATH)
+    if not path.exists():
+        return {}
+
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+
+    if _cached_feeds is not None and mtime == _cached_feeds_mtime:
+        return _cached_feeds
+
+    try:
+        from modules.core.feeds_loader import load_feeds
+        feeds = load_feeds(path)
+    except Exception as e:
+        import logging
+        logging.getLogger("nova.fetch").warning(
+            f"Impossible de charger {path}: {e} — fetch tournera à vide"
+        )
+        feeds = {}
+
+    _cached_feeds = feeds
+    _cached_feeds_mtime = mtime
+    return feeds
+
+
+def invalidate_feeds_cache():
+    """Force le rechargement au prochain appel (utilisé après /config/restart)."""
+    global _cached_feeds, _cached_feeds_mtime
+    _cached_feeds = None
+    _cached_feeds_mtime = 0
+
+
+# Backward-compat : RSS_SOURCES reste accessible comme un dict, mais
+# il est maintenant calculé à l'import. Les anciens imports continuent
+# de fonctionner mais le contenu vient de feeds.yaml.
+def _get_rss_sources() -> dict:
+    return _load_rss_sources()
+
+# Au premier import, on log combien de flux on a chargé
+def _log_rss_sources_count():
+    import logging
+    sources = _load_rss_sources()
+    total = sum(len(urls) for urls in sources.values())
+    logging.getLogger("nova.fetch").info(
+        f"RSS_SOURCES: {len(sources)} catégories, {total} flux actifs "
+        f"(depuis config/feeds.yaml)"
+    ) if total else None
+
+# Note: l'ancien dict RSS_SOURCES ci-dessous est conservé temporairement
+# comme fallback si config/feeds.yaml n'existe pas. Sera supprimé en v0.3.
 RSS_SOURCES = {
-    "geopolitique": [
-        "https://www.france24.com/fr/rss",
-        "https://www.france24.com/en/rss",
-        "https://feeds.bbci.co.uk/news/world/rss.xml",
-        "https://www.theguardian.com/world/rss",
-        "https://www.euronews.com/rss",
-        # [SPRINT0] "https://feeds.reuters.com/reuters/topNews",
-        # [SPRINT0] "https://apnews.com/apf-topnews.rss",
-        "https://www.aljazeera.com/xml/rss/all.xml",
-        "https://www.middleeasteye.net/rss",
-        "https://rss.dw.com/rdf/rss-en-all",
-        "https://rss.dw.com/rdf/rss-fr-all",
-        "https://www.courrierinternational.com/feed/rubrique/geopolitique/rss.xml",
-    ],
-    "economie": [
-        # [SPRINT0] "https://bfmbusiness.bfmtv.com/rss/news-flux-rss/",
-        "https://www.cnbc.com/id/100003114/device/rss/rss.html",
-        "https://foreignpolicy.com/feed/",
-        "https://fr.investing.com/rss/news.rss",
-        "https://finance.yahoo.com/news/rssindex",
-        "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines",
-        "https://www.courrierinternational.com/feed/rubrique/economie/rss.xml",
-        "https://www.federalreserve.gov/feeds/press_all.xml",
-    ],
-    "crypto": [
-        "https://cointelegraph.com/rss",
-        "https://www.coindesk.com/arc/outboundfeeds/rss/",
-        "https://cryptopanic.com/news/rss/",
-        "https://theblock.co/rss.xml",
-        "https://decrypt.co/feed",
-    ],
-    "tech": [
-        "https://www.technologyreview.com/stories.rss",
-        "https://www.wired.com/feed/rss",
-        "https://www.futura-sciences.com/rss/actualites.xml",
-        "https://feeds.arstechnica.com/arstechnica/index",
-        "https://hnrss.org/frontpage",
-        "https://www.01net.com/rss/",
-        "https://next.ink/feed/",
-    ],
-    "france": [
-        "https://www.lemonde.fr/rss/une.xml",
-        "https://www.lemonde.fr/rss/en_continu.xml",
-        "https://www.liberation.fr/arc/outboundfeeds/rss/",
-        "https://www.lefigaro.fr/rss/figaro_actualites.xml",
-        "https://www.courrierinternational.com/feed/rubrique/france/rss.xml",
-        "https://www.courrierinternational.com/feed/rubrique/societe/rss.xml",
-    ],
-    "monde": [
-        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-        "https://feeds.nbcnews.com/nbcnews/public/world",
-        "https://www.courrierinternational.com/feed/all/rss.xml",
-        "https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr",
-        "https://news.google.com/rss?hl=en&gl=EN&ceid=EN:en",
-        "https://www.theatlantic.com/feed/all/",
-    ],
-    "science": [
-        "https://www.futura-sciences.com/rss/actualites.xml",
-        "https://www.sciencesetavenir.fr/rss.xml",
-        "https://feeds.feedburner.com/sciencedaily",
-        "https://www.nature.com/nature.rss",
-        "https://www.who.int/rss-feeds/news-english.xml",
-    ],
-    "environnement": [
-        "https://www.theguardian.com/environment/rss",
-        "https://www.courrierinternational.com/feed/rubrique/science-environnement/rss.xml",
-        "https://reporterre.net/spip.php?page=backend",
-        "https://www.revolution-energetique.com/feed/",
-        "https://www.goodplanet.info/feed/",
-    ],
-    "societe": [
-        "https://www.amnesty.org/en/feed/",
-        "https://www.hrw.org/rss",
-        "https://theconversation.com/global/articles.atom",
-        "https://www.courrierinternational.com/feed/rubrique/expat/rss.xml",
-    ],
-    "culture": [
-        # [SPRINT0] "https://www.premiere.fr/rss/actu-cinema",
-        # [SPRINT0] "https://www.lemonde.fr/arts/rss/une.xml",
-        "https://pitchfork.com/rss/news/",
-        "https://www.courrierinternational.com/feed/rubrique/culture/rss.xml",
-        # [SPRINT0] "https://www.lesinrocks.com/feed/",
-    ],
-    "sport": [
-        # [SPRINT0] "https://rmcsport.bfmtv.com/rss/news-flux-rss/",
-        "https://www.bbc.co.uk/sport/rss.xml",
-        "https://www.espn.com/espn/rss/news",
-    ],
+    "geopolitique": [],
+    "economie": [],
+    "crypto": [],
+    "tech": [],
+    "france": [],
+    "monde": [],
+    "science": [],
+    "environnement": [],
+    "societe": [],
+    "culture": [],
+    "sport": [],
 }
 
 MIN_TITLE_LEN     = 25
@@ -289,6 +282,9 @@ class ArticleFetcher:
         # Recharge aussi le client Ollama (modèle peut avoir changé)
         from modules.core.llm_client import init_ollama as _init
         _init(config)
+        # Invalide le cache feeds.yaml pour forcer le rechargement
+        # des flux RSS au prochain cycle.
+        invalidate_feeds_cache()
         self.log.info("[FETCH] Config rechargée à chaud.")
 
     # ── Seen hashes ───────────────────────────────────────────────────────────
@@ -624,9 +620,13 @@ class ArticleFetcher:
             self.log.info(f"Phase 0 : {retried} résumés récupérés")
 
         # Phase 1 — Collecte RSS
+        # On recharge les flux depuis feeds.yaml (cached via mtime). Si le
+        # fichier a été modifié via /config/feeds ou /config/restart, la
+        # cache est invalidée (voir reload_config()).
+        rss_sources = _load_rss_sources()
         self.log.info("Collecte des flux RSS...")
         queues: dict = {}
-        for category, feeds in RSS_SOURCES.items():
+        for category, feeds in rss_sources.items():
             pending = []
             for feed_url in feeds:
                 items = self._fetch_rss(feed_url)

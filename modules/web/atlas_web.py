@@ -315,14 +315,41 @@ def _resolve_paths(config: dict) -> dict:
     }
 
 def _get_icecast_url(paths: dict) -> str:
-    """Construit l'URL du flux Icecast depuis atlas_config.json ou défaut."""
+    """
+    Construit l'URL du flux Icecast depuis atlas_config.json ou défaut.
+
+    Stratégie : on récupère host/port/mount depuis la config Icecast.
+    Si la valeur est 'localhost' (défaut pour le streamer qui écoute en local),
+    on essaie de remplacer par l'IP du client Flask (Host header) pour que
+    le player web fonctionne depuis n'importe quel device du LAN, pas
+    seulement depuis la machine qui héberge Flask.
+
+    Le Host header est ce que le navigateur a tapé dans la barre d'URL :
+      - accès local     → 'localhost:5055' ou '127.0.0.1:5055'
+      - accès LAN       → '192.168.1.22:5055'
+      - accès via DNS   → 'radio.example.com'
+    On extrait juste le host (sans le port) et on l'utilise pour le flux.
+    """
     cfg = load_atlas_config(paths)
     host  = cfg.get("icecast_host",  "localhost")
     port  = cfg.get("icecast_port",  8000)
     mount = cfg.get("icecast_mount", "/nova")
-    #return "https://radio.nikodindon.dpdns.org"
+
+    # Auto-substitution si host == 'localhost' et qu'un Host header est dispo
+    if host in ("localhost", "127.0.0.1", "0.0.0.0"):
+        try:
+            from flask import request
+            if request and request.host:
+                # request.host = "192.168.1.22:5055" ou "radio.example.com"
+                # On prend juste le hostname (sans le port)
+                client_host = request.host.split(":")[0].strip()
+                if client_host and client_host not in ("", "localhost", "127.0.0.1"):
+                    host = client_host
+        except (ImportError, RuntimeError):
+            # Pas de contexte Flask (ex: génération hors-ligne du site) → on garde localhost
+            pass
+
     return f"http://{host}:{port}{mount}"
-    #return "https://radio.nikodindon.dpdns.org"
 
 
 def _branding(paths: dict) -> dict:
@@ -1028,6 +1055,108 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         except Exception as e:
             return jsonify({"status": "error", "msg": str(e)}), 500
 
+    # ─── GESTION DES FLUX RSS ────────────────────────────────────────────────
+    # GET  /config/feeds          → liste les flux depuis config/feeds.yaml
+    # POST /config/feeds/add      → ajoute un flux (body: category, url)
+    # POST /config/feeds/remove   → retire un flux (body: category, url)
+    # GET  /config/feeds/reset    → recharge depuis le disque (force)
+
+    @app.route("/config/feeds", methods=["GET"])
+    def feeds_list():
+        try:
+            from modules.core.feeds_loader import load_feeds
+            from pathlib import Path as _P
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                # Fallback : remonter depuis modules/web/ → racine
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            # Aussi compter les désactivés (commentés) pour affichage
+            with open(feeds_path, "r", encoding="utf-8") as f:
+                text = f.read()
+            n_active = sum(len(v) for v in feeds.values())
+            n_disabled = text.count("# [SPRINT0]") + sum(
+                1 for line in text.splitlines()
+                if line.lstrip().startswith("- # ")
+            )
+            return jsonify({
+                "status": "ok",
+                "feeds": feeds,
+                "stats": {
+                    "categories": len(feeds),
+                    "active": n_active,
+                    "disabled": n_disabled,
+                },
+                "path": str(feeds_path),
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/add", methods=["POST"])
+    def feeds_add():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            if not category or not url:
+                return jsonify({"status": "error",
+                                "msg": "category et url requis"}), 400
+            if not url.startswith(("http://", "https://")):
+                return jsonify({"status": "error",
+                                "msg": "URL doit commencer par http(s)://"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import load_feeds, save_feeds, add_feed
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not add_feed(feeds, category, url):
+                return jsonify({"status": "error",
+                                "msg": f"URL déjà présente dans {category}"}), 409
+            save_feeds(feeds_path, feeds)
+            # Invalide la cache pour que le prochain fetch prenne en compte
+            from modules.fetch.atlas_fetch import invalidate_feeds_cache
+            invalidate_feeds_cache()
+            return jsonify({"status": "ok",
+                            "msg": f"Flux ajouté à {category}",
+                            "category": category, "url": url})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/remove", methods=["POST"])
+    def feeds_remove():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            if not category or not url:
+                return jsonify({"status": "error",
+                                "msg": "category et url requis"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import load_feeds, save_feeds, remove_feed
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not remove_feed(feeds, category, url):
+                return jsonify({"status": "error",
+                                "msg": f"URL pas trouvée dans {category}"}), 404
+            save_feeds(feeds_path, feeds)
+            from modules.fetch.atlas_fetch import invalidate_feeds_cache
+            invalidate_feeds_cache()
+            return jsonify({"status": "ok",
+                            "msg": f"Flux retiré de {category}",
+                            "category": category, "url": url})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/reset", methods=["POST"])
+    def feeds_reset():
+        """Force le rechargement du cache (utile après édition manuelle du YAML)."""
+        from modules.fetch.atlas_fetch import invalidate_feeds_cache
+        invalidate_feeds_cache()
+        return jsonify({"status": "ok", "msg": "Cache feeds invalidé"})
+
     @app.route("/editions/<path:filename>")
     def serve_edition(filename):
         if filename.endswith(".html"):
@@ -1050,7 +1179,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         except Exception:
             abort(404)
 
-    print(f"\n✅ {paths["brand_name"]} → http://localhost:{port}/\n")
+    print(f"\n✅ {paths['brand_name']} → http://localhost:{port}/\n")
     app.run(host=host, port=port, debug=debug, use_reloader=False)
 
 # ─── TEMPLATES HTML ───────────────────────────────────────────────────────────
