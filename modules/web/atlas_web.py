@@ -1052,7 +1052,6 @@ def build_feeds_page(paths: dict) -> str:
     return Template("""<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
   <title>{{ brand }} — Gestion des flux</title>
   <link rel="stylesheet" href="/style.css">
   <style>{{ css }}</style>
@@ -1082,6 +1081,172 @@ def build_feeds_page(paths: dict) -> str:
         icecast_url="",
         css="",
         extra_js=FEEDS_PAGE_JS,
+    )
+
+
+# ─── PAGE PRÉFÉRENCES (filtre par catégorie) ─────────────────────────────────
+
+PREFS_PAGE_JS = r"""
+<style>
+  .prefs-grid { display: grid; grid-template-columns: repeat(auto-fill,
+              minmax(200px, 1fr)); gap: 10px; margin: 16px 0; }
+  .pref-card { background: #1a1d23; border: 1px solid #2a2e36;
+               border-radius: 8px; padding: 12px 14px; cursor: pointer;
+               transition: border-color 0.15s, background 0.15s;
+               user-select: none; }
+  .pref-card:hover { border-color: #6ea8fe; }
+  .pref-card.hidden { background: #0d1014; opacity: 0.55; }
+  .pref-card input { margin-right: 8px; cursor: pointer; }
+  .pref-card .cat-name { font-weight: bold; font-size: 14px;
+                         text-transform: capitalize; color: #d4d4d4; }
+  .pref-card.hidden .cat-name { text-decoration: line-through;
+                                color: #888; }
+  .pref-bar { display: flex; gap: 12px; align-items: center;
+              padding: 8px 14px; background: #1a1d23; border-radius: 6px;
+              margin-bottom: 16px; }
+  .pref-bar .badge { background: #2a2e36; padding: 2px 8px;
+                     border-radius: 4px; font-size: 12px; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #2a2e36;
+           color: #d4d4d4; padding: 10px 16px; border-radius: 6px;
+           opacity: 0; transition: opacity 0.3s; pointer-events: none;
+           z-index: 9999; }
+  .toast.show { opacity: 1; }
+  .pref-info { background: #1a1d23; border-left: 3px solid #6ea8fe;
+               padding: 10px 14px; margin-bottom: 14px; font-size: 13px;
+               color: #aaa; }
+</style>
+
+<div class="pref-info">
+  💡 <b>Fonctionnement :</b> coche ou décoche une catégorie pour la
+  montrer/cacher dans le site. Le filtrage est appliqué en temps réel
+  sur l'accueil et le live feed. Le backend continue de tout fetcher,
+  seules les catégories cochées apparaissent à l'écran.
+</div>
+
+<div class="pref-bar">
+  <span>Affichées : <span id="visible-count" class="badge">–</span> / <span id="total-count" class="badge">–</span></span>
+  <button class="feed-btn" id="reset-btn" style="margin-left:auto;">Tout afficher</button>
+</div>
+
+<div id="prefs-container" class="prefs-grid">Chargement…</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = {
+  get:    () => fetch('/api/preferences').then(r => r.json()),
+  toggle: (cat) => fetch('/api/preferences/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat})}).then(r=>r.json()),
+  reset:  () => fetch('/api/preferences/reset',   {method:'POST'}).then(r=>r.json()),
+};
+
+let allCategories = [];
+let hiddenSet = new Set();
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show';
+  setTimeout(() => t.className = 'toast', 1800);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function render() {
+  const c = document.getElementById('prefs-container');
+  c.innerHTML = '';
+  for (const cat of allCategories) {
+    const isHidden = hiddenSet.has(cat);
+    const card = document.createElement('div');
+    card.className = 'pref-card' + (isHidden ? ' hidden' : '');
+    card.innerHTML = `
+      <label style="display:flex;align-items:center;cursor:pointer;">
+        <input type="checkbox" ${isHidden ? '' : 'checked'} data-cat="${escapeHtml(cat)}">
+        <span class="cat-name">${escapeHtml(cat.replace(/_/g, ' '))}</span>
+      </label>
+    `;
+    c.appendChild(card);
+  }
+  // Attach handlers
+  c.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', async (e) => {
+      const cat = e.target.dataset.cat;
+      const r = await API.toggle(cat);
+      if (r.status === 'ok') {
+        hiddenSet = new Set(allCategories.filter(c => !e.target.checked));
+        render();
+        updateCounts();
+        toast(r.hidden ? '✗ '+cat+' cachée' : '✓ '+cat+' affichée');
+      }
+    });
+  });
+  updateCounts();
+}
+
+function updateCounts() {
+  document.getElementById('visible-count').textContent =
+    allCategories.length - hiddenSet.size;
+  document.getElementById('total-count').textContent = allCategories.length;
+}
+
+async function refresh() {
+  const r = await API.get();
+  if (r.status !== 'ok') { toast('Erreur de chargement'); return; }
+  hiddenSet = new Set(r.preferences.hidden_categories || []);
+  // Récupérer la liste des catégories (depuis /config/feeds)
+  const feeds = await fetch('/config/feeds').then(r => r.json());
+  allCategories = Object.keys(feeds.feeds).sort();
+  render();
+}
+
+document.getElementById('reset-btn').addEventListener('click', async () => {
+  if (!confirm('Réinitialiser : toutes les catégories seront affichées ?')) return;
+  const r = await API.reset();
+  if (r.status === 'ok') { hiddenSet = new Set(); render(); toast('Réinitialisé'); }
+});
+
+refresh();
+</script>
+"""
+
+
+def build_preferences_page(paths: dict) -> str:
+    """Page HTML de préférences (filtre par catégorie, MVP single-user)."""
+    from jinja2 import Template
+    return Template("""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>{{ brand }} — Préférences</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>{{ css }}</style>
+</head>
+<body>
+  <header style="display:flex;justify-content:space-between;align-items:center;
+                 padding:12px 20px;background:#0d1014;border-bottom:1px solid #2a2e36;">
+    <h1 style="margin:0;font-size:18px;">{{ brand }} — Préférences</h1>
+    <nav>
+      <a href="/" style="color:#6ea8fe;text-decoration:none;margin-right:14px;">← Accueil</a>
+      <a href="/config/feeds/page" style="color:#6ea8fe;text-decoration:none;margin-right:14px;">Flux</a>
+      <a href="/config/yaml" style="color:#6ea8fe;text-decoration:none;">Config YAML</a>
+    </nav>
+  </header>
+  <main style="max-width:1100px;margin:0 auto;padding:20px;">
+    <h2 style="font-size:22px;margin:0 0 12px 0;">Catégories de news</h2>
+    <p style="color:#888;font-size:13px;margin:0 0 16px 0;">
+      Sélectionne les catégories que tu veux voir dans ton flux.
+    </p>
+    {{ extra_js }}
+  </main>
+</body>
+</html>""").render(
+        **_branding(paths),
+        global_script="",
+        icecast_url="",
+        css="",
+        extra_js=PREFS_PAGE_JS,
     )
 
 # ─── STATIC SITE GENERATOR ────────────────────────────────────────────────────
@@ -1455,6 +1620,54 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
     def feeds_page():
         """Page HTML de gestion des flux (UI niveau 1)."""
         return build_feeds_page(paths)
+
+    # ─── PRÉFÉRENCES UTILISATEUR (filtre par catégorie) ────────────────────
+    # GET  /api/preferences          → lit les prefs (hidden_categories)
+    # POST /api/preferences/toggle   → {category: "tech"} toggle
+    # POST /api/preferences/reset    → reset (tout visible)
+    # GET  /preferences              → page HTML avec checkboxes
+
+    @app.route("/api/preferences", methods=["GET"])
+    def api_get_preferences():
+        from modules.core.preferences import load_prefs
+        prefs = load_prefs(paths["data"] / "preferences.json")
+        return jsonify({
+            "status": "ok",
+            "preferences": prefs,
+        })
+
+    @app.route("/api/preferences/toggle", methods=["POST"])
+    def api_toggle_preference():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            if not category:
+                return jsonify({"status": "error",
+                                "msg": "category requise"}), 400
+            from modules.core.preferences import (
+                load_prefs, save_prefs, toggle_category
+            )
+            prefs_path = paths["data"] / "preferences.json"
+            prefs = load_prefs(prefs_path)
+            new_state = toggle_category(prefs, category)
+            save_prefs(prefs_path, prefs)
+            return jsonify({
+                "status": "ok",
+                "category": category,
+                "hidden": new_state,
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/api/preferences/reset", methods=["POST"])
+    def api_reset_preferences():
+        from modules.core.preferences import save_prefs, DEFAULT_PREFS
+        save_prefs(paths["data"] / "preferences.json", dict(DEFAULT_PREFS))
+        return jsonify({"status": "ok", "msg": "préférences réinitialisées"})
+
+    @app.route("/preferences", methods=["GET"])
+    def preferences_page():
+        return build_preferences_page(paths)
 
     @app.route("/editions/<path:filename>")
     def serve_edition(filename):
@@ -1939,7 +2152,37 @@ function _startLiveRefresh(){
 
 document.addEventListener('DOMContentLoaded', function(){
   if(document.body.dataset.page === 'live') _startLiveRefresh();
+  _applyCategoryPreferences();
 });
+
+// ── Préférences : cacher les articles des catégories désactivées ────────────
+async function _applyCategoryPreferences(){
+  try {
+    var r = await fetch('/api/preferences');
+    if(r.status !== 200) return;
+    var data = await r.json();
+    var hidden = new Set((data.preferences && data.preferences.hidden_categories) || []);
+    if(hidden.size === 0) return;
+    // Cacher tous les éléments avec data-category
+    document.querySelectorAll('[data-category]').forEach(function(el){
+      if(hidden.has(el.dataset.category)){
+        el.style.display = 'none';
+        el.setAttribute('aria-hidden', 'true');
+      }
+    });
+    // Afficher un petit indicateur si des catégories sont cachées
+    var bar = document.getElementById('prefs-bar');
+    if(bar){
+      bar.textContent = hidden.size + ' catégorie(s) cachée(s) — ';
+      var a = document.createElement('a');
+      a.href = '/preferences';
+      a.style.color = '#6ea8fe';
+      a.textContent = 'Gérer';
+      bar.appendChild(a);
+      bar.style.display = 'block';
+    }
+  } catch(e) { /* noop */ }
+}
 </script>
 """
 
@@ -2006,7 +2249,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
         <h3>Articles récents</h3>
         <div style="max-height:380px;overflow-y:auto">
         {% for a in recent_articles %}
-        <div class="article-item">
+        <div class="article-item" data-category="{{ a.category }}">
           <a href="{{ a.link }}" target="_blank" rel="noopener">
             {{ a.title[:80] }}{% if a.title|length > 80 %}…{% endif %}
           </a>

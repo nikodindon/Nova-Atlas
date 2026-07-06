@@ -50,6 +50,8 @@ data/posts/
 data/llm_cache/
 # Déduplication cross-cycles (regénéré à chaque fetch)
 data/seen_hashes.json
+# Préférences utilisateur (regénéré via UI, single-user pour l'instant)
+data/preferences.json
 data/processed_hashes.json
 data/ollama.lock
 
