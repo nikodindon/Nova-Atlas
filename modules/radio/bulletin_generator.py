@@ -90,20 +90,33 @@ def load_bulletins_config(paths: dict) -> dict:
 def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
     """
     Récupère tous les articles des `window_minutes` dernières minutes
-    depuis data/articles/<YYYYMMDD>/*.json.
+    depuis data/articles/. Supporte 2 formats :
+      - data/articles/<YYYYMMDD>/*.json  (un fichier par cycle)
+      - data/articles/<YYYYMMDD>_articles.json  (un fichier par jour)
 
     Retourne une liste d'articles (dicts), triée par timestamp décroissant.
     """
     now = datetime.now()
     cutoff = now - timedelta(minutes=window_minutes)
     today = now.strftime("%Y%m%d")
-    articles_dir = paths["data"] / "articles" / today
+    articles_root = paths["data"] / "articles"
 
-    if not articles_dir.exists():
+    if not articles_root.exists():
         return []
 
+    # Collecte tous les fichiers JSON du jour (2 formats possibles)
+    json_files = []
+    # Format 1 : sous-dossier par jour
+    sub_dir = articles_root / today
+    if sub_dir.exists():
+        json_files.extend(sub_dir.glob("*.json"))
+    # Format 2 : fichier unique par jour
+    single_file = articles_root / f"{today}_articles.json"
+    if single_file.exists():
+        json_files.append(single_file)
+
     found = []
-    for f in articles_dir.glob("*.json"):
+    for f in json_files:
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
             for art in data:
