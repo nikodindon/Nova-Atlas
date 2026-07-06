@@ -10,7 +10,7 @@ Refactorisé depuis atlas_fetch.py (pblart/nova-media) :
   - Toute la logique interne (RSS_SOURCES, round-robin, verrou seen_hashes,
     retry_pending_summaries, etc.) est conservée à l'identique
   - Les chemins viennent de config.paths.*
-  - Ollama passe par modules.core.ollama
+  - Ollama passe par modules.core.llm_client
 """
 
 import hashlib
@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from modules.core.ollama import init_ollama, ollama_call, get_language, get_fetch_timeout
+from modules.core.llm_client import init_ollama, ollama_call, get_language, get_fetch_timeout
 
 # ─── SOURCES RSS (identiques à atlas_fetch.py original) ───────────────────────
 
@@ -37,8 +37,8 @@ RSS_SOURCES = {
         "https://feeds.bbci.co.uk/news/world/rss.xml",
         "https://www.theguardian.com/world/rss",
         "https://www.euronews.com/rss",
-        "https://feeds.reuters.com/reuters/topNews",
-        "https://apnews.com/apf-topnews.rss",
+        # [SPRINT0] "https://feeds.reuters.com/reuters/topNews",
+        # [SPRINT0] "https://apnews.com/apf-topnews.rss",
         "https://www.aljazeera.com/xml/rss/all.xml",
         "https://www.middleeasteye.net/rss",
         "https://rss.dw.com/rdf/rss-en-all",
@@ -46,7 +46,7 @@ RSS_SOURCES = {
         "https://www.courrierinternational.com/feed/rubrique/geopolitique/rss.xml",
     ],
     "economie": [
-        "https://bfmbusiness.bfmtv.com/rss/news-flux-rss/",
+        # [SPRINT0] "https://bfmbusiness.bfmtv.com/rss/news-flux-rss/",
         "https://www.cnbc.com/id/100003114/device/rss/rss.html",
         "https://foreignpolicy.com/feed/",
         "https://fr.investing.com/rss/news.rss",
@@ -108,14 +108,14 @@ RSS_SOURCES = {
         "https://www.courrierinternational.com/feed/rubrique/expat/rss.xml",
     ],
     "culture": [
-        "https://www.premiere.fr/rss/actu-cinema",
-        "https://www.lemonde.fr/arts/rss/une.xml",
+        # [SPRINT0] "https://www.premiere.fr/rss/actu-cinema",
+        # [SPRINT0] "https://www.lemonde.fr/arts/rss/une.xml",
         "https://pitchfork.com/rss/news/",
         "https://www.courrierinternational.com/feed/rubrique/culture/rss.xml",
-        "https://www.lesinrocks.com/feed/",
+        # [SPRINT0] "https://www.lesinrocks.com/feed/",
     ],
     "sport": [
-        "https://rmcsport.bfmtv.com/rss/news-flux-rss/",
+        # [SPRINT0] "https://rmcsport.bfmtv.com/rss/news-flux-rss/",
         "https://www.bbc.co.uk/sport/rss.xml",
         "https://www.espn.com/espn/rss/news",
     ],
@@ -285,7 +285,7 @@ class ArticleFetcher:
         self._config = config
         self._apply_config(config)
         # Recharge aussi le client Ollama (modèle peut avoir changé)
-        from modules.core.ollama import init_ollama as _init
+        from modules.core.llm_client import init_ollama as _init
         _init(config)
         self.log.info("[FETCH] Config rechargée à chaud.")
 
@@ -427,7 +427,7 @@ class ArticleFetcher:
     def _translate_title(self, title: str) -> str:
         """Traduit le titre dans la langue cible si elle diffère de l'original.
         Utilise un prompt ultra-court pour minimiser le temps Ollama."""
-        from modules.core.ollama import get_language
+        from modules.core.llm_client import get_language
         lang = get_language()
         # Ne traduit pas si la langue cible est l'anglais ou le français
         # et que le titre semble déjà dans une de ces langues (heuristique rapide)
@@ -511,7 +511,7 @@ class ArticleFetcher:
             self.log.info(f"  [{category[:4].upper()}] {title[:65]}…")
             summary = self._summarize(title, content, category)
             # Traduction du titre dans la langue cible (si différente)
-            from modules.core.ollama import get_language
+            from modules.core.llm_client import get_language
             lang = get_language()
             translated_title = self._translate_title(title) if lang not in ("français","french","fr") else title
             article = {

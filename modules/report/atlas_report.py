@@ -7,7 +7,7 @@ Génère le grand rapport narratif quotidien (lancé à 23h).
 Refactorisé depuis atlas_report.py (pblart/nova-media) :
   - Enveloppé dans ReportGenerator(config)
   - Les chemins viennent de config.paths.*
-  - Ollama passe par modules.core.ollama
+  - Ollama passe par modules.core.llm_client
   - Toute la logique de génération (intro, sections, conclusion) est conservée
 """
 
@@ -17,7 +17,7 @@ import os
 from datetime import datetime, date
 from pathlib import Path
 
-from modules.core.ollama import init_ollama, ollama_call, get_language, get_model
+from modules.core.llm_client import init_ollama, ollama_call, get_language, get_model
 
 CATEGORY_LABELS = {
     "geopolitique":  "Géopolitique",
@@ -55,7 +55,7 @@ class ReportGenerator:
     def reload_config(self, config: dict):
         """Recharge la config à chaud."""
         self._apply_config(config)
-        from modules.core.ollama import init_ollama as _init
+        from modules.core.llm_client import init_ollama as _init
         _init(config)
         self.log.info("[REPORT] Config rechargée à chaud.")
 

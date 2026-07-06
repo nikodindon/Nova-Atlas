@@ -17,7 +17,7 @@ llm:
   timeout_edition: 900
 
 rss:
-  max_articles_per_feed: 8
+  max_articles_per_feed: 3
   live_window_hours: 20
 
 radio:

@@ -164,10 +164,15 @@ class OllamaClient:
 
     def _call_llama_server(self, prompt: str, model: str, timeout: int) -> str:
         url = f"{self.base_url.rstrip('/')}/v1/chat/completions"
+        # max_tokens large : modèles "thinking" (Qwen3, DeepSeek-R1, etc.) brûlent
+        # 500-2000 tokens de réflexion AVANT la réponse utile. À 256 ou 512, le
+        # serveur tronque et on reçoit du texte vide / tronqué.
         payload = json.dumps({
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
+            "max_tokens": 4096,
+            "temperature": 0.3,
         }).encode("utf-8")
 
         req = urllib.request.Request(
@@ -364,7 +369,7 @@ def get_client() -> OllamaClient:
     if _client is None:
         raise RuntimeError(
             "OllamaClient non initialisé. "
-            "Appelle modules.core.ollama.init_ollama(config) en début de processus."
+            "Appelle modules.core.llm_client.init_ollama(config) en début de processus."
         )
     return _client
 

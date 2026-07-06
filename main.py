@@ -94,7 +94,7 @@ def run_news_engine(config: dict, debug: bool = False):
     setup_logging(debug)
 
     # Initialise Ollama pour ce processus
-    from modules.core.ollama      import init_ollama
+    from modules.core.llm_client      import init_ollama
     from modules.fetch.atlas_fetch       import ArticleFetcher
     from modules.report.atlas_report     import ReportGenerator
     from modules.editions.atlas_editions import EditionGenerator
@@ -124,7 +124,7 @@ def run_news_engine(config: dict, debug: bool = False):
         if _reload_flag.exists():
             try:
                 _reload_flag.unlink()
-                from modules.core.ollama import reload_ollama
+                from modules.core.llm_client import reload_ollama
                 new_cfg = load_config("config/config.yaml")
                 # Recharge Ollama EN PREMIER (modèle + langue)
                 reload_ollama(new_cfg)
@@ -331,7 +331,7 @@ def cmd_cleanup(config, dry_run: bool = False):
 
 
 def cmd_build(config):
-    from modules.core.ollama  import init_ollama
+    from modules.core.llm_client  import init_ollama
     from modules.web.atlas_web import generate_static_site
     init_ollama(config)
     logger.info("🔨 Rebuild complet...")
@@ -339,7 +339,7 @@ def cmd_build(config):
     logger.info("✅ Site généré.")
 
 def cmd_fetch(config):
-    from modules.core.ollama       import init_ollama
+    from modules.core.llm_client       import init_ollama
     from modules.fetch.atlas_fetch import ArticleFetcher
     from modules.web.atlas_web     import generate_static_site
     init_ollama(config)
@@ -349,7 +349,7 @@ def cmd_fetch(config):
     logger.info("✅ Collecte terminée.")
 
 def cmd_edition(config, edition_name):
-    from modules.core.ollama             import init_ollama
+    from modules.core.llm_client             import init_ollama
     from modules.editions.atlas_editions import EditionGenerator
     from modules.web.atlas_web           import generate_static_site
     init_ollama(config)
@@ -360,7 +360,7 @@ def cmd_edition(config, edition_name):
         logger.info(f"✅ → {out}")
 
 def cmd_report(config, day=None):
-    from modules.core.ollama      import init_ollama
+    from modules.core.llm_client      import init_ollama
     from modules.report.atlas_report import ReportGenerator
     from modules.web.atlas_web       import generate_static_site
     init_ollama(config)

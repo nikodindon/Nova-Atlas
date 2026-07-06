@@ -7,7 +7,7 @@ Génère des posts réseaux sociaux toutes les 2h.
 Refactorisé depuis atlas_posts.py (pblart/nova-media) :
   - Enveloppé dans PostsGenerator(config)
   - Les chemins viennent de config.paths.*
-  - Ollama passe par modules.core.ollama
+  - Ollama passe par modules.core.llm_client
   - Toute la logique (hot topics, JSON/TXT, fallback) est conservée à l'identique
 """
 
@@ -18,7 +18,7 @@ from collections import defaultdict
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
-from modules.core.ollama import init_ollama, ollama_call, get_language
+from modules.core.llm_client import init_ollama, ollama_call, get_language
 
 NB_POSTS      = 4
 WINDOW_HOURS  = 2
@@ -74,7 +74,7 @@ class PostsGenerator:
     def reload_config(self, config: dict):
         """Recharge la config à chaud."""
         self._apply_config(config)
-        from modules.core.ollama import init_ollama as _init
+        from modules.core.llm_client import init_ollama as _init
         _init(config)
         self.log.info("[POSTS] Config rechargée à chaud.")
 
