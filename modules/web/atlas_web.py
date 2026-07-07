@@ -2847,17 +2847,29 @@ function _flashEta() {
   const elapsed = (now - flashStartTime) / 1000;
   if (elapsed < 1) return null;
 
-  // Trouve le % de référence le plus proche (inférieur ou égal)
-  // dans la table de phases, pour estimer le temps total typique.
-  let closestPct = 0;
-  for (const pct of Object.keys(FLASH_PHASE_ESTIMATES).map(Number).sort((a,b)=>a-b)) {
-    if (pct <= flashLastProgress) closestPct = pct;
-    else break;
+  // Interpolation linéaire entre 2 phases consécutives pour un ETA
+  // fluide (pas de saut entre 2 paliers).
+  const sortedPcts = Object.keys(FLASH_PHASE_ESTIMATES).map(Number).sort((a,b)=>a-b);
+  let lowerPct = 0, upperPct = 100;
+  let lowerT = 0, upperT = FLASH_PHASE_ESTIMATES[100];
+  for (let i = 0; i < sortedPcts.length; i++) {
+    if (sortedPcts[i] <= flashLastProgress) {
+      lowerPct = sortedPcts[i];
+      lowerT = FLASH_PHASE_ESTIMATES[lowerPct];
+    } else {
+      upperPct = sortedPcts[i];
+      upperT = FLASH_PHASE_ESTIMATES[upperPct];
+      break;
+    }
   }
-  const typicalTotal = FLASH_PHASE_ESTIMATES[closestPct];
-  // Si on est en avance ou en retard par rapport au temps typique,
-  // on ajuste. Mais pour la simplicité, on garde l'ETA typique
-  // de la phase actuelle, qui est stable.
+  // Interpolation linéaire entre lowerPct et upperPct
+  let typicalTotal;
+  if (upperPct === lowerPct) {
+    typicalTotal = lowerT;
+  } else {
+    const t = (flashLastProgress - lowerPct) / (upperPct - lowerPct);
+    typicalTotal = lowerT + t * (upperT - lowerT);
+  }
   const eta = typicalTotal - elapsed;
   return eta > 0 ? Math.round(eta) : 0;
 }
