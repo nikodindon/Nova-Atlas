@@ -379,10 +379,12 @@ def run_radio(config: dict, debug: bool = False):
             target_slot = f"{(h + 1) % 24:02d}:00"
         else:
             target_slot = ""
-        if target_slot and target_slot != last_slot:
-            last_slot = target_slot
+        # Debug: log chaque check pour diagnostiquer
+        if target_slot:
             log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
-            threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
+            if target_slot != last_slot:
+                last_slot = target_slot
+                threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
         time.sleep(30)  # check 2×/min pour réactivité
 
 
