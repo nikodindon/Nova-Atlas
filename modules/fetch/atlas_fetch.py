@@ -645,6 +645,13 @@ class ArticleFetcher:
                 queues[category] = pending
                 self.log.info(f"  {category:15} : {len(pending)} nouveaux")
 
+        # Log explicite des catégories sans nouvel article (pour qu'on sache
+        # qu'elles existent et qu'elles sont juste calmes dans la fenêtre).
+        all_cats = list(rss_sources.keys())
+        empty_cats = [c for c in all_cats if c not in queues]
+        if empty_cats:
+            self.log.info(f"  (calmes: {', '.join(empty_cats)})")
+
         total_pending = sum(len(v) for v in queues.values())
 
         # Cap par catégorie (rss.max_per_category). On garantit le même
