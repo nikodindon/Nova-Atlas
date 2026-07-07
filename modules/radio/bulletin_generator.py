@@ -290,6 +290,9 @@ def generate_bulletin_script(articles: List[dict], config: dict,
     """Appelle le LLM pour générer le script balisé. Retourne None si erreur."""
     prompt = build_bulletin_prompt(articles, config, intros, transitions, outros)
     try:
+        # S'assure que le LLM est initialisé (sinon OllamaClient non initialisé)
+        from modules.core.llm_client import init_ollama as _init_ollama
+        _init_ollama(config)
         # Timeout long car génération ~1500 mots
         out = ollama_call(prompt, timeout=300, caller="bulletin")
         if not out:
@@ -481,7 +484,7 @@ class BulletinGenerator:
             )
             return None
 
-        logger.info(f"📡 Génération bulletin 30min ({len(articles)} articles)")
+        logger.info(f"📡 Génération bulletin 10min ({len(articles)} articles)")
 
         # Charge les intros/transitions/outros depuis messages.yaml
         intros, transitions, outros = self._load_messages()
