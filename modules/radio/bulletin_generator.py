@@ -184,6 +184,12 @@ def get_flash_articles(paths: dict, category: str, since_minute_of_day: int = 0)
 
     # Tri par importance (longueur résumé desc) puis timestamp desc
     unique.sort(key=lambda a: (len(a.get("summary") or ""), a.get("timestamp", "")), reverse=True)
+
+    # Déduplication par similarité (les news rapportées par plusieurs sources
+    # ont des résumés très proches mais des hash différents). O(n²) mais
+    # adapté pour des catégories < 100 articles.
+    unique = dedup_articles_by_similarity(unique, threshold=0.7)
+
     return unique
 
 
@@ -566,10 +572,12 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
     uniquement les articles de la catégorie, depuis minuit de la journée.
     """
     target_words = 750  # 5 min de parole
-    # Tronque les résumés à 600 chars (vs 400 par défaut) pour donner au LLM
-    # plus de contexte par article. Le prompt grossit (~28k chars pour 38
-    # articles tech), mais reste sous la fenêtre de llama-server (32k chars).
-    articles_text = _format_articles_for_prompt(articles, max_summary_chars=600)
+    # Tronque les résumés à 800 chars (vs 400 par défaut) pour donner au LLM
+    # plus de contexte par article. Le prompt grossit (~30k chars pour 40
+    # articles tech après dédup), mais reste sous la fenêtre de llama-server
+    # (32k chars). Les articles dédupliqués par similarité (dedup_articles_by_similarity)
+    # sont déjà plus longs en moyenne (on garde le résumé le plus informatif).
+    articles_text = _format_articles_for_prompt(articles, max_summary_chars=800)
 
     # Choisit 1 intro et 1 outro au hasard
     now_str = datetime.now().strftime("%Hh%M")
