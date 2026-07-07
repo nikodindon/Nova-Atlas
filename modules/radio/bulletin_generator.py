@@ -450,6 +450,83 @@ def shutil_move_fallback(src: Path, dst: Path):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Flash : bulletin court spécialisé par catégorie, à la demande
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
+                        intros: List[str], outros: List[str]) -> str:
+    """
+    Construit un prompt court (~5 min de parole) pour un Flash spécialisé
+    sur une catégorie. Le LLM doit générer un script factuel qui couvre
+    uniquement les articles de la catégorie, depuis minuit de la journée.
+    """
+    target_words = 750  # 5 min de parole
+    articles_text = _format_articles_for_prompt(articles)
+
+    # Choisit 1 intro et 1 outro au hasard
+    now_str = datetime.now().strftime("%Hh%M")
+    date_str = datetime.now().strftime("%d/%m/%Y")
+    intro = random.choice(intros).format(heure=now_str, date=date_str) if intros \
+        else f"Bonjour, il est {now_str}, voici le flash {cat_label}."
+    outro = random.choice(outros).format(heure=now_str, date=date_str) if outros \
+        else f"C'est tout pour ce flash {cat_label}."
+
+    prompt = f"""Tu es un journaliste radio professionnel français. Tu produis un FLASH D'INFORMATION SPECIALISE sur la catégorie « {cat_label} ».
+
+CONTEXTE :
+- Heure du flash : ~{datetime.now().strftime("%Hh%M")}
+- Catégorie : {cat_label} ({category})
+- Durée cible : 5 minutes de parole (~{target_words} mots, ±100)
+- Fenêtre temporelle : depuis minuit de la journée en cours ({date_str})
+- Audience : auditeur français qui veut un résumé rapide
+- Style : France Inter, professionnel, neutre, factuel
+
+ARTICLES DE LA CATÉGORIE « {cat_label} » DEPUIS MINUIT :
+{articles_text}
+
+CONSIGNES STRICTES :
+- Utilise les BALISES [VOIX1] et [VOIX2] pour marquer les changements de voix
+  Format : [VOIX1] texte parlé par la voix 1. [VOIX2] texte parlé par la voix 2.
+- INTRO (Voix 1) : adapte l'inspiration suivante — "{intro}"
+- OUTRO (Voix 1) : utilise une variation de — "{outro}"
+- Traite TOUS les articles, classés du plus important au moins important
+- Format : 1-2 phrases par article, ton radio rapide et factuel
+- N'invente rien : utilise UNIQUEMENT les informations données
+- Pas de markdown
+- Phrases courtes, terminées par un point
+- Vise {target_words} mots total
+
+FORMAT DE SORTIE :
+- UNIQUEMENT le texte balisé, pas de méta-commentaires
+- Commence par [VOIX1] (l'intro)
+- Termine par [VOIX1] (l'outro)
+"""
+    return prompt
+
+
+def generate_flash_script(articles: List[dict], category: str, cat_label: str,
+                          config: dict, intros: List[str], outros: List[str]) -> Optional[str]:
+    """Appelle le LLM pour générer le script d'un Flash spécialisé. Retourne None si erreur."""
+    prompt = build_flash_prompt(articles, category, cat_label, intros, outros)
+    try:
+        # S'assure que le LLM est initialisé
+        from modules.core.llm_client import init_ollama as _init_ollama
+        _init_ollama(config)
+        # Timeout court pour un flash de 5 min
+        out = ollama_call(prompt, timeout=120, caller="flash")
+        if not out:
+            logger.warning("LLM a renvoyé un script flash vide")
+            return None
+        out = clean_for_tts(out)
+        if not out.startswith("["):
+            out = "[VOIX1] " + out
+        return out
+    except Exception as e:
+        logger.error(f"Erreur génération script flash LLM : {e}")
+        return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Point d'entrée principal
 # ─────────────────────────────────────────────────────────────────────────────
 
