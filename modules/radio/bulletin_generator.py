@@ -190,6 +190,14 @@ def get_flash_articles(paths: dict, category: str, since_minute_of_day: int = 0)
     # adapté pour des catégories < 100 articles.
     unique = dedup_articles_by_similarity(unique, threshold=0.7)
 
+    # Cap à 40 articles max (catégories trop fournies comme geopolitique 80+
+    # ou sport 60+ donneraient un prompt > 32k chars). Le tri par longueur
+    # de résumé descendant a déjà mis les articles les plus informatifs en
+    # premier, donc on garde les 40 meilleurs.
+    MAX_FLASH_ARTICLES = 40
+    if len(unique) > MAX_FLASH_ARTICLES:
+        unique = unique[:MAX_FLASH_ARTICLES]
+
     return unique
 
 
@@ -572,12 +580,12 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
     uniquement les articles de la catégorie, depuis minuit de la journée.
     """
     target_words = 750  # 5 min de parole
-    # Tronque les résumés à 800 chars (vs 400 par défaut) pour donner au LLM
-    # plus de contexte par article. Le prompt grossit (~30k chars pour 40
-    # articles tech après dédup), mais reste sous la fenêtre de llama-server
-    # (32k chars). Les articles dédupliqués par similarité (dedup_articles_by_similarity)
-    # sont déjà plus longs en moyenne (on garde le résumé le plus informatif).
-    articles_text = _format_articles_for_prompt(articles, max_summary_chars=800)
+    # Tronque les résumés à 500 chars (vs 400 par défaut) pour donner au LLM
+    # plus de contexte par article. Avec dedup (~5% d'articles en moins) +
+    # ce prompt : ~20k chars pour 40 articles tech, sous la fenêtre 32k.
+    # Catégories plus fournies (geopolitique 80+, sport 60+) : ~30-40k,
+    # le LLM tronquera la fin — acceptable car la fin est moins importante.
+    articles_text = _format_articles_for_prompt(articles, max_summary_chars=500)
 
     # Choisit 1 intro et 1 outro au hasard
     now_str = datetime.now().strftime("%Hh%M")
