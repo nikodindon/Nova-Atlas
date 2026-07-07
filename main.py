@@ -370,11 +370,13 @@ def run_radio(config: dict, debug: bool = False):
     while True:
         now = datetime.now()
         m, h = now.minute, now.hour
-        # Slot cible = h:00 (à :25-:26) ou h:30 (à :55-:56)
+        # Pré-déclenchement 5 min avant le slot pile :
+        #   :25-27 → vise h:30 (qui arrive dans ~5 min)
+        #   :55-57 → vise (h+1):00 (qui arrive dans ~5 min)
         if 25 <= m < 27 and h in post_hours:
-            target_slot = f"{h:02d}:00"
-        elif 55 <= m < 57 and h in post_hours:
             target_slot = f"{h:02d}:30"
+        elif 55 <= m < 57 and (h + 1) % 24 in post_hours:
+            target_slot = f"{(h + 1) % 24:02d}:00"
         else:
             target_slot = ""
         if target_slot and target_slot != last_slot:
