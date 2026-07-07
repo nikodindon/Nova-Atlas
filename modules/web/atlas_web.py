@@ -1816,13 +1816,26 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                     import threading, time as _time
                     _stop_hb = threading.Event()
                     def _heartbeat():
+                        # Couvre toutes les phases de génération (20% → 90%)
+                        # pour que la barre de progression avance en continu
+                        # même pendant le LLM (qui peut prendre 1-10 min) et
+                        # le TTS (qui peut prendre 30s-1min). Sans ça, la
+                        # barre reste figée entre les paliers backend.
                         p = 20
                         while not _stop_hb.is_set():
-                            _time.sleep(3)
+                            _time.sleep(2)
                             if _stop_hb.is_set(): break
-                            if p < 48:
+                            # Ralentit quand on approche des paliers backend
+                            # pour ne pas dépasser avant que le backend ne suive
+                            if p < 49:        # avant LLM fini (palier 50%)
                                 p += 1
-                                _flash_jobs[job_id]["progress"] = p
+                            elif p < 59:      # avant TTS (palier 60%)
+                                p += 1
+                            elif p < 89:      # avant mix (palier 90%)
+                                p += 1
+                            else:
+                                break  # proche de la fin, laisse le backend finir
+                            _flash_jobs[job_id]["progress"] = p
                     _hb_thread = threading.Thread(target=_heartbeat, daemon=True, name=f"FlashHB_{job_id}")
                     _hb_thread.start()
                     try:
@@ -2808,26 +2821,45 @@ let flashStartTime = null;          // timestamp du début du flash (pour ETA)
 let flashLastProgress = 0;          // dernier progress vu (pour estimer vitesse)
 let flashLastPollTime = null;       // timestamp du dernier poll
 
-// Estimation de la vitesse de progression (% par seconde)
+// Estimation du temps restant (modèle par phases, pas d'extrapolation linéaire).
+// Chaque phase a un temps typique connu. L'ETA est calculée comme la somme
+// des temps restants typiques des phases en cours + à venir.
+const FLASH_PHASE_ESTIMATES = {
+  // progress: temps total typique écoulé depuis le début (en secondes)
+  0:   0,     // début
+  10:  2,     // collecte articles: 2s
+  20:  5,     // début LLM: 5s
+  30:  30,    // LLM en cours: 30s typiques (varie 10s-2min)
+  40:  60,    // LLM long: 60s
+  48:  90,    // fin LLM: 90s
+  50:  95,    // juste après LLM
+  60:  105,   // début TTS: 105s
+  70:  120,   // TTS en cours
+  80:  140,   // TTS presque fini
+  90:  155,   // mix audio: 155s
+  95:  160,   // mix presque fini
+  100: 165,   // terminé
+};
+
 function _flashEta() {
   if (!flashStartTime || flashLastProgress >= 100) return null;
   const now = Date.now();
   const elapsed = (now - flashStartTime) / 1000;
   if (elapsed < 1) return null;
-  // Si on a au moins 2 polls, on peut extrapoler depuis la vitesse
-  if (flashLastPollTime && flashLastProgress > 0) {
-    const since_last = (now - flashLastPollTime) / 1000;
-    if (since_last > 0.1) {
-      // Vitesse récente = progress_delta / time_delta
-      // Pas implémenté ici, on utilise plutôt l'extrapolation globale
-    }
+
+  // Trouve le % de référence le plus proche (inférieur ou égal)
+  // dans la table de phases, pour estimer le temps total typique.
+  let closestPct = 0;
+  for (const pct of Object.keys(FLASH_PHASE_ESTIMATES).map(Number).sort((a,b)=>a-b)) {
+    if (pct <= flashLastProgress) closestPct = pct;
+    else break;
   }
-  // Extrapolation simple : on suppose progression linéaire
-  // (peu précis si LLM est la partie la plus longue, mais OK comme estimation)
-  const speed = flashLastProgress / elapsed;  // % par seconde
-  if (speed < 0.01) return null;  // trop lent, ETA serait énorme
-  const remaining = 100 - flashLastProgress;
-  return Math.round(remaining / speed);
+  const typicalTotal = FLASH_PHASE_ESTIMATES[closestPct];
+  // Si on est en avance ou en retard par rapport au temps typique,
+  // on ajuste. Mais pour la simplicité, on garde l'ETA typique
+  // de la phase actuelle, qui est stable.
+  const eta = typicalTotal - elapsed;
+  return eta > 0 ? Math.round(eta) : 0;
 }
 
 function flashToggle(e) {
