@@ -552,8 +552,15 @@ ARTICLES DE LA CATÉGORIE « {cat_label} » DEPUIS MINUIT :
 CONSIGNES STRICTES :
 - Utilise les BALISES [VOIX1] et [VOIX2] pour marquer les changements de voix
   Format : [VOIX1] texte parlé par la voix 1. [VOIX2] texte parlé par la voix 2.
-- INTRO (Voix 1) : adapte l'inspiration suivante — "{intro}"
-- OUTRO (Voix 1) : utilise une variation de — "{outro}"
+- INTRO (Voix 1) : COMMENCE OBLIGATOIREMENT par une phrase qui annonce
+  explicitement qu'il s'agit d'un FLASH SPÉCIALISÉ sur la catégorie « {cat_label} ».
+  Exemples de formulations acceptées :
+    "Flash {cat_label}, il est {now_str}, voici l'actualité {cat_label.lower()} de la journée."
+    "Bonjour, nous sommes dans le flash {cat_label.lower()}, le résumé de la journée."
+    "{cat_label} : le flash du jour sur l'actualité {cat_label.lower()}."
+  Adapte l'inspiration suivante en l'enrichissant de cette annonce — "{intro}"
+- OUTRO (Voix 1) : termine en rappelant qu'il s'agissait du flash {cat_label.lower()},
+  puis utilise une variation de — "{outro}"
 - Traite TOUS les articles, classés du plus important au moins important
 - Format : 1-2 phrases par article, ton radio rapide et factuel
 - N'invente rien : utilise UNIQUEMENT les informations données
