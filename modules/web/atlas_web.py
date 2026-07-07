@@ -1785,7 +1785,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             def _run_flash():
                 try:
                     from modules.radio.bulletin_generator import (
-                        get_flash_articles, BulletinGenerator
+                        get_flash_articles, generate_flash_script, BulletinGenerator
                     )
                     import yaml
                     # 1. Charge la config globale
@@ -1801,14 +1801,29 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                         _flash_jobs[job_id]["error"] = "Aucun article dans cette catégorie aujourd'hui"
                         return
 
-                    # 4. Pipeline TTS + mix via BulletinGenerator (qui appelle
-                    # lui-même le LLM avec son prompt générique). On a un
-                    # double appel LLM évitable en V2 (en passant un script
-                    # pré-calculé à build()), mais la V1 reste fonctionnelle.
-                    _flash_jobs[job_id]["progress"] = 30
+                    # 3. Génère le script via le prompt spécialisé Flash
+                    # (qui dit "depuis minuit" et non "30 dernières minutes").
+                    _flash_jobs[job_id]["progress"] = 20
+                    cat_label = _get_cat_labels(cfg).get(category, category)
+                    # Charge intros/outros
+                    msgs_path = paths["root"] / "config" / "messages.yaml"
+                    msgs = yaml.safe_load(msgs_path.read_text()) if msgs_path.exists() else {}
+                    intros = [i for i in msgs.get("intros", []) if not str(i).startswith("#")]
+                    outros = [o for o in msgs.get("outros", []) if not str(o).startswith("#")]
+                    script = generate_flash_script(
+                        articles, category, cat_label, cfg, intros, outros
+                    )
+                    if not script:
+                        _flash_jobs[job_id]["status"] = "error"
+                        _flash_jobs[job_id]["error"] = "LLM a renvoyé un script flash vide"
+                        return
+                    _flash_jobs[job_id]["progress"] = 50
+
+                    # 4. TTS + mix via BulletinGenerator avec le script pré-généré
+                    # (pas de double appel LLM).
                     gen = BulletinGenerator(cfg, paths)
-                    _flash_jobs[job_id]["progress"] = 40
-                    out_path = gen.build(articles)
+                    _flash_jobs[job_id]["progress"] = 60
+                    out_path = gen.build(articles, script=script)
                     _flash_jobs[job_id]["progress"] = 90
                     if not out_path:
                         _flash_jobs[job_id]["status"] = "error"
@@ -2768,6 +2783,7 @@ FLASH_BUTTON_JS = '''
 // ============ FLASH FEATURE ============
 let flashPollInterval = null;
 let flashCurrentJobId = null;
+let flashWasRadioPlaying = false;  // mémorise si la radio live jouait avant le flash
 
 function flashToggle(e) {
   e.stopPropagation();
@@ -2802,6 +2818,16 @@ async function flashStart(category) {
   label.textContent = `Flash ${category}...`;
   msg.textContent = 'Envoi de la demande...';
 
+  // Mémorise l'état de la radio live (jouait-elle ?) pour la reprendre
+  // à la fin du flash
+  if (window._novaAudio) {
+    flashWasRadioPlaying = !window._novaAudio.paused;
+    if (flashWasRadioPlaying) {
+      window._novaAudio.pause();
+      msg.textContent = 'Envoi de la demande... (radio live mise en pause)';
+    }
+  }
+
   try {
     const r = await fetch('/api/flash', {
       method: 'POST',
@@ -2812,6 +2838,11 @@ async function flashStart(category) {
     if (data.status !== 'ok') {
       msg.textContent = 'Erreur: ' + (data.msg || 'inconnue');
       btn.disabled = false;
+      // Reprend la radio si on l'avait mise en pause
+      if (flashWasRadioPlaying && window._novaAudio) {
+        window._novaAudio.play().catch(() => {});
+        flashWasRadioPlaying = false;
+      }
       return;
     }
     flashCurrentJobId = data.job_id;
@@ -2821,6 +2852,11 @@ async function flashStart(category) {
   } catch (e) {
     msg.textContent = 'Erreur réseau: ' + e.message;
     btn.disabled = false;
+    // Reprend la radio si on l'avait mise en pause
+    if (flashWasRadioPlaying && window._novaAudio) {
+      window._novaAudio.play().catch(() => {});
+      flashWasRadioPlaying = false;
+    }
   }
 }
 
@@ -2860,6 +2896,11 @@ async function flashPoll() {
       });
       audio.onended = () => {
         msg.textContent = 'Terminé';
+        // Reprend la radio live si elle était en cours avant le flash
+        if (flashWasRadioPlaying && window._novaAudio) {
+          window._novaAudio.play().catch(() => {});
+          flashWasRadioPlaying = false;
+        }
         setTimeout(() => {
           prog.classList.remove('open');
           btn.disabled = false;

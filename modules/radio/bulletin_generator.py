@@ -618,10 +618,14 @@ class BulletinGenerator:
         self.queue_dir.mkdir(parents=True, exist_ok=True)
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    def build(self, articles: List[dict]) -> Optional[Path]:
+    def build(self, articles: List[dict], script: Optional[str] = None) -> Optional[Path]:
         """
         Génère un bulletin complet (collecte LLM + TTS + mix).
         Retourne le chemin du mp3 final ou None.
+
+        Si `script` est fourni, on l'utilise tel quel (skippe l'appel LLM).
+        Utilisé par /api/flash pour injecter un script généré avec un
+        prompt spécialisé par catégorie.
         """
         cfg = self.bulletins_cfg
 
@@ -633,17 +637,20 @@ class BulletinGenerator:
             )
             return None
 
-        logger.info(f"📡 Génération bulletin 10min ({len(articles)} articles)")
+        if script is None:
+            logger.info(f"📡 Génération bulletin 10min ({len(articles)} articles)")
 
-        # Charge les intros/transitions/outros depuis messages.yaml
-        intros, transitions, outros = self._load_messages()
+            # Charge les intros/transitions/outros depuis messages.yaml
+            intros, transitions, outros = self._load_messages()
 
-        # 1) Prompt LLM — passe self.config (la config globale qui a la
-        # section llm) et non cfg (qui vient de bulletins.yaml et n'a pas
-        # la section llm, ce qui forcerait les defaults ollama/mistral).
-        script = generate_bulletin_script(articles, self.config, intros, transitions, outros)
-        if not script:
-            return None
+            # 1) Prompt LLM — passe self.config (la config globale qui a la
+            # section llm) et non cfg (qui vient de bulletins.yaml et n'a pas
+            # la section llm, ce qui forcerait les defaults ollama/mistral).
+            script = generate_bulletin_script(articles, self.config, intros, transitions, outros)
+            if not script:
+                return None
+        else:
+            logger.info(f"📡 Génération bulletin 10min ({len(articles)} articles, script pré-généré)")
 
         # 2) Valide le script (longueur, présence des balises)
         target = cfg.get("target_words", 1500)
