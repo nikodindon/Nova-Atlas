@@ -650,6 +650,9 @@ def render_report_page(day: str, paths: dict) -> str:
         gen_time=datetime.now().strftime("%H:%M"),
         categories=categories,
         cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         stats=stats,
         recent_articles=recent,
         archives=archives,
@@ -722,6 +725,10 @@ def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS,
         breaking_banner=render_breaking_banner(paths),
+        cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         edition_label=cfg["label"],
         edition_emoji=cfg["emoji"],
         edition_color=cfg["color"],
@@ -772,6 +779,10 @@ def build_index(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS,
         breaking_banner=render_breaking_banner(paths),
+        cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         days=day_cards,
         today_file=today_file,
         total_days=len(all_days),
@@ -868,6 +879,10 @@ def build_live_feed(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS + LIVE_CSS_EXTRA,
         breaking_banner=render_breaking_banner(paths),
+        cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         articles=recent,          # fil chronologique unique
         cat_counts=cat_counts_sorted,
         cat_icons=CATEGORY_ICONS,
@@ -932,6 +947,10 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
         active_voices=voices,
         all_voices=ALL_VOICES,
         lang_labels=LANG_LABELS,
+        cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         year=datetime.now().year,
     )
 
@@ -945,6 +964,10 @@ def build_config_page(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS,
         cfg=cfg,
+        cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         models=AVAILABLE_MODELS,
         today_file=f"{datetime.now().strftime('%Y%m%d')}_report.html",
         year=datetime.now().year,
@@ -1138,6 +1161,10 @@ def build_feeds_page(paths: dict) -> str:
         icecast_url="",
         css="",
         extra_js=FEEDS_PAGE_JS,
+        cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
     )
 
 
@@ -1304,6 +1331,10 @@ def build_preferences_page(paths: dict) -> str:
         icecast_url="",
         css="",
         extra_js=PREFS_PAGE_JS,
+        cat_icons=CATEGORY_ICONS,
+        cat_labels=_get_cat_labels(load_atlas_config(paths)),
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
     )
 
 # ─── STATIC SITE GENERATOR ────────────────────────────────────────────────────
@@ -1935,6 +1966,65 @@ body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',sans-ser
   display:flex;align-items:center;gap:2px;height:14px;
   opacity:0;transition:opacity .3s;
 }
+
+/* ── FLASH BUTTON (a droite du radio-player) ── */
+.flash-wrap{position:relative;flex-shrink:0;}
+.flash-btn{
+  display:flex;align-items:center;gap:.4rem;
+  background:linear-gradient(135deg,#f59e0b 0%,#ef4444 100%);
+  color:#fff;border:none;cursor:pointer;
+  border-radius:20px;padding:.35rem .9rem;
+  font-family:'JetBrains Mono',monospace;font-size:.7rem;font-weight:600;
+  letter-spacing:.05em;transition:transform .15s,box-shadow .2s;
+  box-shadow:0 2px 8px rgba(245,158,11,0.3);
+}
+.flash-btn:hover{transform:scale(1.04);box-shadow:0 4px 12px rgba(245,158,11,0.5);}
+.flash-btn:disabled{opacity:0.6;cursor:wait;transform:none;}
+.flash-icon{font-size:.9rem;animation:flash-pulse 2s ease-in-out infinite;}
+@keyframes flash-pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.flash-dropdown{
+  display:none;position:absolute;top:calc(100% + .5rem);right:0;
+  background:var(--player-bg);border:1px solid var(--player-border);
+  border-radius:12px;padding:.5rem;min-width:240px;max-height:400px;overflow-y:auto;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:200;
+  flex-direction:column;gap:.25rem;
+}
+.flash-dropdown.open{display:flex;}
+.flash-cat{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.5rem .7rem;border-radius:8px;cursor:pointer;
+  font-size:.85rem;color:var(--text);transition:background .15s;
+  text-align:left;background:transparent;border:none;width:100%;
+}
+.flash-cat:hover{background:var(--accent);color:#fff;}
+.flash-cat-icon{font-size:1rem;flex-shrink:0;}
+.flash-cat-label{flex:1;font-family:'JetBrains Mono',monospace;font-size:.75rem;}
+.flash-cat-count{
+  font-size:.65rem;color:var(--text-dim);
+  background:var(--bg-secondary);padding:.1rem .4rem;border-radius:8px;
+}
+.flash-progress{
+  display:none;position:absolute;top:calc(100% + .5rem);right:0;
+  background:var(--player-bg);border:1px solid var(--player-border);
+  border-radius:12px;padding:1rem;min-width:280px;z-index:200;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  flex-direction:column;gap:.5rem;
+}
+.flash-progress.open{display:flex;}
+.flash-progress-title{
+  display:flex;align-items:center;gap:.5rem;
+  font-size:.8rem;font-weight:600;color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+}
+.flash-progress-bar{
+  width:100%;height:6px;background:var(--bg-secondary);
+  border-radius:3px;overflow:hidden;
+}
+.flash-progress-fill{
+  height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);
+  border-radius:3px;transition:width .3s;width:0;
+}
+.flash-progress-msg{font-size:.7rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
 .radio-wave.playing{opacity:1;}
 .radio-wave span{
   display:block;width:2px;background:var(--accent);border-radius:2px;
@@ -2435,6 +2525,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -2536,6 +2627,7 @@ function toggleSources(btn){
   btn.setAttribute('aria-expanded',String(!open));
 }
 </script>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -2555,6 +2647,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -2589,6 +2682,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
   </div>
 </div>
 <footer><strong>{{ brand_name }}</strong> — {{ brand_tagline }}<br>© {{ year }}</footer>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -2608,6 +2702,7 @@ EDITION_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -2640,8 +2735,170 @@ EDITION_TEMPLATE = """<!DOCTYPE html>
   <div class="edition-body">{{ body_html }}</div>
 </div>
 <footer><strong>{{ brand_name }}</strong> — {{ edition_label }} · {{ date_fr }}<br>© {{ year }}</footer>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Flash button : bouton dans la topbar pour générer un bulletin à la demande
+# ─────────────────────────────────────────────────────────────────────────────
+
+FLASH_BUTTON_HTML = '''
+<div class="flash-wrap" id="flash-wrap">
+  <button class="flash-btn" id="flash-btn" onclick="flashToggle(event)" title="Générer un flash spécialisé par catégorie">
+    <span class="flash-icon">⚡</span>
+    <span>Flash</span>
+  </button>
+  <div class="flash-dropdown" id="flash-dropdown">
+    {% for cat in cats %}
+    <button class="flash-cat" data-cat="{{ cat }}" onclick="flashStart('{{ cat }}')">
+      <span class="flash-cat-icon">{{ cat_icons.get(cat,'') }}</span>
+      <span class="flash-cat-label">{{ cat_labels.get(cat, cat) }}</span>
+      <span class="flash-cat-count" id="flash-count-{{ cat }}"></span>
+    </button>
+    {% endfor %}
+  </div>
+  <div class="flash-progress" id="flash-progress">
+    <div class="flash-progress-title">
+      <span class="flash-icon">⚡</span>
+      <span id="flash-progress-label">Flash en cours...</span>
+    </div>
+    <div class="flash-progress-bar">
+      <div class="flash-progress-fill" id="flash-progress-fill"></div>
+    </div>
+    <div class="flash-progress-msg" id="flash-progress-msg">Initialisation...</div>
+  </div>
+</div>
+'''
+
+FLASH_BUTTON_JS = '''
+<script>
+// ============ FLASH FEATURE ============
+let flashPollInterval = null;
+let flashCurrentJobId = null;
+
+function flashToggle(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('flash-dropdown');
+  const prog = document.getElementById('flash-progress');
+  // Si progress visible, ne pas ouvrir le dropdown
+  if (prog.classList.contains('open')) return;
+  dd.classList.toggle('open');
+}
+
+// Fermer le dropdown si on clique ailleurs
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('flash-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const dd = document.getElementById('flash-dropdown');
+    if (dd) dd.classList.remove('open');
+  }
+});
+
+async function flashStart(category) {
+  const dd = document.getElementById('flash-dropdown');
+  const prog = document.getElementById('flash-progress');
+  const btn = document.getElementById('flash-btn');
+  const fill = document.getElementById('flash-progress-fill');
+  const label = document.getElementById('flash-progress-label');
+  const msg = document.getElementById('flash-progress-msg');
+
+  dd.classList.remove('open');
+  prog.classList.add('open');
+  btn.disabled = true;
+  fill.style.width = '5%';
+  label.textContent = `Flash ${category}...`;
+  msg.textContent = 'Envoi de la demande...';
+
+  try {
+    const r = await fetch('/api/flash', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({category: category})
+    });
+    const data = await r.json();
+    if (data.status !== 'ok') {
+      msg.textContent = 'Erreur: ' + (data.msg || 'inconnue');
+      btn.disabled = false;
+      return;
+    }
+    flashCurrentJobId = data.job_id;
+    msg.textContent = 'Job ' + data.job_id;
+    // Polling toutes les 1.5s
+    flashPollInterval = setInterval(() => flashPoll(), 1500);
+  } catch (e) {
+    msg.textContent = 'Erreur réseau: ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+async function flashPoll() {
+  if (!flashCurrentJobId) return;
+  const fill = document.getElementById('flash-progress-fill');
+  const label = document.getElementById('flash-progress-label');
+  const msg = document.getElementById('flash-progress-msg');
+  const btn = document.getElementById('flash-btn');
+  const prog = document.getElementById('flash-progress');
+
+  try {
+    const r = await fetch('/api/flash/status/' + flashCurrentJobId);
+    const data = await r.json();
+    if (data.status === 'error') {
+      clearInterval(flashPollInterval);
+      fill.style.width = '100%';
+      fill.style.background = '#ef4444';
+      label.textContent = '❌ Erreur';
+      msg.textContent = data.error || 'Erreur inconnue';
+      setTimeout(() => {
+        prog.classList.remove('open');
+        btn.disabled = false;
+        fill.style.background = '';
+      }, 3000);
+      return;
+    }
+    if (data.status === 'done') {
+      clearInterval(flashPollInterval);
+      fill.style.width = '100%';
+      label.textContent = '✅ Flash prêt !';
+      msg.textContent = `${data.articles_count} articles, lecture...`;
+      // Jouer le mp3
+      const audio = new Audio('/audio/flash_' + flashCurrentJobId + '.mp3');
+      audio.play().catch(e => {
+        msg.textContent = 'Erreur lecture: ' + e.message;
+      });
+      audio.onended = () => {
+        msg.textContent = 'Terminé';
+        setTimeout(() => {
+          prog.classList.remove('open');
+          btn.disabled = false;
+          fill.style.background = '';
+        }, 1500);
+      };
+      return;
+    }
+    // En cours
+    fill.style.width = Math.max(5, data.progress || 5) + '%';
+    const step = data.progress < 30 ? 'Collecte des articles' :
+                 data.progress < 50 ? 'Génération du script (LLM)' :
+                 data.progress < 90 ? 'Synthèse vocale (TTS)' :
+                 'Mixage audio';
+    msg.textContent = step + ' (' + data.progress + '%)';
+  } catch (e) {
+    msg.textContent = 'Erreur polling: ' + e.message;
+  }
+}
+</script>
+'''
+
+
+def render_flash_button_html(cat_icons: dict, cat_labels: dict) -> str:
+    """Retourne le HTML du bouton Flash avec dropdown rempli."""
+    from jinja2 import Template
+    return Template(FLASH_BUTTON_HTML).render(
+        cats=list(cat_icons.keys()),
+        cat_icons=cat_icons,
+        cat_labels=cat_labels,
+    )
 
 LIVE_TEMPLATE = """<!DOCTYPE html>
 <html lang="fr"><head>
@@ -2659,6 +2916,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -2744,6 +3002,7 @@ function toggleSummary(btn, id) {
   btn.querySelector('.tgl-label').textContent = open ? '{{ ui.reduce }}' : '{{ ui.read_more }}';
 }
 </script>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -2779,6 +3038,7 @@ select:focus,input[type=number]:focus{outline:none;border-color:var(--accent);}
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -2870,6 +3130,7 @@ document.getElementById('configForm').addEventListener('submit',async(e)=>{
   }
 });
 </script>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -3615,5 +3876,6 @@ function restartEngine(){
 }
 </script>
 
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
