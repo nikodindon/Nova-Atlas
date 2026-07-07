@@ -682,15 +682,6 @@ class ArticleFetcher:
                 added = self._process_item(item, category, seen, existing_hashes, articles)
                 if added:
                     new_count += 1
-                    # Si le cap a été appliqué, on s'arrête dès qu'on l'atteint
-                    if max_total and new_count >= max_total:
-                        self.log.info(
-                            f"Cap global atteint ({new_count} traités) — "
-                            f"reste {sum(len(v) for v in queues.values())} "
-                            f"non traités cette fois"
-                        )
-                        self._save_seen(seen)
-                        return new_count
 
         self._save_seen(seen)
         self.log.info(
