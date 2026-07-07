@@ -885,7 +885,6 @@ def build_live_feed(paths: dict) -> str:
         flash_button_js=FLASH_BUTTON_JS,
         articles=recent,          # fil chronologique unique
         cat_counts=cat_counts_sorted,
-        cat_icons=CATEGORY_ICONS,
         total=len(recent),
         window_hours=window_hours,
         today_file=f"{today_str}_report.html",
