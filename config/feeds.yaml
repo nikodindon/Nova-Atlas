@@ -7,6 +7,11 @@
 # ================================================
 
 # CHANGELOG
+# 2026-07-07 : dedoublonnage des categories.
+#   - actualite_fr fusionne dans france (sources FR d'actu generale)
+#   - economie_fr fusionne dans economie (sources FR d'eco)
+#   - local_france renomme en regions (plus explicite)
+#   - 16 categories finales (vs 18 avant fusion)
 # 2026-07-06 : sprint "plus de sources" — passage de 11 a 18 categories,
 #   56 -> 87 flux actifs. Nouvelles categories : actualite_fr, economie_fr,
 #   sante, gaming, local_france, sciences_humaines, auto.
@@ -35,6 +40,9 @@ economie:
   - https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines
   - https://www.courrierinternational.com/feed/rubrique/economie/rss.xml
   - https://www.federalreserve.gov/feeds/press_all.xml
+  - https://www.lefigaro.fr/rss/figaro_economie.xml
+  - https://www.lefigaro.fr/rss/figaro_flash-eco.xml
+  - https://www.france24.com/fr/economie/rss
   # [SPRINT0] https://bfmbusiness.bfmtv.com/rss/news-flux-rss/  # 301 → 404
 
 crypto:
@@ -60,6 +68,8 @@ france:
   - https://www.courrierinternational.com/feed/rubrique/societe/rss.xml
   - https://www.lefigaro.fr/rss/figaro_flash-actu.xml
   - https://www.francetvinfo.fr/titres.rss
+  - https://www.lefigaro.fr/rss/figaro_politique.xml
+  - https://www.lefigaro.fr/rss/figaro_international.xml
   # [SPRINT0] https://www.lemonde.fr/rss/une.xml
   # [SPRINT0] https://www.lemonde.fr/rss/en_continu.xml
 
@@ -115,17 +125,6 @@ sport:
   - https://www.lefigaro.fr/rss/figaro_tennis.xml
   # [SPRINT0] https://rmcsport.bfmtv.com/rss/news-flux-rss/   # 404
 
-actualite_fr:
-  - https://www.francetvinfo.fr/titres.rss
-  - https://www.lefigaro.fr/rss/figaro_politique.xml
-  - https://www.lefigaro.fr/rss/figaro_international.xml
-  - https://www.lefigaro.fr/rss/figaro_flash-actu.xml
-
-economie_fr:
-  - https://www.lefigaro.fr/rss/figaro_economie.xml
-  - https://www.lefigaro.fr/rss/figaro_flash-eco.xml
-  - https://www.france24.com/fr/economie/rss
-
 sante:
   - https://www.lefigaro.fr/rss/figaro_sante.xml
   - https://www.santepubliquefrance.fr/rss/964
@@ -134,7 +133,7 @@ gaming:
   - https://www.eurogamer.net/?format=rss
   - https://fr.ign.com/feed.xml
 
-local_france:
+regions:  # anciennement local_france, renomme pour clarte
   - https://www.francetvinfo.fr/france/ile-de-france.rss
   - https://www.francetvinfo.fr/france/auvergne-rhone-alpes.rss
   - https://www.francetvinfo.fr/france/provence-alpes-cote-d-azur.rss
