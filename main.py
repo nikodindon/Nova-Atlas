@@ -160,7 +160,9 @@ def run_news_engine(config: dict, debug: bool = False):
     last_build_day   = ""
     last_post_hour   = -1
     last_edition_day: dict = {}
-    last_bulletin_slot = ""   # pour les bulletins radio 30 min (2×/h)
+    # Note: last_bulletin_slot a été supprimé — le scheduler bulletins est
+    # centralisé dans run_radio (log "⏰ Pré-génération"). Garder une copie
+    # ici provoquait 2 bulletins générés pour le même slot.
     active_threads:   dict = {}
 
     def run_in_thread(name: str, fn, *args):
