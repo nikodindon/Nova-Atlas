@@ -235,6 +235,13 @@ CONSIGNES STRICTES :
 - OUTRO (Voix 1) : utilise une variation de — "{outro}"
 - TRANSITIONS (Voix 2 ou Voix 1) : varie les expressions, n'utilise pas la même deux fois
 - Classement par ordre d'importance décroissante (grosse news en premier)
+- Chaque article n'est traité qu'UNE SEULE FOIS dans tout le bulletin :
+  * Tu choisis une fois dans quel bloc (intro, transition, outro) tu vas l'utiliser
+  * Tu ne dois JAMAIS reparler d'un même sujet plus tard (pas de redite)
+  * Si tu as parlé du jugement Le Pen dans la news principale, tu ne le reprends
+    pas dans les news secondaires, même sous un autre angle
+  * Le nombre d'articles dans chaque bloc doit être compté : 3 dans news_block_1,
+    2 dans news_block_2, 1 dans news_block_3 = 6 articles uniques au total
 - Chaque news est reformulée pour être naturelle à l'oral, pas lue
 - 2-3 phrases par news, factuel, ton neutre
 - N'invente rien : utilise UNIQUEMENT les informations données
