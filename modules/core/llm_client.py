@@ -123,15 +123,15 @@ class OllamaClient:
             holder_priority = CALLER_PRIORITY.get(holder, 3)
 
             # Cas spécial : si le holder est un flash (bulletin à la demande),
-            # on attend beaucoup plus longtemps (le flash dure 1-2 min typiquement
-            # et l'utilisateur attend). Le fetch ne doit pas casser un flash
-            # en cours, il peut attendre le prochain slot.
+            # on attend TRÈS longtemps (le flash peut prendre 5-10 min pour les
+            # gros prompts, et l'utilisateur attend). Le fetch ne doit PAS
+            # interrompre un flash en cours, il attend même 30 min si nécessaire.
             if holder == "flash" and caller == "fetch":
-                if waited >= 300:  # 5 min max
+                if waited >= 1800:  # 30 min max (flash peut être long)
                     self.log.warning(f"Timeout d'attente d'un flash ({waited}s) — '{caller}' abandonne")
                     return False
                 if waited == 0:
-                    self.log.info(f"'{caller}' attend la fin du flash en cours (max 5min)...")
+                    self.log.info(f"'{caller}' attend la fin du flash en cours (max 30min)...")
                 time.sleep(5)
                 waited += 5
                 continue

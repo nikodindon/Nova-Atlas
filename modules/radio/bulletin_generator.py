@@ -644,7 +644,7 @@ def generate_flash_script(articles: List[dict], category: str, cat_label: str,
         from modules.core.llm_client import init_ollama as _init_ollama
         _init_ollama(config)
         # Timeout court pour un flash de 5 min
-        out = ollama_call(prompt, timeout=120, caller="flash")
+        out = ollama_call(prompt, timeout=600, caller="flash")  # 10 min max pour les gros prompts
         if not out:
             logger.warning("LLM a renvoyé un script flash vide")
             return None

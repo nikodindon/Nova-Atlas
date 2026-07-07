@@ -1810,9 +1810,28 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                     msgs = yaml.safe_load(msgs_path.read_text()) if msgs_path.exists() else {}
                     intros = [i for i in msgs.get("intros", []) if not str(i).startswith("#")]
                     outros = [o for o in msgs.get("outros", []) if not str(o).startswith("#")]
-                    script = generate_flash_script(
-                        articles, category, cat_label, cfg, intros, outros
-                    )
+                    # Lance un heartbeat qui update le progress toutes les 3s
+                    # pendant l'appel LLM (qui peut prendre 1-10 min pour les
+                    # gros prompts). Sans ça, la barre reste bloquée à 20%.
+                    import threading, time as _time
+                    _stop_hb = threading.Event()
+                    def _heartbeat():
+                        p = 20
+                        while not _stop_hb.is_set():
+                            _time.sleep(3)
+                            if _stop_hb.is_set(): break
+                            if p < 48:
+                                p += 1
+                                _flash_jobs[job_id]["progress"] = p
+                    _hb_thread = threading.Thread(target=_heartbeat, daemon=True, name=f"FlashHB_{job_id}")
+                    _hb_thread.start()
+                    try:
+                        script = generate_flash_script(
+                            articles, category, cat_label, cfg, intros, outros
+                        )
+                    finally:
+                        _stop_hb.set()
+                        _hb_thread.join(timeout=2)
                     if not script:
                         _flash_jobs[job_id]["status"] = "error"
                         _flash_jobs[job_id]["error"] = "LLM a renvoyé un script flash vide"
