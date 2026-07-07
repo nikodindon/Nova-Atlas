@@ -24,11 +24,13 @@ from pathlib import Path
 # ─── PRIORITÉS DES CALLERS ───────────────────────────────────────────────────
 
 CALLER_PRIORITY = {
-    "fetch":    10,
+    "fetch":    10,   # Plus haute : on ne coupe jamais une arrivée de news
+    "flash":    8,    # Bulletin à la demande : peut interrompre bulletin/report,
+                      # mais doit attendre la fin d'un fetch en cours
     "editions": 5,
     "report":   5,
+    "atlas":    3,    # Défaut
     "posts":    1,
-    "atlas":    3,
 }
 
 # ─── LANGUE ───────────────────────────────────────────────────────────────────
