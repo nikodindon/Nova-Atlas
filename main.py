@@ -351,8 +351,10 @@ def run_radio(config: dict, debug: bool = False):
 
     # Le watcher ne déclenche plus rien par 5 news : on remplace son seuil
     # par un seuil élevé (1000) pour qu'il accumule, et on cadence nous-mêmes.
+    # Note : le watcher cherche la cle 'news_per_bulletin' (cf news_watcher.py
+    # ligne 30), pas 'per_bulletin'. On utilise la bonne cle.
     radio_cfg = dict(config.get("radio", {}))
-    radio_cfg["per_bulletin"] = 1000  # désactive le déclenchement auto
+    radio_cfg["news_per_bulletin"] = 1000  # désactive le déclenchement auto
     watcher = NewsWatcher(radio_cfg, on_news_ready)
     threading.Thread(target=watcher.run,  daemon=True, name="NewsWatcher").start()
     threading.Thread(target=streamer.run, daemon=True, name="Streamer").start()
