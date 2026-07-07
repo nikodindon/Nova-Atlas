@@ -221,8 +221,13 @@ def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
 #  Construction du prompt LLM
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _format_articles_for_prompt(articles: List[dict]) -> str:
-    """Formate les articles pour le prompt LLM (titre + résumé)."""
+def _format_articles_for_prompt(articles: List[dict], max_summary_chars: int = 400) -> str:
+    """Formate les articles pour le prompt LLM (titre + résumé).
+
+    `max_summary_chars` : tronque les résumés plus longs que cette limite
+    (avec "…" en suffixe). Augmenter cette valeur donne au LLM plus de
+    contexte par article, au prix d'un prompt plus gros.
+    """
     lines = []
     for i, a in enumerate(articles, 1):
         title = (a.get("title") or "").strip()
@@ -230,8 +235,8 @@ def _format_articles_for_prompt(articles: List[dict]) -> str:
         cat = a.get("category", "monde")
         source = a.get("source", "")
         # Coupe les résumés trop longs pour le prompt
-        if len(summary) > 400:
-            summary = summary[:400] + "…"
+        if len(summary) > max_summary_chars:
+            summary = summary[:max_summary_chars] + "…"
         lines.append(f"[{i}] ({cat}) {title}")
         if source:
             lines.append(f"    Source : {source}")
@@ -526,7 +531,10 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
     uniquement les articles de la catégorie, depuis minuit de la journée.
     """
     target_words = 750  # 5 min de parole
-    articles_text = _format_articles_for_prompt(articles)
+    # Tronque les résumés à 600 chars (vs 400 par défaut) pour donner au LLM
+    # plus de contexte par article. Le prompt grossit (~28k chars pour 38
+    # articles tech), mais reste sous la fenêtre de llama-server (32k chars).
+    articles_text = _format_articles_for_prompt(articles, max_summary_chars=600)
 
     # Choisit 1 intro et 1 outro au hasard
     now_str = datetime.now().strftime("%Hh%M")
