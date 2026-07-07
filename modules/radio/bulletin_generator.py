@@ -489,8 +489,10 @@ class BulletinGenerator:
         # Charge les intros/transitions/outros depuis messages.yaml
         intros, transitions, outros = self._load_messages()
 
-        # 1) Prompt LLM
-        script = generate_bulletin_script(articles, cfg, intros, transitions, outros)
+        # 1) Prompt LLM — passe self.config (la config globale qui a la
+        # section llm) et non cfg (qui vient de bulletins.yaml et n'a pas
+        # la section llm, ce qui forcerait les defaults ollama/mistral).
+        script = generate_bulletin_script(articles, self.config, intros, transitions, outros)
         if not script:
             return None
 
