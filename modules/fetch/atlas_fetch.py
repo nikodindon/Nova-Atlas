@@ -268,8 +268,8 @@ class ArticleFetcher:
 
         rss_cfg = config.get("rss", {})
         self.max_per_feed = int(rss_cfg.get("max_articles_per_feed", 8))
-        # 0 = pas de cap global. Active via config: rss.max_total_articles: 50
-        self.max_total = int(rss_cfg.get("max_total_articles", 0))
+        # 0 = pas de cap par catégorie. Active via config: rss.max_per_category: 8
+        self.max_per_category = int(rss_cfg.get("max_per_category", 0))
 
         # retry_summaries : False par défaut — désactivé pour garder un flux continu
         fetch_cfg = config.get("fetch", {})
@@ -647,18 +647,16 @@ class ArticleFetcher:
 
         total_pending = sum(len(v) for v in queues.values())
 
-        # Cap global (rss.max_total_articles). On tronque les queues
-        # proportionnellement à leur taille pour préserver la diversité
-        # des catégories plutôt que de tout prendre dans la première.
-        max_total = self.max_total
-        if max_total and total_pending > max_total:
-            self.log.warning(
-                f"Cap global rss.max_total_articles={max_total} — "
-                f"tronque {total_pending} articles pour préserver la diversité"
-            )
-            queues = self._cap_queues(queues, max_total)
+        # Cap par catégorie (rss.max_per_category). On garantit le même
+        # quota à chaque catégorie pour préserver la diversité, plutôt
+        # qu'un cap global qui favorise les premières catégories remplies.
+        max_per_cat = self.max_per_category
+        if max_per_cat:
+            for cat in queues:
+                if len(queues[cat]) > max_per_cat:
+                    queues[cat] = queues[cat][:max_per_cat]
             total_pending = sum(len(v) for v in queues.values())
-            self.log.info(f"Total après cap : {total_pending} articles")
+            self.log.info(f"Cap par catégorie : {max_per_cat} articles/cat (total: {total_pending})")
 
         self.log.info(f"Total à traiter : {total_pending} articles")
 
