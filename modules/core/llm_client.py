@@ -27,6 +27,7 @@ CALLER_PRIORITY = {
     "fetch":    10,   # Plus haute : on ne coupe jamais une arrivée de news
     "flash":    8,    # Bulletin à la demande : peut interrompre bulletin/report,
                       # mais doit attendre la fin d'un fetch en cours
+    "bulletin": 5,    # Bulletin 30 min scheduler (même priorité que editions/report)
     "editions": 5,
     "report":   5,
     "atlas":    3,    # Défaut
