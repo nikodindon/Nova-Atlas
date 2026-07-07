@@ -2029,7 +2029,8 @@ body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',sans-ser
 }
 .flash-progress-fill{
   height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);
-  border-radius:3px;transition:width .3s;width:0;
+  border-radius:3px;transition:width 1.4s linear;width:0;
+  box-shadow:0 0 10px rgba(245,158,11,.5);
 }
 .flash-progress-msg{font-size:.7rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
 .radio-wave.playing{opacity:1;}
@@ -2784,6 +2785,31 @@ FLASH_BUTTON_JS = '''
 let flashPollInterval = null;
 let flashCurrentJobId = null;
 let flashWasRadioPlaying = false;  // mémorise si la radio live jouait avant le flash
+let flashStartTime = null;          // timestamp du début du flash (pour ETA)
+let flashLastProgress = 0;          // dernier progress vu (pour estimer vitesse)
+let flashLastPollTime = null;       // timestamp du dernier poll
+
+// Estimation de la vitesse de progression (% par seconde)
+function _flashEta() {
+  if (!flashStartTime || flashLastProgress >= 100) return null;
+  const now = Date.now();
+  const elapsed = (now - flashStartTime) / 1000;
+  if (elapsed < 1) return null;
+  // Si on a au moins 2 polls, on peut extrapoler depuis la vitesse
+  if (flashLastPollTime && flashLastProgress > 0) {
+    const since_last = (now - flashLastPollTime) / 1000;
+    if (since_last > 0.1) {
+      // Vitesse récente = progress_delta / time_delta
+      // Pas implémenté ici, on utilise plutôt l'extrapolation globale
+    }
+  }
+  // Extrapolation simple : on suppose progression linéaire
+  // (peu précis si LLM est la partie la plus longue, mais OK comme estimation)
+  const speed = flashLastProgress / elapsed;  // % par seconde
+  if (speed < 0.01) return null;  // trop lent, ETA serait énorme
+  const remaining = 100 - flashLastProgress;
+  return Math.round(remaining / speed);
+}
 
 function flashToggle(e) {
   e.stopPropagation();
@@ -2817,6 +2843,10 @@ async function flashStart(category) {
   fill.style.width = '5%';
   label.textContent = `Flash ${category}...`;
   msg.textContent = 'Envoi de la demande...';
+  // Init timestamps pour l'ETA
+  flashStartTime = Date.now();
+  flashLastProgress = 5;
+  flashLastPollTime = Date.now();
 
   // Mémorise l'état de la radio live (jouait-elle ?) pour la reprendre
   // à la fin du flash
@@ -2877,6 +2907,8 @@ async function flashPoll() {
       fill.style.background = '#ef4444';
       label.textContent = '❌ Erreur';
       msg.textContent = data.error || 'Erreur inconnue';
+      // Reset timestamps
+      flashStartTime = null;
       setTimeout(() => {
         prog.classList.remove('open');
         btn.disabled = false;
@@ -2889,6 +2921,9 @@ async function flashPoll() {
       fill.style.width = '100%';
       label.textContent = '✅ Flash prêt !';
       msg.textContent = `${data.articles_count} articles, lecture...`;
+      // Reset timestamps
+      flashStartTime = null;
+      flashLastProgress = 100;
       // Jouer le mp3
       const audio = new Audio('/audio/flash_' + flashCurrentJobId + '.mp3');
       audio.play().catch(e => {
@@ -2909,13 +2944,18 @@ async function flashPoll() {
       };
       return;
     }
-    // En cours
+    // En cours : animation continue via CSS transition (1.4s)
+    // L'ETA est calculée par extrapolation linéaire de la vitesse observée
     fill.style.width = Math.max(5, data.progress || 5) + '%';
+    flashLastProgress = data.progress || 5;
+    flashLastPollTime = Date.now();
     const step = data.progress < 30 ? 'Collecte des articles' :
                  data.progress < 50 ? 'Génération du script (LLM)' :
                  data.progress < 90 ? 'Synthèse vocale (TTS)' :
                  'Mixage audio';
-    msg.textContent = step + ' (' + data.progress + '%)';
+    const eta = _flashEta();
+    const etaStr = eta !== null ? ` (~${eta}s restantes)` : '';
+    msg.textContent = step + ' (' + data.progress + '%)' + etaStr;
   } catch (e) {
     msg.textContent = 'Erreur polling: ' + e.message;
   }
