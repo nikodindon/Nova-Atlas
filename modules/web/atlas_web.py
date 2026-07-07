@@ -1692,6 +1692,11 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             abort(404)
 
     print(f"\n✅ {paths['brand_name']} → http://localhost:{port}/\n")
+    # Werkzeug (serveur HTTP Flask) log chaque requête. En mode --debug on
+    # les veut, en mode normal c'est du bruit. On le coupe sauf si debug=True.
+    if not debug:
+        import logging
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
     app.run(host=host, port=port, debug=debug, use_reloader=False)
 
 # ─── TEMPLATES HTML ───────────────────────────────────────────────────────────
