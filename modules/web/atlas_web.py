@@ -2110,7 +2110,11 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 // ── Live refresh sans coupure audio ──────────────────────────────────────────
+// Remplace le contenu de #live-grid toutes les 2 min, en préservant
+// l'état du filtre multi-sélection sous "Fil en direct".
+// L'IIFE multi-sélection est ré-attaché aux nouveaux boutons après le refresh.
 var _liveRefreshTimer = null;
+var _liveSelectedCategories = new Set();  // état partagé entre refresh et IIFE
 
 function _startLiveRefresh(){
   if(_liveRefreshTimer) clearTimeout(_liveRefreshTimer);
@@ -2122,46 +2126,104 @@ function _startLiveRefresh(){
         var newDoc  = parser.parseFromString(html, 'text/html');
         var newGrid = newDoc.getElementById('live-grid');
         var curGrid = document.getElementById('live-grid');
-        if(newGrid && curGrid){
-          // Mémorise le filtre actif
-          var activeBtn = document.querySelector('.filter-btn.active');
-          var activeCat = activeBtn ? activeBtn.dataset.cat : 'all';
+        if(!newGrid || !curGrid) return;
 
-          curGrid.innerHTML = newGrid.innerHTML;
+        // 1) Remplace le grid (nouveaux articles)
+        curGrid.innerHTML = newGrid.innerHTML;
 
-          // Ré-applique le filtre
-          document.querySelectorAll('#live-grid .live-item').forEach(function(el){
-            el.style.display = (activeCat==='all' || el.dataset.cat===activeCat) ? '' : 'none';
+        // 2) Recharge la filter-bar avec les nouveaux boutons + counts
+        var newBar = newDoc.querySelector('.filter-bar');
+        var curBar = document.querySelector('.filter-bar');
+        if(newBar && curBar){
+          curBar.innerHTML = newBar.innerHTML;
+          // Remet les boutons "active" selon _liveSelectedCategories
+          curBar.querySelectorAll('.filter-btn').forEach(function(b){
+            var cat = b.dataset.cat;
+            if(cat === '__all'){
+              b.classList.toggle('active', _liveSelectedCategories.size === 0);
+              b.setAttribute('aria-pressed', _liveSelectedCategories.size === 0 ? 'true' : 'false');
+            } else {
+              var isSel = _liveSelectedCategories.has(cat);
+              b.classList.toggle('active', isSel);
+              b.setAttribute('aria-pressed', isSel ? 'true' : 'false');
+            }
           });
-
-          // Met à jour les compteurs dans les boutons de filtre
-          var newBar = newDoc.querySelector('.filter-bar');
-          var curBar = document.querySelector('.filter-bar');
-          if(newBar && curBar){
-            // Remplace tous les boutons sauf le "Tout" actif
-            curBar.innerHTML = newBar.innerHTML;
-            // Remet le bon bouton actif
-            curBar.querySelectorAll('.filter-btn').forEach(function(b){
-              b.classList.toggle('active', b.dataset.cat === activeCat || (!b.dataset.cat && activeCat==='all'));
-            });
-          }
-
-          // Timestamp
-          var ts    = document.getElementById('live-updated');
-          var newTs = newDoc.getElementById('live-updated');
-          if(ts && newTs) ts.textContent = newTs.textContent;
+          // Ré-attache l'IIFE multi-sélection aux nouveaux boutons
+          _attachFilterBarHandler(curBar);
         }
+
+        // 3) Réapplique le filtre multi-sélection
+        _applyLiveFilterFromState();
+
+        // 4) Met à jour le timestamp
+        var ts    = document.getElementById('live-updated');
+        var newTs = newDoc.getElementById('live-updated');
+        if(ts && newTs) ts.textContent = newTs.textContent;
       })
       .catch(function(){})
       .finally(function(){ _liveRefreshTimer = setTimeout(_doRefresh, 120000); });
   }, 120000);
 }
 
+// Filtre multi-sélection : applique _liveSelectedCategories au DOM
+function _applyLiveFilterFromState(){
+  var items = document.querySelectorAll('#live-grid [data-category]');
+  var showAll = _liveSelectedCategories.size === 0;
+  items.forEach(function(el){
+    var cat = el.dataset.category;
+    if(!cat){ el.style.display = ''; el.removeAttribute('aria-hidden'); return; }
+    if(showAll || _liveSelectedCategories.has(cat)){
+      el.style.display = '';
+      el.removeAttribute('aria-hidden');
+    } else {
+      el.style.display = 'none';
+      el.setAttribute('aria-hidden', 'true');
+    }
+  });
+}
+
+// Attache le handler multi-sélection à une filter-bar (initiale ou après refresh)
+function _attachFilterBarHandler(bar){
+  bar.addEventListener('click', function(e){
+    var btn = e.target.closest('.filter-btn');
+    if(!btn) return;
+    var cat = btn.dataset.cat;
+    if(cat === '__all'){
+      _liveSelectedCategories.clear();
+      bar.querySelectorAll('.filter-btn').forEach(function(b){
+        var isAll = b.dataset.cat === '__all';
+        b.classList.toggle('active', isAll);
+        b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+      });
+    } else {
+      if(_liveSelectedCategories.has(cat)){
+        _liveSelectedCategories.delete(cat);
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+      } else {
+        _liveSelectedCategories.add(cat);
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+      }
+      var allBtn = bar.querySelector('[data-cat="__all"]');
+      if(allBtn){
+        var allActive = _liveSelectedCategories.size === 0;
+        allBtn.classList.toggle('active', allActive);
+        allBtn.setAttribute('aria-pressed', allActive ? 'true' : 'false');
+      }
+    }
+    _applyLiveFilterFromState();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function(){
-  if(document.body.dataset.page === 'live') _startLiveRefresh();
+  if(document.body.dataset.page === 'live'){
+    _startLiveRefresh();
+    // Attache le handler multi-sélection à la filter-bar initiale
+    var bar = document.getElementById('filter-bar');
+    if(bar) _attachFilterBarHandler(bar);
+  }
   _applyCategoryPreferences();
-  // Les filtres multi-select sous "Fil en direct" sont gérés par un
-  // IIFE attaché à #filter-bar dans le template LIVE_TEMPLATE (voir plus bas).
 });
 
 // ── Préférences : cacher les articles des catégories désactivées ────────────
@@ -2507,67 +2569,10 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
 </div>
 <footer><strong>{{ brand_name }}</strong> — Fil en direct · © {{ year }}</footer>
 <script>
-// ── Filtres cumulatifs multi-sélection sous "Fil en direct" ──
-// État en mémoire (session-only, pas de reload, pas d'API)
-// - Click sur "Tout" : clear → tout s'affiche
-// - Click sur une cat : toggle (sélectionner / désélectionner)
-// - Multi-sélection : on peut sélectionner N catégories en même temps
-// - Articles sans data-category : toujours visibles
-(function(){
-  var bar = document.getElementById('filter-bar');
-  if(!bar) return;
-  var selected = new Set();
-  function applyFilters(){
-    var items = document.querySelectorAll('#live-grid [data-category]');
-    var showAll = selected.size === 0;
-    items.forEach(function(el){
-      var cat = el.dataset.category;
-      // Articles sans catégorie : toujours visibles
-      if(!cat){ el.style.display = ''; el.removeAttribute('aria-hidden'); return; }
-      if(showAll || selected.has(cat)){
-        el.style.display = '';
-        el.removeAttribute('aria-hidden');
-      } else {
-        el.style.display = 'none';
-        el.setAttribute('aria-hidden', 'true');
-      }
-    });
-  }
-  bar.addEventListener('click', function(e){
-    var btn = e.target.closest('.filter-btn');
-    if(!btn) return;
-    var cat = btn.dataset.cat;
-    if(cat === '__all'){
-      selected.clear();
-      bar.querySelectorAll('.filter-btn').forEach(function(b){
-        b.classList.toggle('active', b.dataset.cat === '__all');
-        b.setAttribute('aria-pressed', b.dataset.cat === '__all' ? 'true' : 'false');
-      });
-    } else {
-      // Toggle cette catégorie (cumulatif)
-      if(selected.has(cat)){
-        selected.delete(cat);
-        btn.classList.remove('active');
-        btn.setAttribute('aria-pressed', 'false');
-      } else {
-        selected.add(cat);
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
-      }
-      // "Tout" n'est plus actif si on a des sélections custom
-      var allBtn = bar.querySelector('[data-cat="__all"]');
-      if(allBtn){
-        var allActive = selected.size === 0;
-        allBtn.classList.toggle('active', allActive);
-        allBtn.setAttribute('aria-pressed', allActive ? 'true' : 'false');
-      }
-    }
-    applyFilters();
-  });
-  // Expose pour debug (pas utilisé par le code)
-  window._filterState = selected;
-  window._applyFilters = applyFilters;
-})();
+// Le filtre multi-sélection sous "Fil en direct" est attaché par
+// _attachFilterBarHandler() au DOMContentLoaded (voir global script).
+// Le IIFE inline a été supprimé : il ne survivait pas au refresh
+// toutes les 2 min qui remplace innerHTML des boutons.
 
 function toggleSummary(btn, id) {
   const el   = document.getElementById(id);
