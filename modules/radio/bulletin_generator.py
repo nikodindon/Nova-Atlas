@@ -87,6 +87,41 @@ def load_bulletins_config(paths: dict) -> dict:
 #  Collecte des articles de la fenêtre temporelle
 # ─────────────────────────────────────────────────────────────────────────────
 
+def dedup_articles_by_similarity(articles: List[dict], threshold: float = 0.7) -> List[dict]:
+    """
+    Déduplique les articles par similarité du début de leur résumé.
+
+    Les news tech/geopolitique/sport sont souvent rapportées par 5-10 sources
+    différentes avec des résumés très proches (mais pas identiques). On groupe
+    par similarité de préfixe (200 premiers chars du résumé) et on garde
+    celui avec le résumé le plus long (= le plus informatif).
+
+    O(n²) — adapté pour des catégories < 100 articles. Pour de plus gros
+    volumes, pré-calculer et cacher le résultat.
+    """
+    from difflib import SequenceMatcher
+    kept = []
+    seen_prefixes = []  # (prefix_lowered, index_in_kept)
+    for a in articles:
+        s = (a.get("summary") or "").strip()[:200].lower()
+        if not s:
+            continue
+        is_dup = False
+        for k, prefix in enumerate(seen_prefixes):
+            sim = SequenceMatcher(None, s, prefix).ratio()
+            if sim > threshold:
+                # Doublon : garder celui qui a le résumé le plus long
+                if len(a.get("summary") or "") > len(kept[k].get("summary") or ""):
+                    seen_prefixes[k] = s
+                    kept[k] = a
+                is_dup = True
+                break
+        if not is_dup:
+            seen_prefixes.append(s)
+            kept.append(a)
+    return kept
+
+
 def get_flash_articles(paths: dict, category: str, since_minute_of_day: int = 0) -> List[dict]:
     """
     Récupère les articles d'aujourd'hui depuis `since_minute_of_day` minutes
