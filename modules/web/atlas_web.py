@@ -355,6 +355,7 @@ def _resolve_paths(config: dict) -> dict:
     logo_main = parts[0]
     logo_sub  = "_" + parts[1] if len(parts) > 1 else ""
     return {
+        "root":      root,    # base path (utilisé par BulletinGenerator, etc.)
         "articles": root / paths.get("articles_dir", "data/articles"),
         "reports":  root / paths.get("reports_dir",  "data/reports"),
         "editions": root / paths.get("editions_dir", "data/editions"),
