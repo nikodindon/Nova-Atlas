@@ -1722,6 +1722,111 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         save_prefs(paths["data"] / "preferences.json", dict(DEFAULT_PREFS))
         return jsonify({"status": "ok", "msg": "préférences réinitialisées"})
 
+    # ──────────────────────────────────────────────────────────────────
+    #  Flash : bulletin court spécialisé par catégorie, à la demande
+    # ──────────────────────────────────────────────────────────────────
+    # POST /api/flash {category: "geopolitique"}
+    #   → {"status":"ok", "job_id": "abc123", "msg": "..."}
+    # GET  /api/flash/status/<job_id>
+    #   → {"status":"running"|"done"|"error", "progress": 0-100, "mp3_path": "..."}
+    # GET  /audio/flash_<job_id>.mp3
+    #   → sert le fichier mp3 généré
+
+    import threading
+    import uuid as _uuid
+    from datetime import datetime as _dt
+
+    _flash_jobs: dict = {}  # job_id → {status, progress, mp3_path, error, started_at}
+
+    @app.route("/api/flash", methods=["POST"])
+    def api_create_flash():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            if not category:
+                return jsonify({"status": "error", "msg": "category requise"}), 400
+            # Validation catégorie
+            if category not in CATEGORY_ICONS:
+                return jsonify({"status": "error", "msg": f"category inconnue: {category}"}), 400
+
+            job_id = _uuid.uuid4().hex[:12]
+            _flash_jobs[job_id] = {
+                "status": "running",
+                "progress": 0,
+                "mp3_path": None,
+                "error": None,
+                "category": category,
+                "started_at": _dt.now().isoformat(),
+            }
+
+            def _run_flash():
+                try:
+                    from modules.radio.bulletin_generator import (
+                        get_flash_articles, BulletinGenerator
+                    )
+                    import yaml
+                    # 1. Charge la config globale
+                    cfg = yaml.safe_load((paths["root"] / "config" / "config.yaml").read_text())
+
+                    # 2. Récupère les articles de la catégorie depuis minuit
+                    _flash_jobs[job_id]["progress"] = 10
+                    articles = get_flash_articles(paths, category, since_minute_of_day=0)
+                    _flash_jobs[job_id]["articles_count"] = len(articles)
+
+                    if len(articles) < 1:
+                        _flash_jobs[job_id]["status"] = "error"
+                        _flash_jobs[job_id]["error"] = "Aucun article dans cette catégorie aujourd'hui"
+                        return
+
+                    # 4. Pipeline TTS + mix via BulletinGenerator (qui appelle
+                    # lui-même le LLM avec son prompt générique). On a un
+                    # double appel LLM évitable en V2 (en passant un script
+                    # pré-calculé à build()), mais la V1 reste fonctionnelle.
+                    _flash_jobs[job_id]["progress"] = 30
+                    gen = BulletinGenerator(cfg, paths)
+                    _flash_jobs[job_id]["progress"] = 40
+                    out_path = gen.build(articles)
+                    _flash_jobs[job_id]["progress"] = 90
+                    if not out_path:
+                        _flash_jobs[job_id]["status"] = "error"
+                        _flash_jobs[job_id]["error"] = "Échec TTS/mix"
+                        return
+
+                    # 5. Done
+                    _flash_jobs[job_id]["status"] = "done"
+                    _flash_jobs[job_id]["progress"] = 100
+                    _flash_jobs[job_id]["mp3_path"] = str(out_path)
+                except Exception as e:
+                    _flash_jobs[job_id]["status"] = "error"
+                    _flash_jobs[job_id]["error"] = str(e)
+
+            threading.Thread(target=_run_flash, daemon=True, name=f"FlashJob_{job_id}").start()
+            return jsonify({"status": "ok", "job_id": job_id, "category": category})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/api/flash/status/<job_id>", methods=["GET"])
+    def api_flash_status(job_id):
+        job = _flash_jobs.get(job_id)
+        if not job:
+            return jsonify({"status": "error", "msg": "job inconnu"}), 404
+        return jsonify({
+            "status": job["status"],
+            "progress": job.get("progress", 0),
+            "mp3_path": job.get("mp3_path"),
+            "error": job.get("error"),
+            "articles_count": job.get("articles_count", 0),
+            "category": job.get("category"),
+        })
+
+    @app.route("/audio/flash_<job_id>.mp3", methods=["GET"])
+    def serve_flash_mp3(job_id):
+        job = _flash_jobs.get(job_id)
+        if not job or job.get("status") != "done" or not job.get("mp3_path"):
+            return jsonify({"status": "error", "msg": "mp3 non disponible"}), 404
+        from flask import send_file
+        return send_file(job["mp3_path"], mimetype="audio/mpeg", as_attachment=False)
+
     @app.route("/preferences", methods=["GET"])
     def preferences_page():
         return build_preferences_page(paths)

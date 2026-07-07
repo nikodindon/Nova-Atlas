@@ -87,6 +87,71 @@ def load_bulletins_config(paths: dict) -> dict:
 #  Collecte des articles de la fenêtre temporelle
 # ─────────────────────────────────────────────────────────────────────────────
 
+def get_flash_articles(paths: dict, category: str, since_minute_of_day: int = 0) -> List[dict]:
+    """
+    Récupère les articles d'aujourd'hui depuis `since_minute_of_day` minutes
+    après minuit, filtrés par catégorie. Pour les Flashs spécialisés.
+
+    since_minute_of_day: nombre de minutes après 00:00 (ex: 0 = depuis minuit,
+    600 = depuis 10:00, etc.)
+    """
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff = today_start + timedelta(minutes=since_minute_of_day)
+    today = now.strftime("%Y%m%d")
+    articles_root = paths["data"] / "articles"
+
+    if not articles_root.exists():
+        return []
+
+    # Collecte les fichiers JSON du jour (2 formats possibles)
+    json_files = []
+    sub_dir = articles_root / today
+    if sub_dir.exists():
+        json_files.extend(sub_dir.glob("*.json"))
+    single_file = articles_root / f"{today}_articles.json"
+    if single_file.exists():
+        json_files.append(single_file)
+
+    found = []
+    for f in json_files:
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            for art in data:
+                # Filtre par catégorie
+                if (art.get("category") or "").strip() != category:
+                    continue
+                ts_str = art.get("timestamp", "")
+                if not ts_str:
+                    continue
+                try:
+                    ts = datetime.fromisoformat(ts_str)
+                except (ValueError, TypeError):
+                    continue
+                if ts >= cutoff:
+                    s = (art.get("summary") or "").strip()
+                    if s and not s.startswith("["):
+                        found.append(art)
+        except Exception as e:
+            logger.debug(f"  (skip {f.name}: {e})")
+            continue
+
+    # Déduplication par hash
+    seen = set()
+    unique = []
+    for art in found:
+        h = art.get("hash", "")
+        if h and h in seen:
+            continue
+        if h:
+            seen.add(h)
+        unique.append(art)
+
+    # Tri par importance (longueur résumé desc) puis timestamp desc
+    unique.sort(key=lambda a: (len(a.get("summary") or ""), a.get("timestamp", "")), reverse=True)
+    return unique
+
+
 def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
     """
     Récupère tous les articles des `window_minutes` dernières minutes
