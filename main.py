@@ -276,25 +276,11 @@ def run_news_engine(config: dict, debug: bool = False):
                 log.info(f"[EDITION] Génération {ed_name}")
                 run_in_thread(f"edition_{ed_name}", edition_and_rebuild, ed_name, today)
 
-        # Bulletins radio "30 min" : 2×/h (à :00 et :30)
-        # On déclenche 5 min AVANT le slot cible (à :25 et :55) pour que
-        # la génération (LLM ~30s + TTS × 5 + mix) soit prête à l'heure pile.
-        # Le bulletin cible = h:00 si on est entre :25-:30, h:30 si on est entre :55-:00.
-        if 25 <= m < 27 and h in post_hours:
-            target_slot = f"{h:02d}:00"
-            if target_slot != last_bulletin_slot:
-                last_bulletin_slot = target_slot
-                log.info(f"[BULLETIN] Pré-génération pour slot cible {target_slot}")
-                run_in_thread(f"bulletin_{target_slot}", bulletin_job)
-        elif 55 <= m < 57 and h in post_hours:
-            # Slot cible = h:30 ; si h=23, on tombe hors plage
-            target_slot = f"{h:02d}:30"
-            if target_slot != last_bulletin_slot:
-                last_bulletin_slot = target_slot
-                log.info(f"[BULLETIN] Pré-génération pour slot cible {target_slot}")
-                run_in_thread(f"bulletin_{target_slot}", bulletin_job)
-
-        time.sleep(60)
+        # Bulletins radio : géré par le scheduler de run_radio (plus complet,
+        # log "⏰ Pré-génération"). On ne duplique PAS le scheduling ici pour
+        # éviter que 2 bulletins soient générés pour le même slot.
+        # Le watcher de news détecte les news fraîches, mais la décision
+        # de générer un bulletin est centralisée dans run_radio.
 
 
 # ─── PROCESSUS : RADIO ────────────────────────────────────────────────────────
