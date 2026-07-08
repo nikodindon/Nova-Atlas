@@ -372,6 +372,7 @@ def run_radio(config: dict, debug: bool = False):
     from datetime import datetime
     post_hours = config.get("radio", {}).get("post_hours", [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21])
     last_slot = ""
+    last_heartbeat = 0
     while True:
         now = datetime.now()
         m, h = now.minute, now.hour
@@ -384,7 +385,10 @@ def run_radio(config: dict, debug: bool = False):
             target_slot = f"{(h + 1) % 24:02d}:00"
         else:
             target_slot = ""
-        # Debug: log chaque check pour diagnostiquer
+        # Heartbeat toutes les 5 min pour confirmer que le scheduler tourne
+        if now.timestamp() - last_heartbeat >= 300:
+            log.info(f"⏰ Scheduler actif (h={h:02d}:{m:02d}, post_hours={post_hours[:3]}...)")
+            last_heartbeat = now.timestamp()
         if target_slot:
             log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
             if target_slot != last_slot:
