@@ -213,10 +213,9 @@ def run_news_engine(config: dict, debug: bool = False):
             bulletins_cfg = load_bulletins_config(news_paths)
             window = bulletins_cfg.get("window_minutes", 30)
             articles = get_recent_articles(news_paths, window_minutes=window)
-            # Cap à 15 articles max pour le bulletin (le scheduler 30 min
-            # n'a pas besoin de plus pour 10 min de parole)
-            articles = articles[:15]
-            log.info(f"[BULLETIN] {len(articles)} articles des {window} dernières min (cap 15)")
+            # Cap à 20 articles max pour le bulletin (plus de matière = script plus riche)
+            articles = articles[:20]
+            log.info(f"[BULLETIN] {len(articles)} articles des {window} dernières min (cap 20)")
             path = bulletin_gen.build(articles)
             if path:
                 log.info(f"[BULLETIN] ✅ {path}")
@@ -342,9 +341,9 @@ def run_radio(config: dict, debug: bool = False):
             bulletins_cfg = load_bulletins_config(radio_paths)
             window = bulletins_cfg.get("window_minutes", 30)
             articles = get_recent_articles(radio_paths, window_minutes=window)
-            # Cap à 15 articles max pour le bulletin (10 min de parole)
-            articles = articles[:15]
-            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap 15)")
+            # Cap à 20 articles max pour le bulletin (plus de matière = script plus riche)
+            articles = articles[:20]
+            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap 20)")
             path = builder.build(articles)
             if path:
                 streamer.enqueue_bulletin(path)

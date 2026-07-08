@@ -585,7 +585,7 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
     # ce prompt : ~20k chars pour 40 articles tech, sous la fenêtre 32k.
     # Catégories plus fournies (geopolitique 80+, sport 60+) : ~30-40k,
     # le LLM tronquera la fin — acceptable car la fin est moins importante.
-    articles_text = _format_articles_for_prompt(articles, max_summary_chars=500)
+    articles_text = _format_articles_for_prompt(articles, max_summary_chars=700)
 
     # Choisit 1 intro et 1 outro au hasard
     now_str = datetime.now().strftime("%Hh%M")
