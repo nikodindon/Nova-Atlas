@@ -393,7 +393,7 @@ def run_radio(config: dict, debug: bool = False):
             if target_slot != last_slot:
                 last_slot = target_slot
                 threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
-        time.sleep(30)  # check 2×/min pour réactivité
+        time.sleep(10)  # check 6×/min pour tomber dans la fenetre [:25-:27] ou [:55-:57]
 
 
 # ─── PROCESSUS : WEB SERVER ───────────────────────────────────────────────────
