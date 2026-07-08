@@ -128,8 +128,8 @@ sport:
 sante:
   - https://www.lefigaro.fr/rss/figaro_sante.xml
   - https://www.santepubliquefrance.fr/rss/964
-  - https://www.pourquoidocteur.fr/feed
-  - https://www.futura-sciences.com/sante/rss/
+  # [SPRINT0] https://www.pourquoidocteur.fr/feed         # 410 Gone
+  # [SPRINT0] https://www.futura-sciences.com/sante/rss/  # 404
 
 gaming:
   - https://www.eurogamer.net/?format=rss
@@ -145,10 +145,10 @@ regions:  # anciennement local_france, renomme pour clarte
 sciences_humaines:
   - https://www.lefigaro.fr/rss/figaro_vox.xml
   - https://www.france24.com/fr/culture/rss
-  - https://theconversation.com/global/sections/social-sciences/articles.atom
+  # [SPRINT0] https://theconversation.com/global/sections/social-sciences/articles.atom  # 404
   - https://www.courrierinternational.com/feed/rubrique/societe/rss.xml
 
 auto:
   - https://www.automobile-propre.com/feed/
-  - https://www.caradisiac.com/feed/
+  # [SPRINT0] https://www.caradisiac.com/feed/  # 410 Gone
   - https://www.urbo.com/feed/
