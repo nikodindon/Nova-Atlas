@@ -390,9 +390,9 @@ def run_radio(config: dict, debug: bool = False):
                 log.info(f"⏰ Scheduler actif (h={h:02d}:{m:02d}, post_hours={post_hours[:3]}...)")
                 last_heartbeat = now.timestamp()
             if target_slot:
-                log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
                 if target_slot != last_slot:
                     last_slot = target_slot
+                    log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
                     threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
             time.sleep(10)  # check 6×/min pour tomber dans la fenetre [:25-:27] ou [:55-:57]
         except Exception as e:
