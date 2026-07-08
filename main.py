@@ -373,27 +373,31 @@ def run_radio(config: dict, debug: bool = False):
     last_slot = ""
     last_heartbeat = 0
     while True:
-        now = datetime.now()
-        m, h = now.minute, now.hour
-        # Pré-déclenchement 5 min avant le slot pile :
-        #   :25-27 → vise h:30 (qui arrive dans ~5 min)
-        #   :55-57 → vise (h+1):00 (qui arrive dans ~5 min)
-        if 25 <= m < 27 and h in post_hours:
-            target_slot = f"{h:02d}:30"
-        elif 55 <= m < 57 and (h + 1) % 24 in post_hours:
-            target_slot = f"{(h + 1) % 24:02d}:00"
-        else:
-            target_slot = ""
-        # Heartbeat toutes les 5 min pour confirmer que le scheduler tourne
-        if now.timestamp() - last_heartbeat >= 300:
-            log.info(f"⏰ Scheduler actif (h={h:02d}:{m:02d}, post_hours={post_hours[:3]}...)")
-            last_heartbeat = now.timestamp()
-        if target_slot:
-            log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
-            if target_slot != last_slot:
-                last_slot = target_slot
-                threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
-        time.sleep(10)  # check 6×/min pour tomber dans la fenetre [:25-:27] ou [:55-:57]
+        try:
+            now = datetime.now()
+            m, h = now.minute, now.hour
+            # Pré-déclenchement 5 min avant le slot pile :
+            #   :25-27 → vise h:30 (qui arrive dans ~5 min)
+            #   :55-57 → vise (h+1):00 (qui arrive dans ~5 min)
+            if 25 <= m < 27 and h in post_hours:
+                target_slot = f"{h:02d}:30"
+            elif 55 <= m < 57 and (h + 1) % 24 in post_hours:
+                target_slot = f"{(h + 1) % 24:02d}:00"
+            else:
+                target_slot = ""
+            # Heartbeat toutes les 5 min pour confirmer que le scheduler tourne
+            if now.timestamp() - last_heartbeat >= 300:
+                log.info(f"⏰ Scheduler actif (h={h:02d}:{m:02d}, post_hours={post_hours[:3]}...)")
+                last_heartbeat = now.timestamp()
+            if target_slot:
+                log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
+                if target_slot != last_slot:
+                    last_slot = target_slot
+                    threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
+            time.sleep(10)  # check 6×/min pour tomber dans la fenetre [:25-:27] ou [:55-:57]
+        except Exception as e:
+            log.error(f"Erreur scheduler bulletin: {e}", exc_info=True)
+            time.sleep(10)  # ne pas mourrir en boucle
 
 
 # ─── PROCESSUS : WEB SERVER ───────────────────────────────────────────────────
