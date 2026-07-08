@@ -95,8 +95,55 @@ class OllamaClient:
         import logging
         self.log = logging.getLogger("nova.ollama")
         self.log.info(f"LLM provider={self.provider} model={self.model} base_url={self.base_url}")
+
+        # Auto-détection du modèle via /v1/models (llama-server).
+        # Si le modèle configuré n'est pas dans la liste, on prend
+        # le premier dispo. Ça évite de garder un nom hardcodé obsolète.
+        if self.provider == "llama-server":
+            detected = self._detect_model_from_server()
+            if detected and detected != self.model:
+                self.log.info(
+                    f"Modèle configuré '{self.model}' non trouvé sur le serveur, "
+                    f"bascule sur '{detected}'"
+                )
+                self.model = detected
+            elif detected:
+                self.log.info(f"Modèle '{self.model}' confirmé sur le serveur")
         if self._cache:
             self.log.info(f"LLM cache activé: {self._cache.stats()}")
+
+    def _detect_model_from_server(self) -> str | None:
+        """
+        Interroge /v1/models du llama-server pour récupérer la liste
+        des modèles chargés. Retourne :
+          - self.model si présent dans la liste
+          - le 1er modèle de la liste si self.model n'y est pas
+          - None en cas d'erreur (serveur pas joignable, etc.)
+        """
+        import urllib.request, json as _json
+        try:
+            url = f"{self.base_url}/v1/models"
+            req = urllib.request.Request(url, headers={"User-Agent": "nova-atlas"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                data = _json.loads(r.read().decode("utf-8", errors="ignore"))
+        except Exception as e:
+            self.log.debug(f"Auto-détection modèle impossible: {e}")
+            return None
+        # Format OpenAI-compatible : data[].id, ou llama.cpp natif : models[].name
+        models = []
+        for m in (data.get("data") or []):
+            mid = m.get("id") or m.get("name")
+            if mid: models.append(mid)
+        for m in (data.get("models") or []):
+            mid = m.get("name") or m.get("id")
+            if mid: models.append(mid)
+        if not models:
+            return None
+        # Priorité : self.model s'il est dans la liste
+        if self.model in models:
+            return self.model
+        # Sinon, le premier
+        return models[0]
 
     # ── Verrou fichier ─────────────────────────────────────────────────────────
 
