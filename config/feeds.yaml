@@ -128,10 +128,14 @@ sport:
 sante:
   - https://www.lefigaro.fr/rss/figaro_sante.xml
   - https://www.santepubliquefrance.fr/rss/964
+  - https://www.pourquoidocteur.fr/feed
+  - https://www.futura-sciences.com/sante/rss/
 
 gaming:
   - https://www.eurogamer.net/?format=rss
   - https://fr.ign.com/feed.xml
+  - https://www.jeuxvideo.com/rss/rss.xml
+  - https://www.pcgamer.com/rss/
 
 regions:  # anciennement local_france, renomme pour clarte
   - https://www.francetvinfo.fr/france/ile-de-france.rss
@@ -141,6 +145,10 @@ regions:  # anciennement local_france, renomme pour clarte
 sciences_humaines:
   - https://www.lefigaro.fr/rss/figaro_vox.xml
   - https://www.france24.com/fr/culture/rss
+  - https://theconversation.com/global/sections/social-sciences/articles.atom
+  - https://www.courrierinternational.com/feed/rubrique/societe/rss.xml
 
 auto:
   - https://www.automobile-propre.com/feed/
+  - https://www.caradisiac.com/feed/
+  - https://www.urbo.com/feed/
