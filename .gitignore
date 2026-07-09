@@ -72,3 +72,4 @@ docker-compose.override.yml
 # IDE
 .vscode/
 .idea/
+data/subscriptions.json
