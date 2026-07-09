@@ -359,6 +359,12 @@ class AndroidStreamer:
         """Boucle principale : joue le bulletin courant en boucle."""
         logger.info("📻 [android] Démarrage streamer Android")
         self._start_ffmpeg()
+        # Heartbeat : vérifie que le source ffmpeg est vivant toutes
+        # les 2s. Si Icecast a timeout le mount, le ffmpeg source
+        # ne crashe pas forcément (le pipe reste ouvert), donc on
+        # doit le détecter manuellement et le relancer.
+        heartbeat = threading.Thread(target=self._heartbeat, daemon=True, name="AndroidHeartbeat")
+        heartbeat.start()
         try:
             while not self._stop_event.is_set():
                 if self._current is None:
@@ -386,6 +392,21 @@ class AndroidStreamer:
             logger.error(f"[android] Erreur streamer : {e}", exc_info=True)
         finally:
             self._kill_ffmpeg()
+
+    def _heartbeat(self):
+        """
+        Vérifie toutes les 2s que le source ffmpeg est vivant et
+        toujours connecté à Icecast. Si le pipe est cassé ou si
+        ffmpeg est mort, on le relance.
+        """
+        while not self._stop_event.is_set():
+            try:
+                if self._ffmpeg_proc and self._ffmpeg_proc.poll() is not None:
+                    logger.warning("[android] Heartbeat: ffmpeg mort, relance")
+                    self._start_ffmpeg()
+            except Exception as e:
+                logger.warning(f"[android] Heartbeat error: {e}")
+            time.sleep(2)
 
     def stop(self):
         self._stop_event.set()
