@@ -306,8 +306,10 @@ class AndroidStreamer:
         self._ffmpeg_proc    = None
         self._lock           = threading.Lock()
         # Bulletin "courant" (celui qui est en train de boucler).
-        # None tant qu'aucun bulletin n'a été enqueue.
-        self._current: Path | None = None
+        # Au démarrage, on charge le dernier bulletin dispo dans
+        # audio_queue/ pour ne pas commencer en silence.
+        # None si aucun bulletin n'a encore été créé.
+        self._current: Path | None = self._load_last_bulletin(config)
         # Nouveau bulletin qui attend la fin du courant
         self._pending: Path | None = None
         # Event levé quand le passage courant finit (entre 2 loops)
@@ -317,6 +319,26 @@ class AndroidStreamer:
         # pas de bulletin, pour que le mount Icecast existe (sinon
         # Icecast ne liste pas le mount tant qu'aucune donnée n'est envoyée).
         self._silence_bytes = self._generate_silence()
+
+    def _load_last_bulletin(self, config: dict) -> Path | None:
+        """
+        Charge le dernier bulletin créé dans audio_queue/ pour
+        démarrer avec du contenu (pas du silence) si possible.
+        """
+        paths = config.get("paths", {})
+        queue_dir = Path(paths.get("audio_queue", "audio_queue"))
+        if not queue_dir.exists():
+            logger.debug(f"[android] Pas de dossier audio_queue: {queue_dir}")
+            return None
+        # Cherche les bulletins (pattern: bulletin_YYYYMMDD_HHMMSS.mp3)
+        bulletins = list(queue_dir.glob("bulletin_*.mp3"))
+        if not bulletins:
+            logger.info(f"[android] Aucun bulletin dans {queue_dir}, démarrage en silence")
+            return None
+        # Le plus récent (tri par nom = tri par timestamp car format YYYYMMDD_HHMMSS)
+        latest = sorted(bulletins)[-1]
+        logger.info(f"📰 [android] Reprise du dernier bulletin : {latest.name}")
+        return latest
 
     def enqueue_bulletin(self, path: Path):
         """Le scheduler appelle ça avec le nouveau bulletin."""
