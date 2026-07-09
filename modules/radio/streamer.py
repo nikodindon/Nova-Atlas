@@ -274,4 +274,194 @@ class Streamer:
                 self._ffmpeg_proc.wait(timeout=5)
             except Exception:
                 pass
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  AndroidStreamer : stream "bulletin en boucle" pour l'app Android
+class AndroidStreamer:
+    """
+    Streamer dédié pour le client Android : joue le bulletin courant
+    en boucle. Quand un nouveau bulletin est prêt, attend la fin du
+    passage courant (jusqu'à la fin du fichier), puis enchaîne sur
+    le nouveau (sans blanc, sans jingle).
+    """
+
+    def __init__(self, config: dict):
+        ice   = config.get("icecast", {})
+        radio = config.get("radio", {})
+
+        # Mount spécifique Android (par défaut /nova-android)
+        android_mount = ice.get("android_mount", "/nova-android")
+        self.bitrate     = radio.get("bitrate", "128k")
+        self.sample_rate = radio.get("sample_rate", 44100)
+        self.channels    = radio.get("channels", 2)
+        self._debug      = config.get("_debug", False)
+
+        self.icecast_url = (
+            f"icecast://{ice.get('user', 'source')}:{ice.get('password', 'hackme')}"
+            f"@{ice.get('host', 'localhost')}:{ice.get('port', 8000)}{android_mount}"
+        )
+
+        self._stop_event     = threading.Event()
+        self._ffmpeg_proc    = None
+        self._lock           = threading.Lock()
+        # Bulletin "courant" (celui qui est en train de boucler).
+        # None tant qu'aucun bulletin n'a été enqueue.
+        self._current: Path | None = None
+        # Nouveau bulletin qui attend la fin du courant
+        self._pending: Path | None = None
+        # Event levé quand le passage courant finit (entre 2 loops)
+        self._current_done = threading.Event()
+        self._current_done.set()  # rien en cours au début
+
+    def enqueue_bulletin(self, path: Path):
+        """Le scheduler appelle ça avec le nouveau bulletin."""
+        if path and path.exists():
+            # Si rien n'est en cours de diffusion, on devient le courant direct
+            if self._current is None:
+                self._current = path
+                self._current_done.set()
+                logger.info(f"📥 [android] Premier bulletin : {path.name}")
+            else:
+                # Sinon, on attend que le courant finisse
+                self._pending = path
+                logger.info(f"📥 [android] Bulletin en attente : {path.name}")
+        else:
+            logger.warning(f"[android] enqueue ignoré (path invalide) : {path}")
+
+    def run(self):
+        """Boucle principale : joue le bulletin courant en boucle."""
+        logger.info("📻 [android] Démarrage streamer Android")
+        self._start_ffmpeg()
+        try:
+            while not self._stop_event.is_set():
+                if self._current is None:
+                    # Pas de bulletin : on attend qu'on en reçoive un
+                    self._current_done.clear()
+                    self._current_done.wait(timeout=5)
+                    if self._stop_event.is_set():
+                        break
+                    continue
+                # Joue le bulletin courant en boucle
+                self._play_in_loop(self._current)
+                # Si un nouveau bulletin attend, on bascule
+                if self._pending is not None:
+                    old = self._current
+                    self._current = self._pending
+                    self._pending = None
+                    logger.info(
+                        f"🔄 [android] Bascule : {old.name} → {self._current.name}"
+                    )
+                else:
+                    # Sinon, on continue à boucler sur le même
+                    logger.info(f"🔁 [android] Re-boucle sur {self._current.name}")
+        except Exception as e:
+            logger.error(f"[android] Erreur streamer : {e}", exc_info=True)
+        finally:
+            self._kill_ffmpeg()
+
+    def stop(self):
+        self._stop_event.set()
+        self._current_done.set()  # débloquer les wait
+
+    def _play_in_loop(self, path: Path):
+        """
+        Joue `path` jusqu'à la fin du fichier, en boucle tant que
+        `_pending` n'est pas set. Si `_pending` est set pendant la
+        lecture, on finit le passage en cours puis on sort.
+        """
+        self._current_done.clear()
+        # On transcode le MP3 vers le pipe ffmpeg en boucle.
+        # Note : on n'utilise pas ffmpeg -stream_loop, on reboucle
+        # côté Python pour pouvoir intercepter `_pending` entre 2 passes.
+        while not self._stop_event.is_set():
+            if self._ffmpeg_proc is None or self._ffmpeg_proc.poll() is not None:
+                self._start_ffmpeg()
+                time.sleep(0.5)
+            transcode_cmd = [
+                "ffmpeg", "-y", "-i", str(path),
+                "-vn", "-map", "0:a",
+                "-ar", str(self.sample_rate), "-ac", str(self.channels),
+                "-b:a", self.bitrate,
+                "-codec:a", "libmp3lame",
+                "-f", "mp3",
+                "pipe:1",
+            ]
+            try:
+                transcode = subprocess.Popen(
+                    transcode_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                # Stream chunk par chunk
+                while not self._stop_event.is_set():
+                    chunk = transcode.stdout.read(CHUNK_SIZE)
+                    if not chunk:
+                        break  # fin du fichier
+                    self._write_to_pipe(chunk)
+                    # Si un nouveau bulletin est arrivé, on finit la passe en cours
+                    if self._pending is not None:
+                        # vide le reste du fichier (court, ~10min)
+                        # mais ne relance PAS une nouvelle passe
+                        while not self._stop_event.is_set():
+                            chunk = transcode.stdout.read(CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            self._write_to_pipe(chunk)
+                        break
+                transcode.stdout.close()
+                transcode.wait(timeout=5)
+            except Exception as e:
+                logger.error(f"[android] Erreur streaming {path.name} : {e}")
+                break
+            # Si un nouveau bulletin est pending, on sort de la boucle externe
+            if self._pending is not None:
+                break
+            # Sinon, on reboucle (logger.info géré par le caller)
+        self._current_done.set()
+
+    def _write_to_pipe(self, data: bytes) -> bool:
+        if not data or not self._ffmpeg_proc or self._ffmpeg_proc.stdin is None:
+            return False
+        try:
+            self._ffmpeg_proc.stdin.write(data)
+            self._ffmpeg_proc.stdin.flush()
+            return True
+        except (BrokenPipeError, OSError):
+            logger.warning("[android] Pipe cassé → relance ffmpeg")
+            self._start_ffmpeg()
+            return False
+
+    def _start_ffmpeg(self):
+        with self._lock:
+            self._kill_ffmpeg()
+            cmd = [
+                "ffmpeg", "-re",
+                "-probesize", "32", "-analyzeduration", "0",
+                "-f", "mp3", "-i", "pipe:0",
+                "-vn", "-map", "0:a",
+                "-codec:a", "libmp3lame",
+                "-b:a", self.bitrate,
+                "-ar", str(self.sample_rate), "-ac", str(self.channels),
+                "-f", "mp3", "-content_type", "audio/mpeg",
+                "-ice_name", "Nova Atlas Android",
+                self.icecast_url,
+            ]
+            self._ffmpeg_proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE if self._debug else subprocess.DEVNULL,
+            )
+            logger.info(f"🔗 [android] ffmpeg connecté à Icecast {self.icecast_url}")
+
+    def _kill_ffmpeg(self):
+        if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
+            try:
+                if self._ffmpeg_proc.stdin:
+                    self._ffmpeg_proc.stdin.close()
+                self._ffmpeg_proc.terminate()
+                self._ffmpeg_proc.wait(timeout=5)
+            except Exception:
+                pass
         self._ffmpeg_proc = None

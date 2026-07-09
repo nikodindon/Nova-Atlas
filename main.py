@@ -302,7 +302,7 @@ def run_radio(config: dict, debug: bool = False):
     """
     setup_logging(debug)
     from modules.radio.news_watcher    import NewsWatcher
-    from modules.radio.streamer        import Streamer
+    from modules.radio.streamer        import Streamer, AndroidStreamer
     from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
     from pathlib import Path as _P
     import threading
@@ -311,6 +311,9 @@ def run_radio(config: dict, debug: bool = False):
     log.info("Initialisation radio...")
 
     streamer = Streamer(config)
+    # 2e streamer dédié pour le client Android : bulletins en boucle
+    # sur le mount /nova-android (cf config.yaml icecast.android_mount)
+    android_streamer = AndroidStreamer(config)
     # BulletinGenerator remplace l'ancien JournalBuilder
     _proj = _P(__file__).parent.resolve()
     radio_paths = {
@@ -347,6 +350,7 @@ def run_radio(config: dict, debug: bool = False):
             path = builder.build(articles)
             if path:
                 streamer.enqueue_bulletin(path)
+                android_streamer.enqueue_bulletin(path)
                 log.info(f"📥 Bulletin en file: {path.name}")
             else:
                 log.info("⏭️ Bulletin skippé (pas assez d'articles ou erreur)")
@@ -362,9 +366,11 @@ def run_radio(config: dict, debug: bool = False):
     watcher = NewsWatcher(radio_cfg, on_news_ready)
     threading.Thread(target=watcher.run,  daemon=True, name="NewsWatcher").start()
     threading.Thread(target=streamer.run, daemon=True, name="Streamer").start()
+    threading.Thread(target=android_streamer.run, daemon=True, name="AndroidStreamer").start()
 
     ic = config.get("icecast", {})
     log.info(f"✅ Radio → http://localhost:{ic.get('port',8000)}{ic.get('mount','/nova')}")
+    log.info(f"✅ Android → http://localhost:{ic.get('port',8000)}{ic.get('android_mount','/nova-android')}")
 
     # Scheduler 2×/h (X:00, X:30) — pré-déclenchement à :25 et :55
     # pour que la génération (1-2 min) soit prête à l'heure pile
