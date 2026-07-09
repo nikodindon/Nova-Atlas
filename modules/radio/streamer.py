@@ -395,14 +395,15 @@ class AndroidStreamer:
         """
         Joue `path` jusqu'à la fin du fichier, en boucle tant que
         `_pending` n'est pas set. Si `_pending` est set pendant la
-        lecture, on finit le passage en cours puis on sort.
+        lecture, on interrompt IMMÉDIATEMENT pour basculer sans
+        blanc (c'est mieux que d'attendre la fin du fichier, ce qui
+        peut timeout le client Android).
         """
         self._current_done.clear()
-        # On transcode le MP3 vers le pipe ffmpeg en boucle.
-        # Note : on n'utilise pas ffmpeg -stream_loop, on reboucle
-        # côté Python pour pouvoir intercepter `_pending` entre 2 passes.
         while not self._stop_event.is_set():
+            # GARANTIR que le source ffmpeg est vivant AVANT chaque passe.
             if self._ffmpeg_proc is None or self._ffmpeg_proc.poll() is not None:
+                logger.warning(f"[android] Source ffmpeg mort, relance...")
                 self._start_ffmpeg()
                 time.sleep(0.5)
             transcode_cmd = [
@@ -422,29 +423,44 @@ class AndroidStreamer:
                 )
                 # Stream chunk par chunk
                 while not self._stop_event.is_set():
+                    # Check PENDING EN PREMIER (avant de lire le chunk).
+                    # Si un nouveau bulletin attend, on interrompt IMMÉDIATEMENT
+                    # pour basculer sans blanc (c'est ce que veut l'utilisateur).
+                    if self._pending is not None:
+                        # Coupe le transcode proprement
+                        transcode.terminate()
+                        try:
+                            transcode.wait(timeout=2)
+                        except Exception:
+                            transcode.kill()
+                        break
                     chunk = transcode.stdout.read(CHUNK_SIZE)
                     if not chunk:
                         break  # fin du fichier
-                    self._write_to_pipe(chunk)
-                    # Si un nouveau bulletin est arrivé, on finit la passe en cours
-                    if self._pending is not None:
-                        # vide le reste du fichier (court, ~10min)
-                        # mais ne relance PAS une nouvelle passe
-                        while not self._stop_event.is_set():
-                            chunk = transcode.stdout.read(CHUNK_SIZE)
-                            if not chunk:
-                                break
-                            self._write_to_pipe(chunk)
+                    ok = self._write_to_pipe(chunk)
+                    if not ok:
+                        # Pipe cassé : le source est mort
+                        logger.warning(f"[android] Pipe cassé pendant {path.name}")
+                        transcode.terminate()
                         break
                 transcode.stdout.close()
-                transcode.wait(timeout=5)
+                try:
+                    transcode.wait(timeout=5)
+                except Exception:
+                    transcode.kill()
             except Exception as e:
                 logger.error(f"[android] Erreur streaming {path.name} : {e}")
-                break
+                # Tente de relancer le source pour la prochaine passe
+                try:
+                    self._start_ffmpeg()
+                    time.sleep(0.5)
+                except Exception:
+                    pass
+                continue
             # Si un nouveau bulletin est pending, on sort de la boucle externe
             if self._pending is not None:
                 break
-            # Sinon, on reboucle (logger.info géré par le caller)
+            # Sinon, on reboucle
         self._current_done.set()
 
     def _write_to_pipe(self, data: bytes) -> bool:
