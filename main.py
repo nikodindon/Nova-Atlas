@@ -375,7 +375,9 @@ def run_radio(config: dict, debug: bool = False):
     # Scheduler 2×/h (X:00, X:30) — pré-déclenchement à :25 et :55
     # pour que la génération (1-2 min) soit prête à l'heure pile
     from datetime import datetime
-    post_hours = config.get("radio", {}).get("post_hours", [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21])
+    # Bulletins h24 (toutes les 30 min, 24h/24) pour ceux qui
+    # ecoutent la radio a n'importe quelle heure
+    post_hours = list(range(0, 24))
     last_slot = ""
     last_heartbeat = 0
     while True:
