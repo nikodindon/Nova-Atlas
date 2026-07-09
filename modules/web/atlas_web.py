@@ -1761,6 +1761,60 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
 
     _flash_jobs: dict = {}  # job_id → {status, progress, mp3_path, error, started_at}
 
+    @app.route("/api/subscription/status", methods=["GET"])
+    def api_subscription_status():
+        """Verifie le statut premium d'un device_id (cote serveur, anti-triche).
+
+        Query params:
+            device_id : identifiant unique de l'app (fourni par l'app Android)
+
+        Reponse:
+            {status, device_id, is_premium, expires_at, source}
+
+        Note: pour le moment, AUCUN device n'est premium (compte Google Play
+        pas encore cree). Quand Play Billing sera branche, l'app enverra
+        les receipts ici, on les validera avec Google, et on stockera
+        device_id -> {is_premium: true, expires_at: ...} dans un fichier
+        data/subscriptions.json (gitignore).
+        """
+        try:
+            from pathlib import Path as _Path
+            import json as _json
+            device_id = (request.args.get("device_id") or "").strip()
+            if not device_id:
+                return jsonify({"status": "error", "msg": "device_id requis"}), 400
+
+            subs_path = _Path(paths.get("root", ".")) / "data" / "subscriptions.json"
+            subs = {}
+            if subs_path.exists():
+                try:
+                    subs = _json.loads(subs_path.read_text())
+                except Exception:
+                    subs = {}
+
+            sub = subs.get(device_id, {})
+            is_premium = bool(sub.get("is_premium", False))
+            expires_at = sub.get("expires_at")
+
+            # Si expires_at est dans le passe, plus premium
+            if is_premium and expires_at:
+                from datetime import datetime as _dt
+                try:
+                    if _dt.fromisoformat(expires_at) < _dt.now():
+                        is_premium = False
+                except ValueError:
+                    pass
+
+            return jsonify({
+                "status": "ok",
+                "device_id": device_id,
+                "is_premium": is_premium,
+                "expires_at": expires_at,
+                "source": "nova-atlas",
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
     @app.route("/api/articles", methods=["GET"])
     def api_articles():
         """Retourne la liste des articles du jour (ou d'une date donnée en query param).
