@@ -313,6 +313,10 @@ class AndroidStreamer:
         # Event levé quand le passage courant finit (entre 2 loops)
         self._current_done = threading.Event()
         self._current_done.set()  # rien en cours au début
+        # Buffer de silence : on l'envoie à ffmpeg quand il n'y a
+        # pas de bulletin, pour que le mount Icecast existe (sinon
+        # Icecast ne liste pas le mount tant qu'aucune donnée n'est envoyée).
+        self._silence_bytes = self._generate_silence()
 
     def enqueue_bulletin(self, path: Path):
         """Le scheduler appelle ça avec le nouveau bulletin."""
@@ -336,9 +340,10 @@ class AndroidStreamer:
         try:
             while not self._stop_event.is_set():
                 if self._current is None:
-                    # Pas de bulletin : on attend qu'on en reçoive un
-                    self._current_done.clear()
-                    self._current_done.wait(timeout=5)
+                    # Pas de bulletin : on envoie du silence en boucle
+                    # pour que le mount Icecast existe (sinon 404)
+                    # On attend qu'un bulletin arrive
+                    self._send_silence_loop()
                     if self._stop_event.is_set():
                         break
                     continue
@@ -465,3 +470,43 @@ class AndroidStreamer:
             except Exception:
                 pass
         self._ffmpeg_proc = None
+
+    def _generate_silence(self) -> bytes:
+        """Génère 1 seconde de silence MP3 pour le mount idle."""
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i",
+            f"anullsrc=r={self.sample_rate}:cl=stereo",
+            "-t", "1",
+            "-b:a", self.bitrate,
+            "-codec:a", "libmp3lame",
+            "-f", "mp3",
+            "pipe:1",
+        ]
+        try:
+            return subprocess.run(cmd, capture_output=True, timeout=10).stdout
+        except Exception:
+            return b""
+
+    def _send_silence_loop(self):
+        """
+        Envoie du silence en boucle sur le pipe ffmpeg jusqu'à ce
+        qu'un bulletin arrive (ou qu'on s'arrête). Ça force Icecast
+        à créer le mount même quand il n'y a pas de contenu.
+        """
+        if not self._silence_bytes:
+            # Si on n'a pas pu générer de silence, on attend juste
+            self._current_done.clear()
+            self._current_done.wait(timeout=5)
+            return
+        # Envoie 1s de silence en boucle
+        deadline = time.monotonic() + 1.0
+        while not self._stop_event.is_set() and self._current is None:
+            self._write_to_pipe(self._silence_bytes)
+            # Attend un peu (et vérifie si un bulletin est arrivé)
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                self._current_done.clear()
+                self._current_done.wait(timeout=min(remaining, 0.1))
+            else:
+                deadline = time.monotonic() + 1.0
