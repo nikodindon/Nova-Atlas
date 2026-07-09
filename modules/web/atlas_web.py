@@ -1761,6 +1761,47 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
 
     _flash_jobs: dict = {}  # job_id → {status, progress, mp3_path, error, started_at}
 
+    @app.route("/api/articles", methods=["GET"])
+    def api_articles():
+        """Retourne la liste des articles du jour (ou d'une date donnée en query param).
+
+        Query params:
+            date : YYYYMMDD (optionnel, défaut = aujourd'hui)
+            category : filtre catégorie (optionnel)
+            limit : nombre max d'articles (optionnel, défaut = 200)
+
+        Réponse:
+            {"status": "ok", "date": "20260709", "count": N, "articles": [...]}
+        """
+        try:
+            from datetime import datetime as _dt
+            day = request.args.get("date") or _dt.now().strftime("%Y%m%d")
+            category = request.args.get("category")
+            try:
+                limit = int(request.args.get("limit", "200"))
+            except ValueError:
+                limit = 200
+
+            articles = load_articles_for_day(day, paths)
+
+            if category:
+                articles = [a for a in articles if a.get("category") == category]
+
+            # Tri du plus récent au plus ancien
+            articles.sort(key=lambda a: a.get("timestamp", ""), reverse=True)
+
+            # Cap
+            articles = articles[:limit]
+
+            return jsonify({
+                "status": "ok",
+                "date": day,
+                "count": len(articles),
+                "articles": articles,
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
     @app.route("/api/flash", methods=["POST"])
     def api_create_flash():
         try:
