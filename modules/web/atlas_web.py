@@ -400,10 +400,11 @@ def _get_icecast_url(paths: dict) -> str:
     # Si on est en HTTPS (reverse proxy), on passe par le proxy Flask
     # pour éviter le mixed content. Le browser charge /stream/nova qui
     # est servi par Flask (même origine HTTPS) et Flask proxifie Icecast.
+    # ProxyFix (en run_server) fait confiance au header X-Forwarded-Proto
+    # du reverse proxy, donc request.is_secure est fiable ici.
     try:
         from flask import request
         if request and request.is_secure:
-            # HTTPS détecté → utiliser le proxy Flask
             mount_clean = mount.lstrip("/")
             return f"/stream/{mount_clean}"
     except (ImportError, RuntimeError):
@@ -1398,6 +1399,11 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
     # Sync icecast config → atlas_config.json pour que le player web la lise
     _sync_icecast_to_atlas_config(config, paths)
     app   = Flask(__name__)
+    # ProxyFix : fait confiance aux headers X-Forwarded-* du reverse proxy
+    # pour que request.is_secure, request.scheme, etc. reflètent le HTTPS
+    # externe (sinon Flask voit toujours HTTP parce qu'il tourne en HTTP).
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
     # ── Proxy stream Icecast → HTTPS (mixed-content fix) ──────────────
     # Quand le site est servi en HTTPS (reverse proxy), le browser refuse
