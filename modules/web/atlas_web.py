@@ -382,6 +382,10 @@ def _get_icecast_url(paths: dict) -> str:
     le player web fonctionne depuis n'importe quel device du LAN, pas
     seulement depuis la machine qui héberge Flask.
 
+    Si la requête est en HTTPS (accès via reverse proxy HTTPS), on
+    utilise /stream/<mount> (proxy Flask) pour éviter le mixed content
+    (le navigateur refuse de charger du HTTP depuis une page HTTPS).
+
     Le Host header est ce que le navigateur a tapé dans la barre d'URL :
       - accès local     → 'localhost:5055' ou '127.0.0.1:5055'
       - accès LAN       → '192.168.1.22:5055'
@@ -392,6 +396,18 @@ def _get_icecast_url(paths: dict) -> str:
     host  = cfg.get("icecast_host",  "localhost")
     port  = cfg.get("icecast_port",  8000)
     mount = cfg.get("icecast_mount", "/nova")
+
+    # Si on est en HTTPS (reverse proxy), on passe par le proxy Flask
+    # pour éviter le mixed content. Le browser charge /stream/nova qui
+    # est servi par Flask (même origine HTTPS) et Flask proxifie Icecast.
+    try:
+        from flask import request
+        if request and request.is_secure:
+            # HTTPS détecté → utiliser le proxy Flask
+            mount_clean = mount.lstrip("/")
+            return f"/stream/{mount_clean}"
+    except (ImportError, RuntimeError):
+        pass
 
     # Auto-substitution si host == 'localhost' et qu'un Host header est dispo
     if host in ("localhost", "127.0.0.1", "0.0.0.0"):
@@ -408,6 +424,37 @@ def _get_icecast_url(paths: dict) -> str:
             pass
 
     return f"http://{host}:{port}{mount}"
+
+
+# ─── PROXY STREAM ICECAST → HTTPS (mixed-content fix) ────────────────
+# Quand le site est servi en HTTPS mais que Icecast reste en HTTP, le
+# navigateur refuse de charger le flux audio (mixed content bloqué).
+# Cette route Flask sert de proxy : le navigateur appelle /stream/nova
+# (même origine HTTPS) et Flask stream le contenu depuis Icecast.
+import requests as _requests  # déjà dans requirements normalement
+
+
+@app.route("/stream/<path:mount>")
+def stream_proxy(mount: str):
+    """
+    Proxy le stream Icecast via Flask pour contourner le mixed content
+    quand le site est servi en HTTPS.
+    """
+    cfg = load_atlas_config(paths)
+    host  = cfg.get("icecast_host",  "localhost")
+    port  = cfg.get("icecast_port",  8000)
+    # mount = "/nova" ou "/nova-android", on l'utilise tel quel
+    icecast_url = f"http://{host}:{port}/{mount.lstrip('/')}"
+    try:
+        # Stream le contenu avec timeout long
+        req = _requests.get(icecast_url, stream=True, timeout=30)
+        return _Response(
+            req.iter_content(chunk_size=4096),
+            content_type=req.headers.get("Content-Type", "audio/mpeg"),
+            status=req.status_code,
+        )
+    except Exception as e:
+        return f"Stream indisponible: {e}", 502
 
 
 def _branding(paths: dict) -> dict:
