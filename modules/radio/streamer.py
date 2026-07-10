@@ -326,21 +326,33 @@ class AndroidStreamer:
         """
         Charge le dernier bulletin créé dans audio_queue/ pour
         démarrer avec du contenu (pas du silence) si possible.
+        Copie dans android_cache/ pour eviter que le Streamer
+        normal ne le supprime pendant qu'on le lit.
         """
         paths = config.get("paths", {})
         queue_dir = Path(paths.get("audio_queue", "audio_queue"))
         if not queue_dir.exists():
             logger.debug(f"[android] Pas de dossier audio_queue: {queue_dir}")
             return None
-        # Cherche les bulletins (pattern: bulletin_YYYYMMDD_HHMMSS.mp3)
         bulletins = list(queue_dir.glob("bulletin_*.mp3"))
         if not bulletins:
             logger.info(f"[android] Aucun bulletin dans {queue_dir}, démarrage en silence")
             return None
-        # Le plus récent (tri par nom = tri par timestamp car format YYYYMMDD_HHMMSS)
         latest = sorted(bulletins)[-1]
-        logger.info(f"📰 [android] Reprise du dernier bulletin : {latest.name}")
-        return latest
+        # Copier dans le cache Android pour qu'on ne soit pas
+        # affecté par le cleanup du Streamer normal
+        try:
+            cache_dir = queue_dir / "android_cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cached = cache_dir / latest.name
+            import shutil as _sh
+            _sh.copy2(latest, cached)
+            logger.info(f"📰 [android] Reprise du dernier bulletin (cache): {cached.name}")
+            return cached
+        except Exception as e:
+            logger.warning(f"[android] Echec copie cache, path direct : {e}")
+            logger.info(f"📰 [android] Reprise du dernier bulletin : {latest.name}")
+            return latest
 
     def enqueue_bulletin(self, path: Path):
         """Le scheduler appelle ça avec le nouveau bulletin."""
@@ -354,9 +366,11 @@ class AndroidStreamer:
                 cache_dir = Path(self._config.get("paths", {}).get("audio_queue", "audio_queue")) / "android_cache"
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 cached = cache_dir / path.name
-                if cached.resolve() != path.resolve():
-                    import shutil as _sh
-                    _sh.copy2(path, cached)
+                # TOUJOURS copier, même si le nom est le même : le path
+                # d'origine peut etre dans audio_queue/ qui est nettoye
+                # par le Streamer normal (unlink apres diffusion).
+                import shutil as _sh
+                _sh.copy2(path, cached)
                 path = cached
             except Exception as e:
                 logger.warning(f"[android] Echec copie cache, path direct : {e}")
