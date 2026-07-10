@@ -24,13 +24,16 @@ from pathlib import Path
 # ─── PRIORITÉS DES CALLERS ───────────────────────────────────────────────────
 
 CALLER_PRIORITY = {
-    "fetch":    10,   # Plus haute : on ne coupe jamais une arrivée de news
-    "flash":    8,    # Bulletin à la demande : peut interrompre bulletin/report,
+    "fetch":    10,   # Plus haute : alimente le pool de news
+    "bulletin": 10,   # Bulletin 30 min scheduler (meme priorite que fetch) :
+                      # peut interrompre un fetch en cours pour ne pas rater
+                      # la fenetre de diffusion (l'article coupe sera re-resume
+                      # au prochain cycle)
+    "flash":    8,    # Bulletin a la demande : peut interrompre bulletin/report,
                       # mais doit attendre la fin d'un fetch en cours
-    "bulletin": 5,    # Bulletin 30 min scheduler (même priorité que editions/report)
     "editions": 5,
     "report":   5,
-    "atlas":    3,    # Défaut
+    "atlas":    3,    # Defaut
     "posts":    1,
 }
 
@@ -183,7 +186,7 @@ class OllamaClient:
                 waited += 5
                 continue
 
-            if my_priority > holder_priority:
+            if my_priority >= holder_priority:
                 if waited >= 30:
                     self.log.info(f"'{caller}' (prio {my_priority}) force '{holder}' (prio {holder_priority})")
                     break
