@@ -345,6 +345,21 @@ class AndroidStreamer:
     def enqueue_bulletin(self, path: Path):
         """Le scheduler appelle ça avec le nouveau bulletin."""
         if path and path.exists():
+            # IMPORTANT : on copie le bulletin dans notre cache local.
+            # Pourquoi : le Streamer normal supprime les bulletins apres
+            # les avoir diffuses (cf Streamer._play_next L131). Si on
+            # garde une reference au fichier original, il sera supprime
+            # et on ne pourra plus reboucler.
+            try:
+                cache_dir = Path(self._config.get("paths", {}).get("audio_queue", "audio_queue")) / "android_cache"
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                cached = cache_dir / path.name
+                if cached.resolve() != path.resolve():
+                    import shutil as _sh
+                    _sh.copy2(path, cached)
+                path = cached
+            except Exception as e:
+                logger.warning(f"[android] Echec copie cache, path direct : {e}")
             # Si rien n'est en cours de diffusion, on devient le courant direct
             if self._current is None:
                 self._current = path
