@@ -301,6 +301,8 @@ class AndroidStreamer:
             f"icecast://{ice.get('user', 'source')}:{ice.get('password', 'hackme')}"
             f"@{ice.get('host', 'localhost')}:{ice.get('port', 8000)}{android_mount}"
         )
+        # On garde la config pour recharger le bulletin courant si besoin
+        self._config = config
 
         self._stop_event     = threading.Event()
         self._ffmpeg_proc    = None
@@ -385,6 +387,25 @@ class AndroidStreamer:
                     logger.info(
                         f"🔄 [android] Bascule : {old.name} → {self._current.name}"
                     )
+                elif self._current is not None and not self._current.exists():
+                    # Le bulletin courant a été supprimé pendant la lecture
+                    # (cleanup automatique). On recharge le dernier dispo.
+                    fallback = self._load_last_bulletin(self._config)
+                    if fallback and fallback != self._current:
+                        old = self._current
+                        self._current = fallback
+                        logger.warning(
+                            f"🔁 [android] Bulletin supprimé ({old.name}), "
+                            f"fallback sur {self._current.name}"
+                        )
+                    else:
+                        # Aucun autre bulletin → on reste en silence
+                        old = self._current
+                        self._current = None
+                        logger.warning(
+                            f"🔇 [android] Bulletin {old.name} supprimé, "
+                            f"aucun fallback → silence"
+                        )
                 else:
                     # Sinon, on continue à boucler sur le même
                     logger.info(f"🔁 [android] Re-boucle sur {self._current.name}")
@@ -420,6 +441,11 @@ class AndroidStreamer:
         blanc (c'est mieux que d'attendre la fin du fichier, ce qui
         peut timeout le client Android).
         """
+        # Vérifier que le fichier existe avant de commencer
+        # (peut être supprimé par un cleanup entre-temps)
+        if not path.exists():
+            logger.warning(f"[android] Bulletin introuvable : {path.name}, fallback")
+            return
         self._current_done.clear()
         while not self._stop_event.is_set():
             # GARANTIR que le source ffmpeg est vivant AVANT chaque passe.
@@ -427,6 +453,10 @@ class AndroidStreamer:
                 logger.warning(f"[android] Source ffmpeg mort, relance...")
                 self._start_ffmpeg()
                 time.sleep(0.5)
+            # Re-vérifier le fichier à chaque passe (peut être supprimé)
+            if not path.exists():
+                logger.warning(f"[android] Bulletin disparu pendant la lecture : {path.name}")
+                return
             transcode_cmd = [
                 "ffmpeg", "-y", "-i", str(path),
                 "-vn", "-map", "0:a",
