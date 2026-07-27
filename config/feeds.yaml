@@ -83,6 +83,30 @@ monde:
   - https://www.lefigaro.fr/rss/figaro_international.xml
   - https://www.france24.com/fr/economie/rss
   # [SPRINT0] https://rss.nytimes.com/services/xml/rss/nyt/World.xml
+  # Google News par pays (sprint 2026-07-27, audit 18/18 STABLES)
+  # Comble les pays sans source locale (Portugal, Belgique, Grèce, Scandinavie, etc.)
+  # Europe
+  - https://news.google.com/rss/search?q=Portugal&hl=pt-PT&gl=PT&ceid=PT:pt
+  - https://news.google.com/rss/search?q=Belgique&hl=fr&gl=BE&ceid=BE:fr
+  - https://news.google.com/rss/search?q=Belgie&hl=nl&gl=BE&ceid=BE:nl
+  - https://news.google.com/rss/search?q=%CE%95%CE%BB%CE%BB%CE%AC%CE%B4%CE%B1&hl=el&gl=GR&ceid=GR:el
+  - https://news.google.com/rss/search?q=Ireland&hl=en&gl=IE&ceid=IE:en
+  - https://news.google.com/rss/search?q=Sverige&hl=sv&gl=SE&ceid=SE:sv
+  - https://news.google.com/rss/search?q=Danmark&hl=da&gl=DK&ceid=DK:da
+  - https://news.google.com/rss/search?q=Suomi&hl=fi&gl=FI&ceid=FI:fi
+  - https://news.google.com/rss/search?q=Slovensko&hl=sk&gl=SK&ceid=SK:sk
+  # Asie
+  - https://news.google.com/rss/search?q=Indonesia&hl=id&gl=ID&ceid=ID:id
+  - https://news.google.com/rss/search?q=Philippines&hl=en&gl=PH&ceid=PH:en
+  - https://news.google.com/rss/search?q=Malaysia&hl=en&gl=MY&ceid=MY:en
+  - https://news.google.com/rss/search?q=Pakistan&hl=en&gl=PK&ceid=PK:en
+  # Eurasie
+  - https://news.google.com/rss/search?q=%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D0%B0&hl=uk&gl=UA&ceid=UA:uk
+  # Autres continents
+  - https://news.google.com/rss/search?q=Brasil&hl=pt-BR&gl=BR&ceid=BR:pt
+  - https://news.google.com/rss/search?q=South+Africa&hl=en&gl=ZA&ceid=ZA:en
+  - https://news.google.com/rss/search?q=Nigeria&hl=en&gl=NG&ceid=NG:en
+  - https://news.google.com/rss/search?q=Mexico&hl=es&gl=MX&ceid=MX:es
 
 science:
   - https://www.futura-sciences.com/rss/actualites.xml

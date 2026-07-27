@@ -106,6 +106,49 @@
 - Mode `--dry-run` pour fetch (télécharge mais ne stocke pas)
 - **Bug streamer radio** : `Pipe cassé → relance ffmpeg` en boucle, le streamer ne tient pas la connexion Icecast. À investiguer (format audio ou config Icecast). Vu le 2026-07-06 ~18:45.
 
+### Sprint "Pays sans source" — Google News par pays (1-2h, en cours 2026-07-27)
+
+**Pourquoi** : audit 2026-07-27 a montré que ~80% des sites d'info asiatiques,
+arabes, eurasie et européens ont des anti-bots agressifs (404/403/200-vide au 2e essai).
+On a déjà 12 flux "vrais" livrés, mais des pays entiers (Belgique, Portugal,
+Grèce, Scandinavie, Indonésie, etc.) restent sans source locale.
+
+**Contenu** : ajouter des flux `news.google.com/rss/search?q=<Pays>&hl=<LANG>&gl=<CC>&ceid=<CC>:<LANG>`
+pour combler les trous. Google n'a pas d'anti-bot et c'est immédiat.
+
+**Pré-requis** : aucun. Premier patch livré dans le commit à venir.
+
+### Sprint 4 — Self-hosted proxy (à planifier, options ci-dessous)
+
+**Pourquoi** : même avec les Google News, on a 60+ URLs en backlog car
+les sites ont des anti-bots qui rejettent les UA non-browser. Un proxy
+self-hosted est la solution propre long terme.
+
+**Choix d'implémentation à faire** (cf section "Décision proxy" plus bas) :
+
+- **Option A : Caddy + forward_proxy** — le plus simple, ~50 lignes de config, 1h de setup
+- **Option B : mitmproxy** — surdimensionné mais très flexible
+- **Option C : Tinyproxy + script Python custom** — 200 lignes DIY, contrôle total
+- **Option D : SmokeProxy / scraping-proxy dédié** — commercial mais self-hostable, 50-100$/an
+
+**Pré-requis** : avoir identifié l'option (cf section dédiée plus bas).
+
+### Décision proxy — 4 options à arbitrer (sprint 4)
+
+**Contexte** : on a 60+ URLs en backlog à cause d'anti-bots. Le sprint 4 fix ça
+en s'intercalant entre nova-atlas et les sites cibles avec un proxy qui gère
+UA réaliste, headers Accept-Language par site, cookie jar, cache, retry.
+
+| Option | Complexité | Maintenance | Coût | Contrôle | Recommandation |
+|---|---|---|---|---|---|
+| A. Caddy + forward_proxy | Faible (~1h) | Modérée | 0€ (VPS 5€/mois) | Moyen | Idéal pour démarrer |
+| B. mitmproxy | Haute | Haute | 0€ | Total | Surdimensionné |
+| C. Tinyproxy + Python | Moyenne (~2j) | Modérée | 0€ | Total | Bon compromis |
+| D. SmokeProxy | Faible | Basse | 50-100€/an | Faible | Rapide mais payant |
+
+**Mon vote actuel** : Option A (Caddy) pour prototyper, basculer vers C si
+on a besoin de plus de contrôle après 1 mois. À décider avant le sprint 4.
+
 ## Idées à valider
 
 - **Modèle dual** : un modèle dense rapide (Qwen2.5-7B-Instruct) pour le fetch, le modèle reasoning pour les éditions/rapports longs. Nécessite de charger 2 modèles sur le serveur distant.
