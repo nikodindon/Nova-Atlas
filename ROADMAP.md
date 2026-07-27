@@ -118,6 +118,61 @@ pour combler les trous. Google n'a pas d'anti-bot et c'est immédiat.
 
 **Pré-requis** : aucun. Premier patch livré dans le commit à venir.
 
+### Sprint 5 — Dockerisation complète (option B, à planifier plus tard)
+
+**Pourquoi** : pratique pour réinstaller rapidement sur une nouvelle
+machine, sans avoir à se souvenir de toutes les dépendances Python,
+de l'arbo des chemins, des commandes de lancement, etc. Un seul
+`docker compose up` doit suffire à tout faire tourner.
+
+**État actuel** : `docker-compose.yml` existe déjà mais ne couvre
+qu'Icecast. Le code Python (Flask + scheduler + fetch) tourne en
+local sans container.
+
+**Option B retenue** : dockeriser Icecast + Flask + scheduler
+dans 3 services séparés, avec volumes persistants. Le LLM
+(llama-server) reste EXTERNE (distant sur 100.91.114.49:8080
+par exemple) car :
+  - Le modèle gguf fait 5-20 Go, lourd à redéployer
+  - On profite déjà de la perf GPU sur la machine distante
+  - Le LLM est stateless et déjà exposé en HTTP
+
+**Contenu** :
+- `Dockerfile` (Python 3.12-slim, install requirements, copy code, entrypoint)
+- 3 services dans `docker-compose.yml` :
+  - `icecast` (déjà là, à raffiner) — stream audio 24/7
+  - `web` — Flask (atlas_web.py), port 5055 exposé
+  - `engine` — main.py --all (fetch + scheduler bulletins + posts)
+- Volumes persistants :
+  - `./config:/app/config:ro` — config read-only
+  - `./data:/app/data` — articles, cache, prefs, hashes
+  - `./audio_queue:/app/audio_queue` — bulletins générés
+  - `./music:/app/music:ro` — playlist
+  - `./background_music:/app/background_music:ro`
+- Health checks (`curl http://localhost:5055/` pour web, `mountpoint` pour icecast)
+- Network interne `nova-net` pour que web/engine puissent joindre icecast
+- `.env` pour les secrets (ICECAST_SOURCE_PASSWORD, LLM_BASE_URL, etc.)
+- Script `install.sh` (1-2 lignes : copier `.env.example` → `.env`, puis `docker compose up -d`)
+- Documentation `docs/DOCKER.md` : comment déployer, comment mettre à jour, comment debug
+
+**Pré-requis** :
+- Avoir accès au LLM distant (ou configurer `llm.base_url` dans `.env`)
+- Ports 8000 (icecast) et 5055 (web) libres sur l'host
+- ~2 Go de RAM pour Icecast + Flask + scheduler (le LLM est externe)
+
+**Hors scope** :
+- Dockeriser le LLM (option C, ~8-12h, à considérer dans un sprint futur
+  si on veut s'affranchir de la machine distante)
+- Migration vers Kubernetes (overkill pour ce projet)
+- CI/CD de build des images (pour l'instant, build local)
+
+**Estimation** : 4-6h pour quelqu'un qui connait Docker.
+
+**Pourquoi pas maintenant** : priorité aux autres sprints (proxy
+self-hosted, modularisation web, UI Feeds L2). La dockerisation
+peut attendre un sprint calme, c'est pas bloquant pour le
+fonctionnement actuel.
+
 ### Sprint 4 — Self-hosted proxy (à planifier, options ci-dessous)
 
 **Pourquoi** : même avec les Google News, on a 60+ URLs en backlog car
