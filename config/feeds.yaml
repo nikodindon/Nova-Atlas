@@ -1,0 +1,154 @@
+# ================================================
+# NOVA-ATLAS — Liste des flux RSS
+# ================================================
+# Édité via /config/feeds. Pour les commentaires,
+# utilise le préfixe '# ' devant l'URL.
+# Rechargement à chaud : POST /config/restart
+# ================================================
+
+# CHANGELOG
+# 2026-07-07 : dedoublonnage des categories.
+#   - actualite_fr fusionne dans france (sources FR d'actu generale)
+#   - economie_fr fusionne dans economie (sources FR d'eco)
+#   - local_france renomme en regions (plus explicite)
+#   - 16 categories finales (vs 18 avant fusion)
+# 2026-07-06 : sprint "plus de sources" — passage de 11 a 18 categories,
+#   56 -> 87 flux actifs. Nouvelles categories : actualite_fr, economie_fr,
+#   sante, gaming, local_france, sciences_humaines, auto.
+#   Sources verifiees une par une (HTTP 200 + contenu RSS/Atom).
+#   Sources retirees : aucune (toutes les anciennes sont toujours valides).
+
+geopolitique:
+  - https://www.france24.com/fr/rss
+  - https://www.france24.com/en/rss
+  - https://feeds.bbci.co.uk/news/world/rss.xml
+  - https://www.theguardian.com/world/rss
+  - https://www.euronews.com/rss
+  - https://www.aljazeera.com/xml/rss/all.xml
+  - https://www.middleeasteye.net/rss
+  - https://rss.dw.com/rdf/rss-en-all
+  - https://rss.dw.com/rdf/rss-fr-all
+  - https://www.courrierinternational.com/feed/rubrique/geopolitique/rss.xml
+  # [SPRINT0] https://feeds.reuters.com/reuters/topNews       # DNS fail
+  # [SPRINT0] https://apnews.com/apf-topnews.rss              # 404
+
+economie:
+  - https://www.cnbc.com/id/100003114/device/rss/rss.html
+  - https://foreignpolicy.com/feed/
+  - https://fr.investing.com/rss/news.rss
+  - https://finance.yahoo.com/news/rssindex
+  - https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines
+  - https://www.courrierinternational.com/feed/rubrique/economie/rss.xml
+  - https://www.federalreserve.gov/feeds/press_all.xml
+  - https://www.lefigaro.fr/rss/figaro_economie.xml
+  - https://www.lefigaro.fr/rss/figaro_flash-eco.xml
+  - https://www.france24.com/fr/economie/rss
+  # [SPRINT0] https://bfmbusiness.bfmtv.com/rss/news-flux-rss/  # 301 → 404
+
+crypto:
+  - https://cointelegraph.com/rss
+  - https://www.coindesk.com/arc/outboundfeeds/rss/
+  - https://cryptopanic.com/news/rss/
+  - https://theblock.co/rss.xml
+  - https://decrypt.co/feed
+
+tech:
+  - https://www.technologyreview.com/stories.rss
+  - https://www.wired.com/feed/rss
+  - https://www.futura-sciences.com/rss/actualites.xml
+  - https://feeds.arstechnica.com/arstechnica/index
+  - https://hnrss.org/frontpage
+  - https://www.01net.com/rss/
+  - https://next.ink/feed/
+
+france:
+  - https://www.liberation.fr/arc/outboundfeeds/rss/
+  - https://www.lefigaro.fr/rss/figaro_actualites.xml
+  - https://www.courrierinternational.com/feed/rubrique/france/rss.xml
+  - https://www.courrierinternational.com/feed/rubrique/societe/rss.xml
+  - https://www.lefigaro.fr/rss/figaro_flash-actu.xml
+  - https://www.francetvinfo.fr/titres.rss
+  - https://www.lefigaro.fr/rss/figaro_politique.xml
+  - https://www.lefigaro.fr/rss/figaro_international.xml
+  # [SPRINT0] https://www.lemonde.fr/rss/une.xml
+  # [SPRINT0] https://www.lemonde.fr/rss/en_continu.xml
+
+monde:
+  - https://feeds.nbcnews.com/nbcnews/public/world
+  - https://www.courrierinternational.com/feed/all/rss.xml
+  - https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr
+  - https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en
+  - https://www.theatlantic.com/feed/all/
+  - https://www.lefigaro.fr/rss/figaro_international.xml
+  - https://www.france24.com/fr/economie/rss
+  # [SPRINT0] https://rss.nytimes.com/services/xml/rss/nyt/World.xml
+
+science:
+  - https://www.futura-sciences.com/rss/actualites.xml
+  - https://www.sciencesetavenir.fr/rss.xml
+  - https://feeds.feedburner.com/sciencedaily
+  - https://www.nature.com/nature.rss
+  - https://www.who.int/rss-feeds/news-english.xml
+  - https://www.lefigaro.fr/rss/figaro_sciences.xml
+
+environnement:
+  - https://www.theguardian.com/environment/rss
+  - https://www.courrierinternational.com/feed/rubrique/science-environnement/rss.xml
+  - https://reporterre.net/spip.php?page=backend
+  - https://www.revolution-energetique.com/feed/
+  - https://www.goodplanet.info/feed/
+
+societe:
+  - https://www.amnesty.org/en/feed/
+  - https://www.hrw.org/rss
+  - https://theconversation.com/global/articles.atom
+  - https://www.courrierinternational.com/feed/rubrique/expat/rss.xml
+  - https://theconversation.com/fr/articles.atom
+
+culture:
+  - https://pitchfork.com/rss/news/
+  - https://www.courrierinternational.com/feed/rubrique/culture/rss.xml
+  - https://www.allocine.fr/rss/news.xml
+  # [SPRINT0] https://www.premiere.fr/rss/actu-cinema          # 404
+  # [SPRINT0] https://www.lemonde.fr/arts/rss/une.xml          # 404
+  # [SPRINT0] https://www.lesinrocks.com/feed/                 # timeout
+
+sport:
+  - https://www.bbc.co.uk/sport/rss.xml
+  - https://www.espn.com/espn/rss/news
+  - https://www.sport.fr/feed/rss
+  - https://rmcsport.bfmtv.com/rss/football/ligue-1
+  - https://rmcsport.bfmtv.com/rss/football/ligue-des-champions
+  - https://www.lefigaro.fr/rss/figaro_football.xml
+  - https://www.lefigaro.fr/rss/figaro_rugby.xml
+  - https://www.lefigaro.fr/rss/figaro_cyclisme.xml
+  - https://www.lefigaro.fr/rss/figaro_tennis.xml
+  # [SPRINT0] https://rmcsport.bfmtv.com/rss/news-flux-rss/   # 404
+
+sante:
+  - https://www.lefigaro.fr/rss/figaro_sante.xml
+  - https://www.santepubliquefrance.fr/rss/964
+  # [SPRINT0] https://www.pourquoidocteur.fr/feed         # 410 Gone
+  # [SPRINT0] https://www.futura-sciences.com/sante/rss/  # 404
+
+gaming:
+  - https://www.eurogamer.net/?format=rss
+  - https://fr.ign.com/feed.xml
+  - https://www.jeuxvideo.com/rss/rss.xml
+  - https://www.pcgamer.com/rss/
+
+regions:  # anciennement local_france, renomme pour clarte
+  - https://www.francetvinfo.fr/france/ile-de-france.rss
+  - https://www.francetvinfo.fr/france/auvergne-rhone-alpes.rss
+  - https://www.francetvinfo.fr/france/provence-alpes-cote-d-azur.rss
+
+sciences_humaines:
+  - https://www.lefigaro.fr/rss/figaro_vox.xml
+  - https://www.france24.com/fr/culture/rss
+  # [SPRINT0] https://theconversation.com/global/sections/social-sciences/articles.atom  # 404
+  - https://www.courrierinternational.com/feed/rubrique/societe/rss.xml
+
+auto:
+  - https://www.automobile-propre.com/feed/
+  # [SPRINT0] https://www.caradisiac.com/feed/  # 410 Gone
+  - https://www.urbo.com/feed/

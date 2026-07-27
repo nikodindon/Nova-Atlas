@@ -15,9 +15,20 @@ llm:
   timeout_fetch: 240
   timeout_report: 600
   timeout_edition: 900
+  # Cache disque des résumés (data/llm_cache/). Évite de re-payer un appel
+  # LLM complet pour un article déjà résumé dans les N derniers jours.
+  # Mets enabled: false pour forcer un appel LLM à chaque cycle (utile pour
+  # tester un nouveau prompt ou un nouveau modèle).
+  cache:
+    enabled: true
+    ttl_days: 7
 
 rss:
-  max_articles_per_feed: 8
+  max_articles_per_feed: 3
+  # Cap global d'articles par cycle (0 = pas de cap, prend tout).
+  # Évite les cycles de 7+ heures sur le modèle de raisonnement distant.
+  # 30 = ~30 min de résumé par cycle.
+  max_total_articles: 30
   live_window_hours: 20
 
 radio:

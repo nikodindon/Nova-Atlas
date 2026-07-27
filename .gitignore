@@ -9,6 +9,26 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.venv/
+
+# Backups de fichiers (jamais committer les .old / .bak / ~ / .swp)
+*.old*
+*.bak
+*.tmp
+*~
+*.swp
+*.swo
+*.py.orig
+# Doublons accidentels avec espaces/parenthèses dans le nom
+# (ex: "atlas_fetch (1).py" — ne pas committer)
+* (*.py
+* (*.md
+* (*.txt
+
+# Config d'éditeurs IA locaux
+.qwen/
+.aider/
+.cursor/
 
 # Logs & temporary files
 *.log
@@ -16,7 +36,6 @@ nova.log
 logs/
 tmp/
 audio_queue/
-*.tmp
 
 # Music (gros fichiers — ne pas committer)
 music/
@@ -27,9 +46,14 @@ data/articles/
 data/reports/
 data/editions/
 data/posts/
+# Cache LLM (TTL 7j, regénéré à la demande)
+data/llm_cache/
+# Déduplication cross-cycles (regénéré à chaque fetch)
+data/seen_hashes.json
+# Préférences utilisateur (regénéré via UI, single-user pour l'instant)
+data/preferences.json
 data/processed_hashes.json
 data/ollama.lock
-modules/web/*.old
 
 # Site généré
 site/
@@ -48,5 +72,4 @@ docker-compose.override.yml
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
+data/subscriptions.json

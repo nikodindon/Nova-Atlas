@@ -229,7 +229,12 @@ def _build_script(articles: list) -> tuple[str, int]:
 
     parts = [intro]
     for i, article in enumerate(valid_articles):
-        summary = article["summary"].strip()
+        # Nettoie le résumé des artefacts markdown avant la TTS
+        # (sinon la radio dit "astérisque astérisque" au milieu des phrases)
+        from modules.utils.helpers import clean_for_tts
+        summary = clean_for_tts(article["summary"])
+        if not summary:
+            continue
         if i > 0:
             transition = random.choice(transitions)
             parts.append(f"{transition} {summary}")

@@ -51,6 +51,12 @@ CATEGORY_ICONS = {
     "societe":       "✊",
     "culture":       "🎭",
     "sport":         "⚽",
+    # Catégories ajoutées au sprint "plus de sources" (2026-07-06)
+    "sante":            "🏥",
+    "gaming":           "🎮",
+    "sciences_humaines":"🧠",
+    "auto":             "🚗",
+    "regions":          "🗺️",  # anciennement local_france, renommé 2026-07-07
 }
 
 EDITION_CONFIG = {
@@ -216,60 +222,111 @@ _CAT_LABELS_I18N = {
         "tech": "Tech & IA", "france": "France", "monde": "Monde",
         "science": "Science & Santé", "environnement": "Environnement",
         "societe": "Société & Droits", "culture": "Culture & Arts", "sport": "Sport",
+        # Catégories ajoutées au sprint "plus de sources" (2026-07-06)
+        "sante":             "Santé",
+        "gaming":            "Gaming",
+        "sciences_humaines": "Sciences Humaines",
+        "auto":              "Auto",
+        "regions":           "Régions",  # anciennement local_france, renommé 2026-07-07
     },
     "en": {
         "geopolitique": "Geopolitics", "economie": "Economy", "crypto": "Crypto",
         "tech": "Tech & AI", "france": "France", "monde": "World",
         "science": "Science & Health", "environnement": "Environment",
         "societe": "Society & Rights", "culture": "Culture & Arts", "sport": "Sport",
+        "sante":             "Health",
+        "gaming":            "Gaming",
+        "sciences_humaines": "Human Sciences",
+        "auto":              "Auto",
+        "regions":           "Regions",
     },
     "de": {
         "geopolitique": "Geopolitik", "economie": "Wirtschaft", "crypto": "Krypto",
         "tech": "Tech & KI", "france": "Frankreich", "monde": "Welt",
         "science": "Wissenschaft & Gesundheit", "environnement": "Umwelt",
         "societe": "Gesellschaft", "culture": "Kultur & Kunst", "sport": "Sport",
+        "sante":             "Gesundheit",
+        "gaming":            "Gaming",
+        "sciences_humaines": "Geisteswissenschaften",
+        "auto":              "Auto",
+        "regions":           "Regionen",
     },
     "es": {
         "geopolitique": "Geopolítica", "economie": "Economía", "crypto": "Cripto",
         "tech": "Tech & IA", "france": "Francia", "monde": "Mundo",
         "science": "Ciencia & Salud", "environnement": "Medio ambiente",
         "societe": "Sociedad & Derechos", "culture": "Cultura & Arte", "sport": "Deporte",
+        "sante":             "Salud",
+        "gaming":            "Gaming",
+        "sciences_humaines": "Ciencias Humanas",
+        "auto":              "Auto",
+        "regions":           "Regiones",
     },
     "pt": {
         "geopolitique": "Geopolítica", "economie": "Economia", "crypto": "Cripto",
         "tech": "Tech & IA", "france": "França", "monde": "Mundo",
         "science": "Ciência & Saúde", "environnement": "Meio ambiente",
         "societe": "Sociedade & Direitos", "culture": "Cultura & Arte", "sport": "Esporte",
+        "sante":             "Saúde",
+        "gaming":            "Gaming",
+        "sciences_humaines": "Ciências Humanas",
+        "auto":              "Auto",
+        "regions":           "Regiões",
     },
     "it": {
         "geopolitique": "Geopolitica", "economie": "Economia", "crypto": "Cripto",
         "tech": "Tech & IA", "france": "Francia", "monde": "Mondo",
         "science": "Scienza & Salute", "environnement": "Ambiente",
         "societe": "Società & Diritti", "culture": "Cultura & Arte", "sport": "Sport",
+        "sante":             "Salute",
+        "gaming":            "Gaming",
+        "sciences_humaines": "Scienze Umane",
+        "auto":              "Auto",
+        "regions":           "Regioni",
     },
     "ru": {
         "geopolitique": "Геополитика", "economie": "Экономика", "crypto": "Крипто",
         "tech": "Технологии", "france": "Франция", "monde": "Мир",
         "science": "Наука и здоровье", "environnement": "Экология",
         "societe": "Общество", "culture": "Культура", "sport": "Спорт",
+        "sante":             "Здоровье",
+        "gaming":            "Игры",
+        "sciences_humaines": "Гуманитарные науки",
+        "auto":              "Авто",
+        "regions":           "Регионы",
     },
     "zh": {
         "geopolitique": "地缘政治", "economie": "经济", "crypto": "加密货币",
         "tech": "科技与AI", "france": "法国", "monde": "世界",
         "science": "科学与健康", "environnement": "环境",
         "societe": "社会", "culture": "文化", "sport": "体育",
+        "sante":             "健康",
+        "gaming":            "游戏",
+        "sciences_humaines": "人文学科",
+        "auto":              "汽车",
+        "regions":           "地区",
     },
     "ar": {
         "geopolitique": "الجيوسياسية", "economie": "الاقتصاد", "crypto": "عملات مشفرة",
         "tech": "التكنولوجيا", "france": "فرنسا", "monde": "العالم",
         "science": "العلوم والصحة", "environnement": "البيئة",
         "societe": "المجتمع", "culture": "الثقافة", "sport": "الرياضة",
+        "sante":             "الصحة",
+        "gaming":            "ألعاب",
+        "sciences_humaines": "علوم إنسانية",
+        "auto":              "سيارات",
+        "regions":           "المناطق",
     },
     "ja": {
         "geopolitique": "地政学", "economie": "経済", "crypto": "暗号資産",
         "tech": "テクノロジー", "france": "フランス", "monde": "世界",
         "science": "科学と健康", "environnement": "環境",
         "societe": "社会と権利", "culture": "文化と芸術", "sport": "スポーツ",
+        "sante":             "健康",
+        "gaming":            "ゲーム",
+        "sciences_humaines": "人文科学",
+        "auto":              "車",
+        "regions":           "地域",
     },
 }
 
@@ -298,6 +355,7 @@ def _resolve_paths(config: dict) -> dict:
     logo_main = parts[0]
     logo_sub  = "_" + parts[1] if len(parts) > 1 else ""
     return {
+        "root":      root,    # base path (utilisé par BulletinGenerator, etc.)
         "articles": root / paths.get("articles_dir", "data/articles"),
         "reports":  root / paths.get("reports_dir",  "data/reports"),
         "editions": root / paths.get("editions_dir", "data/editions"),
@@ -315,14 +373,58 @@ def _resolve_paths(config: dict) -> dict:
     }
 
 def _get_icecast_url(paths: dict) -> str:
-    """Construit l'URL du flux Icecast depuis atlas_config.json ou défaut."""
+    """
+    Construit l'URL du flux Icecast depuis atlas_config.json ou défaut.
+
+    Stratégie : on récupère host/port/mount depuis la config Icecast.
+    Si la valeur est 'localhost' (défaut pour le streamer qui écoute en local),
+    on essaie de remplacer par l'IP du client Flask (Host header) pour que
+    le player web fonctionne depuis n'importe quel device du LAN, pas
+    seulement depuis la machine qui héberge Flask.
+
+    Si la requête est en HTTPS (accès via reverse proxy HTTPS), on
+    utilise /stream/<mount> (proxy Flask) pour éviter le mixed content
+    (le navigateur refuse de charger du HTTP depuis une page HTTPS).
+
+    Le Host header est ce que le navigateur a tapé dans la barre d'URL :
+      - accès local     → 'localhost:5055' ou '127.0.0.1:5055'
+      - accès LAN       → '192.168.1.22:5055'
+      - accès via DNS   → 'radio.example.com'
+    On extrait juste le host (sans le port) et on l'utilise pour le flux.
+    """
     cfg = load_atlas_config(paths)
     host  = cfg.get("icecast_host",  "localhost")
     port  = cfg.get("icecast_port",  8000)
     mount = cfg.get("icecast_mount", "/nova")
-    #return "https://radio.nikodindon.dpdns.org"
+
+    # Si on est en HTTPS (reverse proxy), on passe par le proxy Flask
+    # pour éviter le mixed content. Le browser charge /stream/nova qui
+    # est servi par Flask (même origine HTTPS) et Flask proxifie Icecast.
+    # ProxyFix (en run_server) fait confiance au header X-Forwarded-Proto
+    # du reverse proxy, donc request.is_secure est fiable ici.
+    try:
+        from flask import request
+        if request and request.is_secure:
+            mount_clean = mount.lstrip("/")
+            return f"/stream/{mount_clean}"
+    except (ImportError, RuntimeError):
+        pass
+
+    # Auto-substitution si host == 'localhost' et qu'un Host header est dispo
+    if host in ("localhost", "127.0.0.1", "0.0.0.0"):
+        try:
+            from flask import request
+            if request and request.host:
+                # request.host = "192.168.1.22:5055" ou "radio.example.com"
+                # On prend juste le hostname (sans le port)
+                client_host = request.host.split(":")[0].strip()
+                if client_host and client_host not in ("", "localhost", "127.0.0.1"):
+                    host = client_host
+        except (ImportError, RuntimeError):
+            # Pas de contexte Flask (ex: génération hors-ligne du site) → on garde localhost
+            pass
+
     return f"http://{host}:{port}{mount}"
-    #return "https://radio.nikodindon.dpdns.org"
 
 
 def _branding(paths: dict) -> dict:
@@ -566,6 +668,8 @@ def render_report_page(day: str, paths: dict) -> str:
         gen_time=datetime.now().strftime("%H:%M"),
         categories=categories,
         cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         stats=stats,
         recent_articles=recent,
         archives=archives,
@@ -638,6 +742,9 @@ def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS,
         breaking_banner=render_breaking_banner(paths),
+        cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         edition_label=cfg["label"],
         edition_emoji=cfg["emoji"],
         edition_color=cfg["color"],
@@ -688,6 +795,9 @@ def build_index(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS,
         breaking_banner=render_breaking_banner(paths),
+        cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         days=day_cards,
         today_file=today_file,
         total_days=len(all_days),
@@ -784,9 +894,11 @@ def build_live_feed(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS + LIVE_CSS_EXTRA,
         breaking_banner=render_breaking_banner(paths),
+        cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         articles=recent,          # fil chronologique unique
         cat_counts=cat_counts_sorted,
-        cat_icons=CATEGORY_ICONS,
         total=len(recent),
         window_hours=window_hours,
         today_file=f"{today_str}_report.html",
@@ -843,11 +955,14 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
         **_branding(paths),
         global_script=GLOBAL_SCRIPT,
         icecast_url=_get_icecast_url(paths),
-        svc=svc, ollama=ollama, radio=radio, rss=rss,
+        svc=svc, llm=llm, ollama=llm, radio=radio, rss=rss,
         web=web, posts=posts, ic=ic,
         active_voices=voices,
         all_voices=ALL_VOICES,
         lang_labels=LANG_LABELS,
+        cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         year=datetime.now().year,
     )
 
@@ -861,9 +976,374 @@ def build_config_page(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=BASE_CSS,
         cfg=cfg,
+        cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
         models=AVAILABLE_MODELS,
         today_file=f"{datetime.now().strftime('%Y%m%d')}_report.html",
         year=datetime.now().year,
+    )
+
+
+# ─── PAGE GESTION DES FLUX RSS ────────────────────────────────────────────────
+
+FEEDS_PAGE_JS = r"""
+<style>
+  .feeds-grid { display: grid; gap: 14px; margin-top: 16px; }
+  .feed-cat { background: #1a1d23; border: 1px solid #2a2e36; border-radius: 8px;
+              padding: 12px 14px; }
+  .feed-cat h3 { margin: 0 0 8px 0; font-size: 14px; color: #6ea8fe;
+                 text-transform: uppercase; letter-spacing: 0.5px; }
+  .feed-item { display: flex; align-items: center; gap: 6px; padding: 4px 0;
+               border-bottom: 1px solid #232830; }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-url { flex: 1; font-family: monospace; font-size: 12px; color: #d4d4d4;
+              word-break: break-all; }
+  .feed-url:hover { color: #6ea8fe; cursor: pointer; }
+  .feed-btn { background: #2a2e36; color: #d4d4d4; border: none; padding: 3px 8px;
+              border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .feed-btn:hover { background: #3a3e46; }
+  .feed-btn.danger:hover { background: #b04848; }
+  .feed-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .add-form { display: flex; gap: 6px; margin-top: 8px; }
+  .add-form input, .add-form select { background: #0d1014; color: #d4d4d4;
+              border: 1px solid #2a2e36; padding: 4px 8px; border-radius: 4px;
+              font-size: 12px; }
+  .add-form input { flex: 1; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #2a2e36;
+           color: #d4d4d4; padding: 10px 16px; border-radius: 6px;
+           box-shadow: 0 4px 12px rgba(0,0,0,0.4); opacity: 0;
+           transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #b04848; }
+  .stats-bar { display: flex; gap: 20px; padding: 8px 14px; background: #1a1d23;
+               border-radius: 6px; margin-bottom: 12px; font-size: 13px; }
+  .stats-bar span { color: #6ea8fe; font-weight: bold; }
+</style>
+
+<div class="stats-bar">
+  <div>Catégories: <span id="stat-cats">–</span></div>
+  <div>Flux actifs: <span id="stat-active">–</span></div>
+  <div>Désactivés: <span id="stat-disabled">–</span></div>
+  <div style="margin-left: auto;"><a href="/config/feeds" class="feed-btn">JSON brut</a></div>
+</div>
+
+<div id="feeds-container" class="feeds-grid">Chargement…</div>
+
+<form id="new-cat-form" class="add-form" style="margin-top: 20px;">
+  <input id="new-cat-name" placeholder="Nouvelle catégorie…" required>
+  <button class="feed-btn" type="submit">+ Catégorie</button>
+</form>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = {
+  list:    () => fetch('/config/feeds').then(r => r.json()),
+  add:     (cat, url)   => fetch('/config/feeds/add',      {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
+  remove:  (cat, url)   => fetch('/config/feeds/remove',   {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
+  toggle:  (cat, url)   => fetch('/config/feeds/toggle',   {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
+  move:    (cat, url, dir) => fetch('/config/feeds/move',  {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url, direction:dir})}).then(r=>r.json()),
+  addCat:  (cat)        => fetch('/config/feeds/category', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat})}).then(r=>r.json()),
+};
+
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2200);
+}
+
+function shortUrl(u) {
+  return u.replace(/^https?:\/\//, '').replace(/^www\./, '').slice(0, 60);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function render(cats) {
+  const c = document.getElementById('feeds-container');
+  c.innerHTML = '';
+  for (const [cat, urls] of Object.entries(cats)) {
+    const div = document.createElement('div');
+    div.className = 'feed-cat';
+    let items = urls.map((u, i) => `
+      <div class="feed-item" data-url="${escapeHtml(u)}">
+        <button class="feed-btn" onclick="mv('${escapeHtml(cat)}', '${escapeHtml(u)}', 'up')"   ${i===0?'disabled':''}>↑</button>
+        <button class="feed-btn" onclick="mv('${escapeHtml(cat)}', '${escapeHtml(u)}', 'down')" ${i===urls.length-1?'disabled':''}>↓</button>
+        <span class="feed-url" title="${escapeHtml(u)}" onclick="window.open('${escapeHtml(u)}','_blank')">${escapeHtml(shortUrl(u))}</span>
+        <button class="feed-btn"        onclick="tg('${escapeHtml(cat)}', '${escapeHtml(u)}')">Désactiver</button>
+        <button class="feed-btn danger" onclick="rm('${escapeHtml(cat)}', '${escapeHtml(u)}')">× Suppr</button>
+      </div>`).join('');
+    div.innerHTML = `<h3>${escapeHtml(cat)} <span style="color:#666;font-size:11px;">(${urls.length})</span></h3>${items}
+      <form class="add-form" onsubmit="return addFeed('${escapeHtml(cat)}', this)">
+        <input placeholder="https://nouveau-flux.example.com/rss.xml" required>
+        <button class="feed-btn" type="submit">+ Ajouter</button>
+      </form>`;
+    c.appendChild(div);
+  }
+}
+
+async function refresh() {
+  const r = await API.list();
+  if (r.status !== 'ok') { toast('Erreur de chargement', true); return; }
+  render(r.feeds);
+  document.getElementById('stat-cats').textContent     = r.stats.categories;
+  document.getElementById('stat-active').textContent   = r.stats.active;
+  document.getElementById('stat-disabled').textContent = r.stats.disabled;
+}
+
+async function addFeed(cat, form) {
+  const url = form.querySelector('input').value.trim();
+  if (!url) return false;
+  const r = await API.add(cat, url);
+  if (r.status === 'ok') { form.reset(); toast('Flux ajouté'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+  return false;  // prevent form submit
+}
+
+async function rm(cat, url) {
+  if (!confirm('Supprimer définitivement ce flux ?\n\n' + url)) return;
+  const r = await API.remove(cat, url);
+  if (r.status === 'ok') { toast('Flux supprimé'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+}
+
+async function tg(cat, url) {
+  const r = await API.toggle(cat, url);
+  if (r.status === 'ok') { toast('Flux désactivé'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+}
+
+async function mv(cat, url, dir) {
+  const r = await API.move(cat, url, dir);
+  if (r.status === 'ok') refresh();
+  else toast(r.msg || 'Erreur', true);
+}
+
+document.getElementById('new-cat-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const cat = document.getElementById('new-cat-name').value.trim();
+  if (!cat) return;
+  const r = await API.addCat(cat);
+  if (r.status === 'ok') { e.target.reset(); toast('Catégorie créée'); refresh(); }
+  else toast(r.msg || 'Erreur', true);
+});
+
+refresh();
+</script>
+"""
+
+
+def build_feeds_page(paths: dict) -> str:
+    """Page HTML de gestion des flux RSS (UI niveau 1)."""
+    from jinja2 import Template
+    return Template("""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <title>{{ brand }} — Gestion des flux</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>{{ css }}</style>
+</head>
+<body>
+  <header style="display:flex;justify-content:space-between;align-items:center;
+                 padding:12px 20px;background:#0d1014;border-bottom:1px solid #2a2e36;">
+    <h1 style="margin:0;font-size:18px;">{{ brand }} — Flux RSS</h1>
+    <nav>
+      <a href="/" style="color:#6ea8fe;text-decoration:none;margin-right:14px;">← Accueil</a>
+      <a href="/config/yaml" style="color:#6ea8fe;text-decoration:none;">Config YAML</a>
+    </nav>
+  </header>
+  <main style="max-width:1100px;margin:0 auto;padding:20px;">
+    <h2 style="font-size:22px;margin:0 0 12px 0;">Gestion des flux RSS</h2>
+    <p style="color:#888;font-size:13px;margin:0 0 16px 0;">
+      Ajouter, supprimer, désactiver ou réorganiser les flux RSS utilisés par Nova-Atlas.
+      Les modifications sont sauvegardées dans <code>config/feeds.yaml</code> et
+      prises en compte au prochain cycle de fetch.
+    </p>
+    {{ extra_js }}
+  </main>
+</body>
+</html>""").render(
+        **_branding(paths),
+        global_script="",  # Pas besoin du global sur cette page
+        icecast_url="",
+        css="",
+        extra_js=FEEDS_PAGE_JS,
+        cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
+    )
+
+
+# ─── PAGE PRÉFÉRENCES (filtre par catégorie) ─────────────────────────────────
+
+PREFS_PAGE_JS = r"""
+<style>
+  .prefs-grid { display: grid; grid-template-columns: repeat(auto-fill,
+              minmax(200px, 1fr)); gap: 10px; margin: 16px 0; }
+  .pref-card { background: #1a1d23; border: 1px solid #2a2e36;
+               border-radius: 8px; padding: 12px 14px; cursor: pointer;
+               transition: border-color 0.15s, background 0.15s;
+               user-select: none; }
+  .pref-card:hover { border-color: #6ea8fe; }
+  .pref-card.hidden { background: #0d1014; opacity: 0.55; }
+  .pref-card input { margin-right: 8px; cursor: pointer; }
+  .pref-card .cat-name { font-weight: bold; font-size: 14px;
+                         text-transform: capitalize; color: #d4d4d4; }
+  .pref-card.hidden .cat-name { text-decoration: line-through;
+                                color: #888; }
+  .pref-bar { display: flex; gap: 12px; align-items: center;
+              padding: 8px 14px; background: #1a1d23; border-radius: 6px;
+              margin-bottom: 16px; }
+  .pref-bar .badge { background: #2a2e36; padding: 2px 8px;
+                     border-radius: 4px; font-size: 12px; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #2a2e36;
+           color: #d4d4d4; padding: 10px 16px; border-radius: 6px;
+           opacity: 0; transition: opacity 0.3s; pointer-events: none;
+           z-index: 9999; }
+  .toast.show { opacity: 1; }
+  .pref-info { background: #1a1d23; border-left: 3px solid #6ea8fe;
+               padding: 10px 14px; margin-bottom: 14px; font-size: 13px;
+               color: #aaa; }
+</style>
+
+<div class="pref-info">
+  💡 <b>Fonctionnement :</b> coche ou décoche une catégorie pour la
+  montrer/cacher dans le site. Le filtrage est appliqué en temps réel
+  sur l'accueil et le live feed. Le backend continue de tout fetcher,
+  seules les catégories cochées apparaissent à l'écran.
+</div>
+
+<div class="pref-bar">
+  <span>Affichées : <span id="visible-count" class="badge">–</span> / <span id="total-count" class="badge">–</span></span>
+  <button class="feed-btn" id="reset-btn" style="margin-left:auto;">Tout afficher</button>
+</div>
+
+<div id="prefs-container" class="prefs-grid">Chargement…</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = {
+  get:    () => fetch('/api/preferences').then(r => r.json()),
+  toggle: (cat) => fetch('/api/preferences/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat})}).then(r=>r.json()),
+  reset:  () => fetch('/api/preferences/reset',   {method:'POST'}).then(r=>r.json()),
+};
+
+let allCategories = [];
+let hiddenSet = new Set();
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show';
+  setTimeout(() => t.className = 'toast', 1800);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function render() {
+  const c = document.getElementById('prefs-container');
+  c.innerHTML = '';
+  for (const cat of allCategories) {
+    const isHidden = hiddenSet.has(cat);
+    const card = document.createElement('div');
+    card.className = 'pref-card' + (isHidden ? ' hidden' : '');
+    card.innerHTML = `
+      <label style="display:flex;align-items:center;cursor:pointer;">
+        <input type="checkbox" ${isHidden ? '' : 'checked'} data-cat="${escapeHtml(cat)}">
+        <span class="cat-name">${escapeHtml(cat.replace(/_/g, ' '))}</span>
+      </label>
+    `;
+    c.appendChild(card);
+  }
+  // Attach handlers
+  c.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', async (e) => {
+      const cat = e.target.dataset.cat;
+      const r = await API.toggle(cat);
+      if (r.status === 'ok') {
+        hiddenSet = new Set(allCategories.filter(c => !e.target.checked));
+        render();
+        updateCounts();
+        toast(r.hidden ? '✗ '+cat+' cachée' : '✓ '+cat+' affichée');
+      }
+    });
+  });
+  updateCounts();
+}
+
+function updateCounts() {
+  document.getElementById('visible-count').textContent =
+    allCategories.length - hiddenSet.size;
+  document.getElementById('total-count').textContent = allCategories.length;
+}
+
+async function refresh() {
+  const r = await API.get();
+  if (r.status !== 'ok') { toast('Erreur de chargement'); return; }
+  hiddenSet = new Set(r.preferences.hidden_categories || []);
+  // Récupérer la liste des catégories (depuis /config/feeds)
+  const feeds = await fetch('/config/feeds').then(r => r.json());
+  allCategories = Object.keys(feeds.feeds).sort();
+  render();
+}
+
+document.getElementById('reset-btn').addEventListener('click', async () => {
+  if (!confirm('Réinitialiser : toutes les catégories seront affichées ?')) return;
+  const r = await API.reset();
+  if (r.status === 'ok') { hiddenSet = new Set(); render(); toast('Réinitialisé'); }
+});
+
+refresh();
+</script>
+"""
+
+
+def build_preferences_page(paths: dict) -> str:
+    """Page HTML de préférences (filtre par catégorie, MVP single-user)."""
+    from jinja2 import Template
+    return Template("""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>{{ brand }} — Préférences</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>{{ css }}</style>
+</head>
+<body>
+  <header style="display:flex;justify-content:space-between;align-items:center;
+                 padding:12px 20px;background:#0d1014;border-bottom:1px solid #2a2e36;">
+    <h1 style="margin:0;font-size:18px;">{{ brand }} — Préférences</h1>
+    <nav>
+      <a href="/" style="color:#6ea8fe;text-decoration:none;margin-right:14px;">← Accueil</a>
+      <a href="/config/feeds/page" style="color:#6ea8fe;text-decoration:none;margin-right:14px;">Flux</a>
+      <a href="/config/yaml" style="color:#6ea8fe;text-decoration:none;">Config YAML</a>
+    </nav>
+  </header>
+  <main style="max-width:1100px;margin:0 auto;padding:20px;">
+    <h2 style="font-size:22px;margin:0 0 12px 0;">Catégories de news</h2>
+    <p style="color:#888;font-size:13px;margin:0 0 16px 0;">
+      Sélectionne les catégories que tu veux voir dans ton flux.
+    </p>
+    {{ extra_js }}
+  </main>
+</body>
+</html>""").render(
+        **_branding(paths),
+        global_script="",
+        icecast_url="",
+        css="",
+        extra_js=PREFS_PAGE_JS,
+        cat_icons=CATEGORY_ICONS,
+        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        flash_button_js=FLASH_BUTTON_JS,
     )
 
 # ─── STATIC SITE GENERATOR ────────────────────────────────────────────────────
@@ -919,6 +1399,34 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
     # Sync icecast config → atlas_config.json pour que le player web la lise
     _sync_icecast_to_atlas_config(config, paths)
     app   = Flask(__name__)
+    # ProxyFix : fait confiance aux headers X-Forwarded-* du reverse proxy
+    # pour que request.is_secure, request.scheme, etc. reflètent le HTTPS
+    # externe (sinon Flask voit toujours HTTP parce qu'il tourne en HTTP).
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+    # ── Proxy stream Icecast → HTTPS (mixed-content fix) ──────────────
+    # Quand le site est servi en HTTPS (reverse proxy), le browser refuse
+    # de charger le stream HTTP (mixed content). Cette route Flask sert
+    # de proxy : le browser charge /stream/nova (même origine HTTPS) et
+    # Flask stream le contenu depuis Icecast en interne.
+    import requests as _requests
+    from flask import Response as _Resp
+    @app.route("/stream/<path:mount>")
+    def stream_proxy(mount: str):
+        cfg  = load_atlas_config(paths)
+        host  = cfg.get("icecast_host",  "localhost")
+        port  = cfg.get("icecast_port",  8000)
+        icecast_url = f"http://{host}:{port}/{mount.lstrip('/')}"
+        try:
+            req = _requests.get(icecast_url, stream=True, timeout=30)
+            return _Resp(
+                req.iter_content(chunk_size=4096),
+                content_type=req.headers.get("Content-Type", "audio/mpeg"),
+                status=req.status_code,
+            )
+        except Exception as e:
+            return f"Stream indisponible: {e}", 502
 
     @app.route("/")
     def homepage():
@@ -1028,6 +1536,511 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         except Exception as e:
             return jsonify({"status": "error", "msg": str(e)}), 500
 
+    # ─── GESTION DES FLUX RSS ────────────────────────────────────────────────
+    # GET  /config/feeds          → liste les flux depuis config/feeds.yaml
+    # POST /config/feeds/add      → ajoute un flux (body: category, url)
+    # POST /config/feeds/remove   → retire un flux (body: category, url)
+    # GET  /config/feeds/reset    → recharge depuis le disque (force)
+
+    @app.route("/config/feeds", methods=["GET"])
+    def feeds_list():
+        try:
+            from modules.core.feeds_loader import load_feeds
+            from pathlib import Path as _P
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                # Fallback : remonter depuis modules/web/ → racine
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            # Aussi compter les désactivés (commentés) pour affichage
+            with open(feeds_path, "r", encoding="utf-8") as f:
+                text = f.read()
+            n_active = sum(len(v) for v in feeds.values())
+            n_disabled = text.count("# [SPRINT0]") + sum(
+                1 for line in text.splitlines()
+                if line.lstrip().startswith("- # ")
+            )
+            return jsonify({
+                "status": "ok",
+                "feeds": feeds,
+                "stats": {
+                    "categories": len(feeds),
+                    "active": n_active,
+                    "disabled": n_disabled,
+                },
+                "path": str(feeds_path),
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/add", methods=["POST"])
+    def feeds_add():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            if not category or not url:
+                return jsonify({"status": "error",
+                                "msg": "category et url requis"}), 400
+            if not url.startswith(("http://", "https://")):
+                return jsonify({"status": "error",
+                                "msg": "URL doit commencer par http(s)://"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import load_feeds, save_feeds, add_feed
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not add_feed(feeds, category, url):
+                return jsonify({"status": "error",
+                                "msg": f"URL déjà présente dans {category}"}), 409
+            save_feeds(feeds_path, feeds)
+            # Invalide la cache pour que le prochain fetch prenne en compte
+            from modules.fetch.atlas_fetch import invalidate_feeds_cache
+            invalidate_feeds_cache()
+            return jsonify({"status": "ok",
+                            "msg": f"Flux ajouté à {category}",
+                            "category": category, "url": url})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/remove", methods=["POST"])
+    def feeds_remove():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            if not category or not url:
+                return jsonify({"status": "error",
+                                "msg": "category et url requis"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import load_feeds, save_feeds, remove_feed
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not remove_feed(feeds, category, url):
+                return jsonify({"status": "error",
+                                "msg": f"URL pas trouvée dans {category}"}), 404
+            save_feeds(feeds_path, feeds)
+            from modules.fetch.atlas_fetch import invalidate_feeds_cache
+            invalidate_feeds_cache()
+            return jsonify({"status": "ok",
+                            "msg": f"Flux retiré de {category}",
+                            "category": category, "url": url})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/reset", methods=["POST"])
+    def feeds_reset():
+        """Force le rechargement du cache (utile après édition manuelle du YAML)."""
+        from modules.fetch.atlas_fetch import invalidate_feeds_cache
+        invalidate_feeds_cache()
+        return jsonify({"status": "ok", "msg": "Cache feeds invalidé"})
+
+    @app.route("/config/feeds/move", methods=["POST"])
+    def feeds_move():
+        """Déplace un flux d'un cran dans sa catégorie (up|down)."""
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            direction = (data.get("direction") or "").strip()
+            if direction not in ("up", "down"):
+                return jsonify({"status": "error",
+                                "msg": "direction doit être 'up' ou 'down'"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import (
+                load_feeds, save_feeds, move_feed
+            )
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not move_feed(feeds, category, url, direction):
+                return jsonify({"status": "error",
+                                "msg": "déplacement impossible (au bord ou pas trouvé)"}), 409
+            save_feeds(feeds_path, feeds)
+            from modules.fetch.atlas_fetch import invalidate_feeds_cache
+            invalidate_feeds_cache()
+            return jsonify({"status": "ok", "direction": direction})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/toggle", methods=["POST"])
+    def feeds_toggle():
+        """Toggle l'état d'un flux (actif ↔ désactivé).
+        Si l'URL est active → la désactive (passe en [SPRINT0]).
+        Si l'URL est désactivée → la ré-active (re-vient en actif)."""
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            url      = (data.get("url") or "").strip()
+            if not category or not url:
+                return jsonify({"status": "error",
+                                "msg": "category et url requis"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import (
+                load_feeds, save_feeds, add_feed, remove_feed
+            )
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if url in feeds.get(category, []):
+                # Active → désactiver
+                if not remove_feed(feeds, category, url):
+                    return jsonify({"status": "error",
+                                    "msg": "URL pas trouvée"}), 500
+                save_feeds(feeds_path, feeds)
+                from modules.fetch.atlas_fetch import invalidate_feeds_cache
+                invalidate_feeds_cache()
+                return jsonify({"status": "ok", "msg": f"{url} désactivé",
+                                "new_state": "disabled"})
+            else:
+                # Désactivée ou pas du tout → essayer de l'activer
+                # (re-lecture du source pour voir si elle est en disabled)
+                from modules.core.feeds_loader import _parse_disabled_feeds
+                text = feeds_path.read_text(encoding="utf-8") if feeds_path.exists() else ""
+                disabled, _ = _parse_disabled_feeds(text)
+                if url in disabled.get(category, []):
+                    if not add_feed(feeds, category, url):
+                        return jsonify({"status": "error",
+                                        "msg": "impossible d'activer"}), 500
+                    save_feeds(feeds_path, feeds)
+                    from modules.fetch.atlas_fetch import invalidate_feeds_cache
+                    invalidate_feeds_cache()
+                    return jsonify({"status": "ok", "msg": f"{url} ré-activé",
+                                    "new_state": "active"})
+                return jsonify({"status": "error",
+                                "msg": "URL pas trouvée (ni active ni désactivée)"}), 404
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/category", methods=["POST"])
+    def feeds_add_category():
+        """Crée une nouvelle catégorie vide."""
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            if not category:
+                return jsonify({"status": "error", "msg": "category requise"}), 400
+            from pathlib import Path as _P
+            from modules.core.feeds_loader import (
+                load_feeds, save_feeds, add_category
+            )
+            feeds_path = _P("config/feeds.yaml")
+            if not feeds_path.exists():
+                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds = load_feeds(feeds_path)
+            if not add_category(feeds, category):
+                return jsonify({"status": "error",
+                                "msg": f"Catégorie {category} existe déjà"}), 409
+            save_feeds(feeds_path, feeds)
+            return jsonify({"status": "ok", "category": category})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/config/feeds/page", methods=["GET"])
+    def feeds_page():
+        """Page HTML de gestion des flux (UI niveau 1)."""
+        return build_feeds_page(paths)
+
+    # ─── PRÉFÉRENCES UTILISATEUR (filtre par catégorie) ────────────────────
+    # GET  /api/preferences          → lit les prefs (hidden_categories)
+    # POST /api/preferences/toggle   → {category: "tech"} toggle
+    # POST /api/preferences/reset    → reset (tout visible)
+    # GET  /preferences              → page HTML avec checkboxes
+
+    @app.route("/api/preferences", methods=["GET"])
+    def api_get_preferences():
+        from modules.core.preferences import load_prefs
+        prefs = load_prefs(paths["data"] / "preferences.json")
+        return jsonify({
+            "status": "ok",
+            "preferences": prefs,
+        })
+
+    @app.route("/api/preferences/toggle", methods=["POST"])
+    def api_toggle_preference():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            if not category:
+                return jsonify({"status": "error",
+                                "msg": "category requise"}), 400
+            from modules.core.preferences import (
+                load_prefs, save_prefs, toggle_category
+            )
+            prefs_path = paths["data"] / "preferences.json"
+            prefs = load_prefs(prefs_path)
+            new_state = toggle_category(prefs, category)
+            save_prefs(prefs_path, prefs)
+            return jsonify({
+                "status": "ok",
+                "category": category,
+                "hidden": new_state,
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/api/preferences/reset", methods=["POST"])
+    def api_reset_preferences():
+        from modules.core.preferences import save_prefs, DEFAULT_PREFS
+        save_prefs(paths["data"] / "preferences.json", dict(DEFAULT_PREFS))
+        return jsonify({"status": "ok", "msg": "préférences réinitialisées"})
+
+    # ──────────────────────────────────────────────────────────────────
+    #  Flash : bulletin court spécialisé par catégorie, à la demande
+    # ──────────────────────────────────────────────────────────────────
+    # POST /api/flash {category: "geopolitique"}
+    #   → {"status":"ok", "job_id": "abc123", "msg": "..."}
+    # GET  /api/flash/status/<job_id>
+    #   → {"status":"running"|"done"|"error", "progress": 0-100, "mp3_path": "..."}
+    # GET  /audio/flash_<job_id>.mp3
+    #   → sert le fichier mp3 généré
+
+    import threading
+    import uuid as _uuid
+    from datetime import datetime as _dt
+
+    _flash_jobs: dict = {}  # job_id → {status, progress, mp3_path, error, started_at}
+
+    @app.route("/api/subscription/status", methods=["GET"])
+    def api_subscription_status():
+        """Verifie le statut premium d'un device_id (cote serveur, anti-triche).
+
+        Query params:
+            device_id : identifiant unique de l'app (fourni par l'app Android)
+
+        Reponse:
+            {status, device_id, is_premium, expires_at, source}
+
+        Note: pour le moment, AUCUN device n'est premium (compte Google Play
+        pas encore cree). Quand Play Billing sera branche, l'app enverra
+        les receipts ici, on les validera avec Google, et on stockera
+        device_id -> {is_premium: true, expires_at: ...} dans un fichier
+        data/subscriptions.json (gitignore).
+        """
+        try:
+            from pathlib import Path as _Path
+            import json as _json
+            device_id = (request.args.get("device_id") or "").strip()
+            if not device_id:
+                return jsonify({"status": "error", "msg": "device_id requis"}), 400
+
+            subs_path = _Path(paths.get("root", ".")) / "data" / "subscriptions.json"
+            subs = {}
+            if subs_path.exists():
+                try:
+                    subs = _json.loads(subs_path.read_text())
+                except Exception:
+                    subs = {}
+
+            sub = subs.get(device_id, {})
+            is_premium = bool(sub.get("is_premium", False))
+            expires_at = sub.get("expires_at")
+
+            # Si expires_at est dans le passe, plus premium
+            if is_premium and expires_at:
+                from datetime import datetime as _dt
+                try:
+                    if _dt.fromisoformat(expires_at) < _dt.now():
+                        is_premium = False
+                except ValueError:
+                    pass
+
+            return jsonify({
+                "status": "ok",
+                "device_id": device_id,
+                "is_premium": is_premium,
+                "expires_at": expires_at,
+                "source": "nova-atlas",
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/api/articles", methods=["GET"])
+    def api_articles():
+        """Retourne la liste des articles du jour (ou d'une date donnée en query param).
+
+        Query params:
+            date : YYYYMMDD (optionnel, défaut = aujourd'hui)
+            category : filtre catégorie (optionnel)
+            limit : nombre max d'articles (optionnel, défaut = 200)
+
+        Réponse:
+            {"status": "ok", "date": "20260709", "count": N, "articles": [...]}
+        """
+        try:
+            from datetime import datetime as _dt
+            day = request.args.get("date") or _dt.now().strftime("%Y%m%d")
+            category = request.args.get("category")
+            try:
+                limit = int(request.args.get("limit", "200"))
+            except ValueError:
+                limit = 200
+
+            articles = load_articles_for_day(day, paths)
+
+            if category:
+                articles = [a for a in articles if a.get("category") == category]
+
+            # Tri du plus récent au plus ancien
+            articles.sort(key=lambda a: a.get("timestamp", ""), reverse=True)
+
+            # Cap
+            articles = articles[:limit]
+
+            return jsonify({
+                "status": "ok",
+                "date": day,
+                "count": len(articles),
+                "articles": articles,
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/api/flash", methods=["POST"])
+    def api_create_flash():
+        try:
+            data = request.get_json(force=True)
+            category = (data.get("category") or "").strip()
+            if not category:
+                return jsonify({"status": "error", "msg": "category requise"}), 400
+            # Validation catégorie
+            if category not in CATEGORY_ICONS:
+                return jsonify({"status": "error", "msg": f"category inconnue: {category}"}), 400
+
+            job_id = _uuid.uuid4().hex[:12]
+            _flash_jobs[job_id] = {
+                "status": "running",
+                "progress": 0,
+                "mp3_path": None,
+                "error": None,
+                "category": category,
+                "started_at": _dt.now().isoformat(),
+            }
+
+            def _run_flash():
+                try:
+                    from modules.radio.bulletin_generator import (
+                        get_flash_articles, generate_flash_script, BulletinGenerator
+                    )
+                    import yaml
+                    # 1. Charge la config globale
+                    cfg = yaml.safe_load((paths["root"] / "config" / "config.yaml").read_text())
+
+                    # 2. Récupère les articles de la catégorie depuis minuit
+                    _flash_jobs[job_id]["progress"] = 10
+                    articles = get_flash_articles(paths, category, since_minute_of_day=0)
+                    _flash_jobs[job_id]["articles_count"] = len(articles)
+
+                    if len(articles) < 1:
+                        _flash_jobs[job_id]["status"] = "error"
+                        _flash_jobs[job_id]["error"] = "Aucun article dans cette catégorie aujourd'hui"
+                        return
+
+                    # 3. Génère le script via le prompt spécialisé Flash
+                    # (qui dit "depuis minuit" et non "30 dernières minutes").
+                    _flash_jobs[job_id]["progress"] = 20
+                    cat_label = _get_cat_labels(cfg).get(category, category)
+                    # Charge intros/outros
+                    msgs_path = paths["root"] / "config" / "messages.yaml"
+                    msgs = yaml.safe_load(msgs_path.read_text()) if msgs_path.exists() else {}
+                    intros = [i for i in msgs.get("intros", []) if not str(i).startswith("#")]
+                    outros = [o for o in msgs.get("outros", []) if not str(o).startswith("#")]
+                    # Lance un heartbeat qui update le progress toutes les 3s
+                    # pendant l'appel LLM (qui peut prendre 1-10 min pour les
+                    # gros prompts). Sans ça, la barre reste bloquée à 20%.
+                    import threading, time as _time
+                    _stop_hb = threading.Event()
+                    def _heartbeat():
+                        # Couvre toutes les phases de génération (20% → 90%)
+                        # pour que la barre de progression avance en continu
+                        # même pendant le LLM (qui peut prendre 1-10 min) et
+                        # le TTS (qui peut prendre 30s-1min). Sans ça, la
+                        # barre reste figée entre les paliers backend.
+                        p = 20
+                        while not _stop_hb.is_set():
+                            _time.sleep(2)
+                            if _stop_hb.is_set(): break
+                            # Ralentit quand on approche des paliers backend
+                            # pour ne pas dépasser avant que le backend ne suive
+                            if p < 49:        # avant LLM fini (palier 50%)
+                                p += 1
+                            elif p < 59:      # avant TTS (palier 60%)
+                                p += 1
+                            elif p < 89:      # avant mix (palier 90%)
+                                p += 1
+                            else:
+                                break  # proche de la fin, laisse le backend finir
+                            _flash_jobs[job_id]["progress"] = p
+                    _hb_thread = threading.Thread(target=_heartbeat, daemon=True, name=f"FlashHB_{job_id}")
+                    _hb_thread.start()
+                    try:
+                        script = generate_flash_script(
+                            articles, category, cat_label, cfg, intros, outros
+                        )
+                    finally:
+                        _stop_hb.set()
+                        _hb_thread.join(timeout=2)
+                    if not script:
+                        _flash_jobs[job_id]["status"] = "error"
+                        _flash_jobs[job_id]["error"] = "LLM a renvoyé un script flash vide"
+                        return
+                    _flash_jobs[job_id]["progress"] = 50
+
+                    # 4. TTS + mix via BulletinGenerator avec le script pré-généré
+                    # (pas de double appel LLM).
+                    gen = BulletinGenerator(cfg, paths)
+                    _flash_jobs[job_id]["progress"] = 60
+                    out_path = gen.build(articles, script=script)
+                    _flash_jobs[job_id]["progress"] = 90
+                    if not out_path:
+                        _flash_jobs[job_id]["status"] = "error"
+                        _flash_jobs[job_id]["error"] = "Échec TTS/mix"
+                        return
+
+                    # 5. Done
+                    _flash_jobs[job_id]["status"] = "done"
+                    _flash_jobs[job_id]["progress"] = 100
+                    _flash_jobs[job_id]["mp3_path"] = str(out_path)
+                except Exception as e:
+                    _flash_jobs[job_id]["status"] = "error"
+                    _flash_jobs[job_id]["error"] = str(e)
+
+            threading.Thread(target=_run_flash, daemon=True, name=f"FlashJob_{job_id}").start()
+            return jsonify({"status": "ok", "job_id": job_id, "category": category})
+        except Exception as e:
+            return jsonify({"status": "error", "msg": str(e)}), 500
+
+    @app.route("/api/flash/status/<job_id>", methods=["GET"])
+    def api_flash_status(job_id):
+        job = _flash_jobs.get(job_id)
+        if not job:
+            return jsonify({"status": "error", "msg": "job inconnu"}), 404
+        return jsonify({
+            "status": job["status"],
+            "progress": job.get("progress", 0),
+            "mp3_path": job.get("mp3_path"),
+            "error": job.get("error"),
+            "articles_count": job.get("articles_count", 0),
+            "category": job.get("category"),
+        })
+
+    @app.route("/audio/flash_<job_id>.mp3", methods=["GET"])
+    def serve_flash_mp3(job_id):
+        job = _flash_jobs.get(job_id)
+        if not job or job.get("status") != "done" or not job.get("mp3_path"):
+            return jsonify({"status": "error", "msg": "mp3 non disponible"}), 404
+        from flask import send_file
+        return send_file(job["mp3_path"], mimetype="audio/mpeg", as_attachment=False)
+
+    @app.route("/preferences", methods=["GET"])
+    def preferences_page():
+        return build_preferences_page(paths)
+
     @app.route("/editions/<path:filename>")
     def serve_edition(filename):
         if filename.endswith(".html"):
@@ -1050,7 +2063,12 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         except Exception:
             abort(404)
 
-    print(f"\n✅ {paths["brand_name"]} → http://localhost:{port}/\n")
+    print(f"\n✅ {paths['brand_name']} → http://localhost:{port}/\n")
+    # Werkzeug (serveur HTTP Flask) log chaque requête. En mode --debug on
+    # les veut, en mode normal c'est du bruit. On le coupe sauf si debug=True.
+    if not debug:
+        import logging
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
     app.run(host=host, port=port, debug=debug, use_reloader=False)
 
 # ─── TEMPLATES HTML ───────────────────────────────────────────────────────────
@@ -1127,6 +2145,66 @@ body{background:var(--bg);color:var(--text);font-family:'Source Sans 3',sans-ser
   display:flex;align-items:center;gap:2px;height:14px;
   opacity:0;transition:opacity .3s;
 }
+
+/* ── FLASH BUTTON (a droite du radio-player) ── */
+.flash-wrap{position:relative;flex-shrink:0;}
+.flash-btn{
+  display:flex;align-items:center;gap:.4rem;
+  background:linear-gradient(135deg,#f59e0b 0%,#ef4444 100%);
+  color:#fff;border:none;cursor:pointer;
+  border-radius:20px;padding:.35rem .9rem;
+  font-family:'JetBrains Mono',monospace;font-size:.7rem;font-weight:600;
+  letter-spacing:.05em;transition:transform .15s,box-shadow .2s;
+  box-shadow:0 2px 8px rgba(245,158,11,0.3);
+}
+.flash-btn:hover{transform:scale(1.04);box-shadow:0 4px 12px rgba(245,158,11,0.5);}
+.flash-btn:disabled{opacity:0.6;cursor:wait;transform:none;}
+.flash-icon{font-size:.9rem;animation:flash-pulse 2s ease-in-out infinite;}
+@keyframes flash-pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.flash-dropdown{
+  display:none;position:absolute;top:calc(100% + .5rem);right:0;
+  background:var(--player-bg);border:1px solid var(--player-border);
+  border-radius:12px;padding:.5rem;min-width:240px;max-height:400px;overflow-y:auto;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);z-index:200;
+  flex-direction:column;gap:.25rem;
+}
+.flash-dropdown.open{display:flex;}
+.flash-cat{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.5rem .7rem;border-radius:8px;cursor:pointer;
+  font-size:.85rem;color:var(--text);transition:background .15s;
+  text-align:left;background:transparent;border:none;width:100%;
+}
+.flash-cat:hover{background:var(--accent);color:#fff;}
+.flash-cat-icon{font-size:1rem;flex-shrink:0;}
+.flash-cat-label{flex:1;font-family:'JetBrains Mono',monospace;font-size:.75rem;}
+.flash-cat-count{
+  font-size:.65rem;color:var(--text-dim);
+  background:var(--bg-secondary);padding:.1rem .4rem;border-radius:8px;
+}
+.flash-progress{
+  display:none;position:absolute;top:calc(100% + .5rem);right:0;
+  background:var(--player-bg);border:1px solid var(--player-border);
+  border-radius:12px;padding:1rem;min-width:280px;z-index:200;
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  flex-direction:column;gap:.5rem;
+}
+.flash-progress.open{display:flex;}
+.flash-progress-title{
+  display:flex;align-items:center;gap:.5rem;
+  font-size:.8rem;font-weight:600;color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+}
+.flash-progress-bar{
+  width:100%;height:6px;background:var(--bg-secondary);
+  border-radius:3px;overflow:hidden;
+}
+.flash-progress-fill{
+  height:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);
+  border-radius:3px;transition:width 1.4s linear;width:0;
+  box-shadow:0 0 10px rgba(245,158,11,.5);
+}
+.flash-progress-msg{font-size:.7rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
 .radio-wave.playing{opacity:1;}
 .radio-wave span{
   display:block;width:2px;background:var(--accent);border-radius:2px;
@@ -1226,6 +2304,8 @@ footer strong{color:var(--accent);}
 .edition-body p{margin-bottom:1.4rem;text-align:justify;}
 .edition-body hr{border:none;border-top:1px solid var(--border);margin:2rem 0;}
 .edition-body em{color:var(--text-muted);font-size:.85rem;}
+
+
 """
 
 LIVE_CSS_EXTRA = """
@@ -1462,7 +2542,11 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 
 // ── Live refresh sans coupure audio ──────────────────────────────────────────
+// Remplace le contenu de #live-grid toutes les 2 min, en préservant
+// l'état du filtre multi-sélection sous "Fil en direct".
+// L'IIFE multi-sélection est ré-attaché aux nouveaux boutons après le refresh.
 var _liveRefreshTimer = null;
+var _liveSelectedCategories = new Set();  // état partagé entre refresh et IIFE
 
 function _startLiveRefresh(){
   if(_liveRefreshTimer) clearTimeout(_liveRefreshTimer);
@@ -1474,44 +2558,134 @@ function _startLiveRefresh(){
         var newDoc  = parser.parseFromString(html, 'text/html');
         var newGrid = newDoc.getElementById('live-grid');
         var curGrid = document.getElementById('live-grid');
-        if(newGrid && curGrid){
-          // Mémorise le filtre actif
-          var activeBtn = document.querySelector('.filter-btn.active');
-          var activeCat = activeBtn ? activeBtn.dataset.cat : 'all';
+        if(!newGrid || !curGrid) return;
 
-          curGrid.innerHTML = newGrid.innerHTML;
+        // 1) Remplace le grid (nouveaux articles)
+        curGrid.innerHTML = newGrid.innerHTML;
 
-          // Ré-applique le filtre
-          document.querySelectorAll('#live-grid .live-item').forEach(function(el){
-            el.style.display = (activeCat==='all' || el.dataset.cat===activeCat) ? '' : 'none';
+        // 2) Recharge la filter-bar avec les nouveaux boutons + counts
+        var newBar = newDoc.querySelector('.filter-bar');
+        var curBar = document.querySelector('.filter-bar');
+        if(newBar && curBar){
+          curBar.innerHTML = newBar.innerHTML;
+          // Remet les boutons "active" selon _liveSelectedCategories
+          curBar.querySelectorAll('.filter-btn').forEach(function(b){
+            var cat = b.dataset.cat;
+            if(cat === '__all'){
+              b.classList.toggle('active', _liveSelectedCategories.size === 0);
+              b.setAttribute('aria-pressed', _liveSelectedCategories.size === 0 ? 'true' : 'false');
+            } else {
+              var isSel = _liveSelectedCategories.has(cat);
+              b.classList.toggle('active', isSel);
+              b.setAttribute('aria-pressed', isSel ? 'true' : 'false');
+            }
           });
-
-          // Met à jour les compteurs dans les boutons de filtre
-          var newBar = newDoc.querySelector('.filter-bar');
-          var curBar = document.querySelector('.filter-bar');
-          if(newBar && curBar){
-            // Remplace tous les boutons sauf le "Tout" actif
-            curBar.innerHTML = newBar.innerHTML;
-            // Remet le bon bouton actif
-            curBar.querySelectorAll('.filter-btn').forEach(function(b){
-              b.classList.toggle('active', b.dataset.cat === activeCat || (!b.dataset.cat && activeCat==='all'));
-            });
-          }
-
-          // Timestamp
-          var ts    = document.getElementById('live-updated');
-          var newTs = newDoc.getElementById('live-updated');
-          if(ts && newTs) ts.textContent = newTs.textContent;
+          // Ré-attache l'IIFE multi-sélection aux nouveaux boutons
+          _attachFilterBarHandler(curBar);
         }
+
+        // 3) Réapplique le filtre multi-sélection
+        _applyLiveFilterFromState();
+
+        // 4) Met à jour le timestamp
+        var ts    = document.getElementById('live-updated');
+        var newTs = newDoc.getElementById('live-updated');
+        if(ts && newTs) ts.textContent = newTs.textContent;
       })
       .catch(function(){})
       .finally(function(){ _liveRefreshTimer = setTimeout(_doRefresh, 120000); });
   }, 120000);
 }
 
+// Filtre multi-sélection : applique _liveSelectedCategories au DOM
+function _applyLiveFilterFromState(){
+  var items = document.querySelectorAll('#live-grid [data-category]');
+  var showAll = _liveSelectedCategories.size === 0;
+  items.forEach(function(el){
+    var cat = el.dataset.category;
+    if(!cat){ el.style.display = ''; el.removeAttribute('aria-hidden'); return; }
+    if(showAll || _liveSelectedCategories.has(cat)){
+      el.style.display = '';
+      el.removeAttribute('aria-hidden');
+    } else {
+      el.style.display = 'none';
+      el.setAttribute('aria-hidden', 'true');
+    }
+  });
+}
+
+// Attache le handler multi-sélection à une filter-bar (initiale ou après refresh)
+function _attachFilterBarHandler(bar){
+  bar.addEventListener('click', function(e){
+    var btn = e.target.closest('.filter-btn');
+    if(!btn) return;
+    var cat = btn.dataset.cat;
+    if(cat === '__all'){
+      _liveSelectedCategories.clear();
+      bar.querySelectorAll('.filter-btn').forEach(function(b){
+        var isAll = b.dataset.cat === '__all';
+        b.classList.toggle('active', isAll);
+        b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+      });
+    } else {
+      if(_liveSelectedCategories.has(cat)){
+        _liveSelectedCategories.delete(cat);
+        btn.classList.remove('active');
+        btn.setAttribute('aria-pressed', 'false');
+      } else {
+        _liveSelectedCategories.add(cat);
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+      }
+      var allBtn = bar.querySelector('[data-cat="__all"]');
+      if(allBtn){
+        var allActive = _liveSelectedCategories.size === 0;
+        allBtn.classList.toggle('active', allActive);
+        allBtn.setAttribute('aria-pressed', allActive ? 'true' : 'false');
+      }
+    }
+    _applyLiveFilterFromState();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function(){
-  if(document.body.dataset.page === 'live') _startLiveRefresh();
+  if(document.body.dataset.page === 'live'){
+    _startLiveRefresh();
+    // Attache le handler multi-sélection à la filter-bar initiale
+    var bar = document.getElementById('filter-bar');
+    if(bar) _attachFilterBarHandler(bar);
+  }
+  _applyCategoryPreferences();
 });
+
+// ── Préférences : cacher les articles des catégories désactivées ────────────
+async function _applyCategoryPreferences(){
+  try {
+    var r = await fetch('/api/preferences');
+    if(r.status !== 200) return;
+    var data = await r.json();
+    var hidden = new Set((data.preferences && data.preferences.hidden_categories) || []);
+    if(hidden.size === 0) return;
+    // Cacher tous les éléments avec data-category
+    document.querySelectorAll('[data-category]').forEach(function(el){
+      if(hidden.has(el.dataset.category)){
+        el.style.display = 'none';
+        el.setAttribute('aria-hidden', 'true');
+      }
+    });
+    // Afficher un petit indicateur si des catégories sont cachées
+    var bar = document.getElementById('prefs-bar');
+    if(bar){
+      bar.textContent = hidden.size + ' catégorie(s) cachée(s) — ';
+      var a = document.createElement('a');
+      a.href = '/preferences';
+      a.style.color = '#6ea8fe';
+      a.textContent = 'Gérer';
+      bar.appendChild(a);
+      bar.style.display = 'block';
+    }
+  } catch(e) { /* noop */ }
+}
 </script>
 """
 
@@ -1531,6 +2705,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -1578,7 +2753,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
         <h3>Articles récents</h3>
         <div style="max-height:380px;overflow-y:auto">
         {% for a in recent_articles %}
-        <div class="article-item">
+        <div class="article-item" data-category="{{ a.category }}">
           <a href="{{ a.link }}" target="_blank" rel="noopener">
             {{ a.title[:80] }}{% if a.title|length > 80 %}…{% endif %}
           </a>
@@ -1632,6 +2807,7 @@ function toggleSources(btn){
   btn.setAttribute('aria-expanded',String(!open));
 }
 </script>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -1651,6 +2827,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -1685,6 +2862,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
   </div>
 </div>
 <footer><strong>{{ brand_name }}</strong> — {{ brand_tagline }}<br>© {{ year }}</footer>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -1704,6 +2882,7 @@ EDITION_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -1736,8 +2915,266 @@ EDITION_TEMPLATE = """<!DOCTYPE html>
   <div class="edition-body">{{ body_html }}</div>
 </div>
 <footer><strong>{{ brand_name }}</strong> — {{ edition_label }} · {{ date_fr }}<br>© {{ year }}</footer>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Flash button : bouton dans la topbar pour générer un bulletin à la demande
+# ─────────────────────────────────────────────────────────────────────────────
+
+FLASH_BUTTON_HTML = '''
+<div class="flash-wrap" id="flash-wrap">
+  <button class="flash-btn" id="flash-btn" onclick="flashToggle(event)" title="Générer un flash spécialisé par catégorie">
+    <span class="flash-icon">⚡</span>
+    <span>Flash</span>
+  </button>
+  <div class="flash-dropdown" id="flash-dropdown">
+    {% for cat in cats %}
+    <button class="flash-cat" data-cat="{{ cat }}" onclick="flashStart('{{ cat }}')">
+      <span class="flash-cat-icon">{{ cat_icons.get(cat,'') }}</span>
+      <span class="flash-cat-label">{{ cat_labels.get(cat, cat) }}</span>
+      <span class="flash-cat-count" id="flash-count-{{ cat }}"></span>
+    </button>
+    {% endfor %}
+  </div>
+  <div class="flash-progress" id="flash-progress">
+    <div class="flash-progress-title">
+      <span class="flash-icon">⚡</span>
+      <span id="flash-progress-label">Flash en cours...</span>
+    </div>
+    <div class="flash-progress-bar">
+      <div class="flash-progress-fill" id="flash-progress-fill"></div>
+    </div>
+    <div class="flash-progress-msg" id="flash-progress-msg">Initialisation...</div>
+  </div>
+</div>
+'''
+
+FLASH_BUTTON_JS = '''
+<script>
+// ============ FLASH FEATURE ============
+let flashPollInterval = null;
+let flashCurrentJobId = null;
+let flashWasRadioPlaying = false;  // mémorise si la radio live jouait avant le flash
+let flashStartTime = null;          // timestamp du début du flash (pour ETA)
+let flashLastProgress = 0;          // dernier progress vu (pour estimer vitesse)
+let flashLastPollTime = null;       // timestamp du dernier poll
+
+// Estimation du temps restant (modèle par phases, pas d'extrapolation linéaire).
+// Chaque phase a un temps typique connu. L'ETA est calculée comme la somme
+// des temps restants typiques des phases en cours + à venir.
+const FLASH_PHASE_ESTIMATES = {
+  // progress: temps total typique écoulé depuis le début (en secondes)
+  0:   0,     // début
+  10:  2,     // collecte articles: 2s
+  20:  5,     // début LLM: 5s
+  30:  30,    // LLM en cours: 30s typiques (varie 10s-2min)
+  40:  60,    // LLM long: 60s
+  48:  90,    // fin LLM: 90s
+  50:  95,    // juste après LLM
+  60:  105,   // début TTS: 105s
+  70:  120,   // TTS en cours
+  80:  140,   // TTS presque fini
+  90:  155,   // mix audio: 155s
+  95:  160,   // mix presque fini
+  100: 165,   // terminé
+};
+
+function _flashEta() {
+  if (!flashStartTime || flashLastProgress >= 100) return null;
+  const now = Date.now();
+  const elapsed = (now - flashStartTime) / 1000;
+  if (elapsed < 1) return null;
+
+  // Interpolation linéaire entre 2 phases consécutives pour un ETA
+  // fluide (pas de saut entre 2 paliers).
+  const sortedPcts = Object.keys(FLASH_PHASE_ESTIMATES).map(Number).sort((a,b)=>a-b);
+  let lowerPct = 0, upperPct = 100;
+  let lowerT = 0, upperT = FLASH_PHASE_ESTIMATES[100];
+  for (let i = 0; i < sortedPcts.length; i++) {
+    if (sortedPcts[i] <= flashLastProgress) {
+      lowerPct = sortedPcts[i];
+      lowerT = FLASH_PHASE_ESTIMATES[lowerPct];
+    } else {
+      upperPct = sortedPcts[i];
+      upperT = FLASH_PHASE_ESTIMATES[upperPct];
+      break;
+    }
+  }
+  // Interpolation linéaire entre lowerPct et upperPct
+  let typicalTotal;
+  if (upperPct === lowerPct) {
+    typicalTotal = lowerT;
+  } else {
+    const t = (flashLastProgress - lowerPct) / (upperPct - lowerPct);
+    typicalTotal = lowerT + t * (upperT - lowerT);
+  }
+  const eta = typicalTotal - elapsed;
+  return eta > 0 ? Math.round(eta) : 0;
+}
+
+function flashToggle(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('flash-dropdown');
+  const prog = document.getElementById('flash-progress');
+  // Si progress visible, ne pas ouvrir le dropdown
+  if (prog.classList.contains('open')) return;
+  dd.classList.toggle('open');
+}
+
+// Fermer le dropdown si on clique ailleurs
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('flash-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const dd = document.getElementById('flash-dropdown');
+    if (dd) dd.classList.remove('open');
+  }
+});
+
+async function flashStart(category) {
+  const dd = document.getElementById('flash-dropdown');
+  const prog = document.getElementById('flash-progress');
+  const btn = document.getElementById('flash-btn');
+  const fill = document.getElementById('flash-progress-fill');
+  const label = document.getElementById('flash-progress-label');
+  const msg = document.getElementById('flash-progress-msg');
+
+  dd.classList.remove('open');
+  prog.classList.add('open');
+  btn.disabled = true;
+  fill.style.width = '5%';
+  label.textContent = `Flash ${category}...`;
+  msg.textContent = 'Envoi de la demande...';
+  // Init timestamps pour l'ETA
+  flashStartTime = Date.now();
+  flashLastProgress = 5;
+  flashLastPollTime = Date.now();
+
+  // Mémorise l'état de la radio live (jouait-elle ?) pour la reprendre
+  // à la fin du flash
+  if (window._novaAudio) {
+    flashWasRadioPlaying = !window._novaAudio.paused;
+    if (flashWasRadioPlaying) {
+      window._novaAudio.pause();
+      msg.textContent = 'Envoi de la demande... (radio live mise en pause)';
+    }
+  }
+
+  try {
+    const r = await fetch('/api/flash', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({category: category})
+    });
+    const data = await r.json();
+    if (data.status !== 'ok') {
+      msg.textContent = 'Erreur: ' + (data.msg || 'inconnue');
+      btn.disabled = false;
+      // Reprend la radio si on l'avait mise en pause
+      if (flashWasRadioPlaying && window._novaAudio) {
+        window._novaAudio.play().catch(() => {});
+        flashWasRadioPlaying = false;
+      }
+      return;
+    }
+    flashCurrentJobId = data.job_id;
+    msg.textContent = 'Job ' + data.job_id;
+    // Polling toutes les 1.5s
+    flashPollInterval = setInterval(() => flashPoll(), 1500);
+  } catch (e) {
+    msg.textContent = 'Erreur réseau: ' + e.message;
+    btn.disabled = false;
+    // Reprend la radio si on l'avait mise en pause
+    if (flashWasRadioPlaying && window._novaAudio) {
+      window._novaAudio.play().catch(() => {});
+      flashWasRadioPlaying = false;
+    }
+  }
+}
+
+async function flashPoll() {
+  if (!flashCurrentJobId) return;
+  const fill = document.getElementById('flash-progress-fill');
+  const label = document.getElementById('flash-progress-label');
+  const msg = document.getElementById('flash-progress-msg');
+  const btn = document.getElementById('flash-btn');
+  const prog = document.getElementById('flash-progress');
+
+  try {
+    const r = await fetch('/api/flash/status/' + flashCurrentJobId);
+    const data = await r.json();
+    if (data.status === 'error') {
+      clearInterval(flashPollInterval);
+      fill.style.width = '100%';
+      fill.style.background = '#ef4444';
+      label.textContent = '❌ Erreur';
+      msg.textContent = data.error || 'Erreur inconnue';
+      // Reset timestamps
+      flashStartTime = null;
+      setTimeout(() => {
+        prog.classList.remove('open');
+        btn.disabled = false;
+        fill.style.background = '';
+      }, 3000);
+      return;
+    }
+    if (data.status === 'done') {
+      clearInterval(flashPollInterval);
+      fill.style.width = '100%';
+      label.textContent = '✅ Flash prêt !';
+      msg.textContent = `${data.articles_count} articles, lecture...`;
+      // Reset timestamps
+      flashStartTime = null;
+      flashLastProgress = 100;
+      // Jouer le mp3
+      const audio = new Audio('/audio/flash_' + flashCurrentJobId + '.mp3');
+      audio.play().catch(e => {
+        msg.textContent = 'Erreur lecture: ' + e.message;
+      });
+      audio.onended = () => {
+        msg.textContent = 'Terminé';
+        // Reprend la radio live si elle était en cours avant le flash
+        if (flashWasRadioPlaying && window._novaAudio) {
+          window._novaAudio.play().catch(() => {});
+          flashWasRadioPlaying = false;
+        }
+        setTimeout(() => {
+          prog.classList.remove('open');
+          btn.disabled = false;
+          fill.style.background = '';
+        }, 1500);
+      };
+      return;
+    }
+    // En cours : animation continue via CSS transition (1.4s)
+    // L'ETA est calculée par extrapolation linéaire de la vitesse observée
+    fill.style.width = Math.max(5, data.progress || 5) + '%';
+    flashLastProgress = data.progress || 5;
+    flashLastPollTime = Date.now();
+    const step = data.progress < 30 ? 'Collecte des articles' :
+                 data.progress < 50 ? 'Génération du script (LLM)' :
+                 data.progress < 90 ? 'Synthèse vocale (TTS)' :
+                 'Mixage audio';
+    const eta = _flashEta();
+    const etaStr = eta !== null ? ` (~${eta}s restantes)` : '';
+    msg.textContent = step + ' (' + data.progress + '%)' + etaStr;
+  } catch (e) {
+    msg.textContent = 'Erreur polling: ' + e.message;
+  }
+}
+</script>
+'''
+
+
+def render_flash_button_html(cat_icons: dict, cat_labels: dict) -> str:
+    """Retourne le HTML du bouton Flash avec dropdown rempli."""
+    from jinja2 import Template
+    return Template(FLASH_BUTTON_HTML).render(
+        cats=list(cat_icons.keys()),
+        cat_icons=cat_icons,
+        cat_labels=cat_labels,
+    )
 
 LIVE_TEMPLATE = """<!DOCTYPE html>
 <html lang="fr"><head>
@@ -1755,6 +3192,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -1776,13 +3214,14 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
     <div class="live-status"><span class="live-dot"></span> {{ ui.live_status }}</div>
   </div>
 
-  <!-- Filtres par catégorie — masquage JS côté client -->
-  <div class="filter-bar">
-    <button class="filter-btn active" data-cat="all" onclick="filterCat('all',this)">
+  <!-- Filtres par catégorie — multi-sélection cumulative, client-side -->
+  <!-- Click sur "Tout" clear la sélection. Click sur une cat toggle. -->
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-cat="__all" aria-pressed="true">
       {{ ui.filter_all }} <span class="filter-count">{{ total }}</span>
     </button>
     {% for cat, count in cat_counts %}
-    <button class="filter-btn" data-cat="{{ cat }}" onclick="filterCat('{{ cat }}',this)">
+    <button class="filter-btn" data-cat="{{ cat }}" aria-pressed="false">
       {{ cat_icons.get(cat,'') }} {{ cat_labels.get(cat,cat) }}
       <span class="filter-count">{{ count }}</span>
     </button>
@@ -1793,7 +3232,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
   <div class="live-grid" id="live-grid">
     {% for a in articles %}
     {% set cat = a.get('category', 'monde') %}
-    <div class="live-item" data-cat="{{ cat }}">
+    <div class="live-item" data-category="{{ cat }}" data-cat="{{ cat }}">
 
       <!-- Bande couleur + icône + titre -->
       <div class="live-item-row" style="border-left:3px solid var(--cat-color-{{ cat }},var(--accent))">
@@ -1826,13 +3265,10 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
 </div>
 <footer><strong>{{ brand_name }}</strong> — Fil en direct · © {{ year }}</footer>
 <script>
-function filterCat(cat, btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('#live-grid .live-item').forEach(el => {
-    el.style.display = (cat === 'all' || el.dataset.cat === cat) ? '' : 'none';
-  });
-}
+// Le filtre multi-sélection sous "Fil en direct" est attaché par
+// _attachFilterBarHandler() au DOMContentLoaded (voir global script).
+// Le IIFE inline a été supprimé : il ne survivait pas au refresh
+// toutes les 2 min qui remplace innerHTML des boutons.
 
 function toggleSummary(btn, id) {
   const el   = document.getElementById(id);
@@ -1842,6 +3278,7 @@ function toggleSummary(btn, id) {
   btn.querySelector('.tgl-label').textContent = open ? '{{ ui.reduce }}' : '{{ ui.read_more }}';
 }
 </script>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -1877,6 +3314,7 @@ select:focus,input[type=number]:focus{outline:none;border-color:var(--accent);}
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
+  {{ flash_button_html }}
   <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
@@ -1968,6 +3406,7 @@ document.getElementById('configForm').addEventListener('submit',async(e)=>{
   }
 });
 </script>
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
 
@@ -2713,5 +4152,6 @@ function restartEngine(){
 }
 </script>
 
+{{ flash_button_js }}
 {{ global_script }}
 </body></html>"""

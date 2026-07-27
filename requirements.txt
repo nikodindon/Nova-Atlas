@@ -6,3 +6,5 @@ lxml
 flask
 jinja2
 markdown
+# Test deps (sprint 1+)
+pytest

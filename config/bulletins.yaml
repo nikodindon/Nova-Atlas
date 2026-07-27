@@ -1,0 +1,73 @@
+# ============================================================
+#  Nova-Atlas — Bulletins radio
+#  Configuration du pipeline "journal de 30 minutes"
+# ============================================================
+#
+# Le projet génère maintenant 2 bulletins par heure (à :00 et :30)
+# au lieu d'un bulletin en continu. Chaque bulletin dure ~10 min
+# (cible : 1500 mots) et couvre les 30 dernières minutes d'actu.
+#
+# Les voix s'alternent (intro voix 1, news voix 1, transition
+# voix 2, news voix 2, outro voix 1) pour créer un "dialogue"
+# qui tient l'auditeur en éveil.
+# ============================================================
+
+# ── Cadence ────────────────────────────────────────────────────
+# Liste des heures (en UTC locale) où un bulletin est généré.
+# Le pipeline produit automatiquement 2 bulletins/h (à :00 et :30).
+# Format : heures pleines, 7..21 (de 7h à 21h30 = 30 bulletins/jour).
+post_hours: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+
+# Heure de début du premier bulletin (premier à 7:00, dernier à 21:30)
+first_slot_hour: 7
+
+# ── Contenu ────────────────────────────────────────────────────
+# Cible mots par bulletin. ~150 mots/min en TTS français.
+# 1500 mots = 10 minutes. ±200 mots de tolérance.
+target_words: 1500
+tolerance_words: 200
+
+# Nombre minimum d'articles dans la fenêtre 30 min pour générer.
+# En dessous, on skip (la radio continue la playlist musicale).
+min_articles: 3
+
+# Fenêtre temporelle de collecte (en minutes avant l'heure du bulletin)
+window_minutes: 30
+
+# ── Voix ───────────────────────────────────────────────────────
+# Les 2 voix principales qui s'alternent.
+# La voix 1 fait les intros, les news "principales", et l'outro.
+# La voix 2 fait les transitions et les news "secondaires".
+voices:
+  primary:   "fr-FR-HenriNeural"        # voix grave, posée
+  secondary: "fr-FR-DeniseNeural"       # voix féminine, claire
+
+# Voix additionnelles pour des segments spéciaux (optionnel)
+voices_extra:
+  breaking:  "fr-FR-RemyMultilingualNeural"  # pour les breaking news (ton urgent)
+  culture:   "fr-CA-AntoineNeural"            # pour les news culture (ton léger)
+
+# ── Structure du journal ──────────────────────────────────────
+# Le LLM produit un script balisé [VOIX1]...[VOIX2]... qu'on split
+# en segments. Chaque segment a un tag de voix. Voici la structure
+# typique d'un journal de 1500 mots.
+structure:
+  intro:        { voice: primary,   target_words: 100 }   # "Bonjour, il est 16h..."
+  breaking:     { voice: breaking,  target_words: 200, optional: true }  # si breaking news
+  news_block_1: { voice: primary,   target_words: 400 }   # news principales (3-4 news)
+  transition:   { voice: secondary, target_words: 30  }   # "Dans un autre registre..."
+  news_block_2: { voice: secondary, target_words: 400 }   # news secondaires (3-4 news)
+  transition_2: { voice: primary,   target_words: 30  }   # "Et pendant ce temps..."
+  news_block_3: { voice: secondary, target_words: 300 }   # news de fond (2-3 news)
+  outro:        { voice: primary,   target_words: 100 }   # "C'est tout pour ce journal..."
+
+# Si pas de breaking news, on skip le segment "breaking" et on
+# redistribue les 200 mots sur les 3 news_block.
+
+# ── Musique de fond (entre les bulletins) ──────────────────────
+# Le streamer continue de mixer la playlist musicale.
+# Volume de la musique (0.0 = muet, 1.0 = max). 0.30 = -10dB.
+background_volume: 0.30
+
+# Faut-il un jingle avant chaque bulletin ? (true/false)
+intro_jingle: true

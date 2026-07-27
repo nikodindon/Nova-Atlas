@@ -94,12 +94,13 @@ def run_news_engine(config: dict, debug: bool = False):
     setup_logging(debug)
 
     # Initialise Ollama pour ce processus
-    from modules.core.ollama      import init_ollama
+    from modules.core.llm_client      import init_ollama
     from modules.fetch.atlas_fetch       import ArticleFetcher
     from modules.report.atlas_report     import ReportGenerator
     from modules.editions.atlas_editions import EditionGenerator
     from modules.posts.atlas_posts       import PostsGenerator
     from modules.web.atlas_web           import generate_static_site
+    from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
 
     init_ollama(config)
 
@@ -109,6 +110,18 @@ def run_news_engine(config: dict, debug: bool = False):
     reporter  = ReportGenerator(config)
     editioner = EditionGenerator(config)
     poster    = PostsGenerator(config)
+    # BulletinGenerator (radio "30 minutes", 2×/h)
+    from pathlib import Path as _P
+    _proj = _P(__file__).parent.resolve()
+    news_paths = {
+        "root":            _proj,
+        "data":            _proj / "data",
+        "articles":        _proj / "data" / "articles",
+        "audio_queue":     _proj / "audio_queue",
+        "tmp":             _proj / "tmp",
+        "background_music": _proj / "background_music",
+    }
+    bulletin_gen = BulletinGenerator(config, news_paths)
 
     post_hours = config.get("radio", {}).get("post_hours",
                  [7, 9, 11, 13, 15, 17, 19, 21])
@@ -124,7 +137,7 @@ def run_news_engine(config: dict, debug: bool = False):
         if _reload_flag.exists():
             try:
                 _reload_flag.unlink()
-                from modules.core.ollama import reload_ollama
+                from modules.core.llm_client import reload_ollama
                 new_cfg = load_config("config/config.yaml")
                 # Recharge Ollama EN PREMIER (modèle + langue)
                 reload_ollama(new_cfg)
@@ -147,6 +160,9 @@ def run_news_engine(config: dict, debug: bool = False):
     last_build_day   = ""
     last_post_hour   = -1
     last_edition_day: dict = {}
+    # Note: last_bulletin_slot a été supprimé — le scheduler bulletins est
+    # centralisé dans run_radio (log "⏰ Pré-génération"). Garder une copie
+    # ici provoquait 2 bulletins générés pour le même slot.
     active_threads:   dict = {}
 
     def run_in_thread(name: str, fn, *args):
@@ -190,12 +206,29 @@ def run_news_engine(config: dict, debug: bool = False):
         except Exception as e:
             log.error(f"Erreur posts : {e}", exc_info=True)
 
-    log.info("╔══════════════════════════════════════╗")
-    log.info("║    Nova-Atlas — News Engine prêt     ║")
-    log.info("║  Fetch        : toutes les 30 min    ║")
-    log.info("║  Éditions     : 06h · 12h · 19h     ║")
-    log.info(f"║  Rapport      : {REPORT_HOUR:02d}h{REPORT_MIN:02d}                ║")
-    log.info("╚══════════════════════════════════════╝")
+    def bulletin_job():
+        """Génère un bulletin radio "30 minutes" à partir des articles récents."""
+        try:
+            from modules.radio.bulletin_generator import load_bulletins_config
+            bulletins_cfg = load_bulletins_config(news_paths)
+            window = bulletins_cfg.get("window_minutes", 30)
+            articles = get_recent_articles(news_paths, window_minutes=window)
+            # Cap à 20 articles max pour le bulletin (plus de matière = script plus riche)
+            articles = articles[:20]
+            log.info(f"[BULLETIN] {len(articles)} articles des {window} dernières min (cap 20)")
+            path = bulletin_gen.build(articles)
+            if path:
+                log.info(f"[BULLETIN] ✅ {path}")
+        except Exception as e:
+            log.error(f"Erreur bulletin : {e}", exc_info=True)
+
+    log.info("╔══════════════════════════════════════════════╗")
+    log.info("║       Nova-Atlas — News Engine prêt         ║")
+    log.info("║  Fetch        : toutes les 30 min           ║")
+    log.info("║  Bulletins    : 2×/h (X:00, X:30)            ║")
+    log.info("║  Éditions     : 06h · 12h · 19h             ║")
+    log.info(f"║  Rapport      : {REPORT_HOUR:02d}h{REPORT_MIN:02d}                       ║")
+    log.info("╚══════════════════════════════════════════════╝")
 
     log.info("Fetch initial au démarrage...")
     try:
@@ -247,7 +280,11 @@ def run_news_engine(config: dict, debug: bool = False):
                 log.info(f"[EDITION] Génération {ed_name}")
                 run_in_thread(f"edition_{ed_name}", edition_and_rebuild, ed_name, today)
 
-        time.sleep(60)
+        # Bulletins radio : géré par le scheduler de run_radio (plus complet,
+        # log "⏰ Pré-génération"). On ne duplique PAS le scheduling ici pour
+        # éviter que 2 bulletins soient générés pour le même slot.
+        # Le watcher de news détecte les news fraîches, mais la décision
+        # de générer un bulletin est centralisée dans run_radio.
 
 
 # ─── PROCESSUS : RADIO ────────────────────────────────────────────────────────
@@ -260,41 +297,115 @@ def run_radio(config: dict, debug: bool = False):
       Streamer     — flux Icecast continu via pipe ffmpeg
 
     Le config.yaml de la radio est déjà dans config (sections icecast, radio, tts).
-    Le fichier messages.yaml (intros, transitions, outros) est lu par journal_builder
+    Le fichier messages.yaml (intros, transitions, outros) est lu par bulletin_generator
     depuis config/messages.yaml — chemin résolu par le module radio.
     """
     setup_logging(debug)
     from modules.radio.news_watcher    import NewsWatcher
-    from modules.radio.journal_builder import JournalBuilder
-    from modules.radio.streamer        import Streamer
+    from modules.radio.streamer        import Streamer, AndroidStreamer
+    from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
+    from pathlib import Path as _P
+    import threading
 
     log = logging.getLogger("nova.radio")
     log.info("Initialisation radio...")
 
     streamer = Streamer(config)
-    builder  = JournalBuilder(config)
+    # 2e streamer dédié pour le client Android : bulletins en boucle
+    # sur le mount /nova-android (cf config.yaml icecast.android_mount)
+    android_streamer = AndroidStreamer(config)
+    # BulletinGenerator remplace l'ancien JournalBuilder
+    _proj = _P(__file__).parent.resolve()
+    radio_paths = {
+        "root":             _proj,
+        "data":             _proj / "data",
+        "articles":         _proj / "data" / "articles",
+        "audio_queue":      _proj / "audio_queue",
+        "tmp":              _proj / "tmp",
+        "background_music":  _proj / "background_music",
+    }
+    builder = BulletinGenerator(config, radio_paths)
 
-    def on_bulletin_ready(articles: list):
-        def _gen():
-            try:
-                path = builder.build(articles)
-                if path:
-                    streamer.enqueue_bulletin(path)
-                else:
-                    log.error("Échec génération bulletin")
-            except Exception as e:
-                log.error(f"Erreur bulletin : {e}", exc_info=True)
-        threading.Thread(target=_gen, daemon=True, name="BulletinGen").start()
+    # Le watcher remplit le pool, le scheduler cadence les bulletins
+    pool_lock = threading.Lock()
+    pending_batches: list = []   # batches en attente (au cas où 2 bulletins se chevauchent)
 
-    watcher = NewsWatcher(config.get("radio", {}), on_bulletin_ready)
+    def on_news_ready(articles: list):
+        """Le watcher appelle ça à chaque nouvelle news. On accumule, on ne déclenche plus."""
+        with pool_lock:
+            pending_batches.append(articles)
+        # Log discret : on ne génère plus un journal par 5 news
+        log.debug(f"  Pool: +{len(articles)} news (total pending: {sum(len(b) for b in pending_batches)})")
+
+    def generate_bulletin():
+        """Génère un bulletin avec les articles des 30 dernières minutes."""
+        try:
+            from modules.radio.bulletin_generator import load_bulletins_config
+            bulletins_cfg = load_bulletins_config(radio_paths)
+            window = bulletins_cfg.get("window_minutes", 30)
+            articles = get_recent_articles(radio_paths, window_minutes=window)
+            # Cap à 20 articles max pour le bulletin (plus de matière = script plus riche)
+            articles = articles[:20]
+            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap 20)")
+            path = builder.build(articles)
+            if path:
+                streamer.enqueue_bulletin(path)
+                android_streamer.enqueue_bulletin(path)
+                log.info(f"📥 Bulletin en file: {path.name}")
+            else:
+                log.info("⏭️ Bulletin skippé (pas assez d'articles ou erreur)")
+        except Exception as e:
+            log.error(f"Erreur bulletin : {e}", exc_info=True)
+
+    # Le watcher ne déclenche plus rien par 5 news : on remplace son seuil
+    # par un seuil élevé (1000) pour qu'il accumule, et on cadence nous-mêmes.
+    # Note : le watcher cherche la cle 'news_per_bulletin' (cf news_watcher.py
+    # ligne 30), pas 'per_bulletin'. On utilise la bonne cle.
+    radio_cfg = dict(config.get("radio", {}))
+    radio_cfg["news_per_bulletin"] = 1000  # désactive le déclenchement auto
+    watcher = NewsWatcher(radio_cfg, on_news_ready)
     threading.Thread(target=watcher.run,  daemon=True, name="NewsWatcher").start()
     threading.Thread(target=streamer.run, daemon=True, name="Streamer").start()
+    threading.Thread(target=android_streamer.run, daemon=True, name="AndroidStreamer").start()
 
     ic = config.get("icecast", {})
     log.info(f"✅ Radio → http://localhost:{ic.get('port',8000)}{ic.get('mount','/nova')}")
+    log.info(f"✅ Android → http://localhost:{ic.get('port',8000)}{ic.get('android_mount','/nova-android')}")
 
+    # Scheduler 2×/h (X:00, X:30) — pré-déclenchement à :25 et :55
+    # pour que la génération (1-2 min) soit prête à l'heure pile
+    from datetime import datetime
+    # Bulletins h24 (toutes les 30 min, 24h/24) pour ceux qui
+    # ecoutent la radio a n'importe quelle heure
+    post_hours = list(range(0, 24))
+    last_slot = ""
+    last_heartbeat = 0
     while True:
-        time.sleep(1)
+        try:
+            now = datetime.now()
+            m, h = now.minute, now.hour
+            # Pré-déclenchement 5 min avant le slot pile :
+            #   :25-27 → vise h:30 (qui arrive dans ~5 min)
+            #   :55-57 → vise (h+1):00 (qui arrive dans ~5 min)
+            if 25 <= m < 27 and h in post_hours:
+                target_slot = f"{h:02d}:30"
+            elif 55 <= m < 57 and (h + 1) % 24 in post_hours:
+                target_slot = f"{(h + 1) % 24:02d}:00"
+            else:
+                target_slot = ""
+            # Heartbeat toutes les 5 min pour confirmer que le scheduler tourne
+            if now.timestamp() - last_heartbeat >= 300:
+                log.info(f"⏰ Scheduler actif (h={h:02d}:{m:02d}, post_hours={post_hours[:3]}...)")
+                last_heartbeat = now.timestamp()
+            if target_slot:
+                if target_slot != last_slot:
+                    last_slot = target_slot
+                    log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
+                    threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
+            time.sleep(10)  # check 6×/min pour tomber dans la fenetre [:25-:27] ou [:55-:57]
+        except Exception as e:
+            log.error(f"Erreur scheduler bulletin: {e}", exc_info=True)
+            time.sleep(10)  # ne pas mourrir en boucle
 
 
 # ─── PROCESSUS : WEB SERVER ───────────────────────────────────────────────────
@@ -331,7 +442,7 @@ def cmd_cleanup(config, dry_run: bool = False):
 
 
 def cmd_build(config):
-    from modules.core.ollama  import init_ollama
+    from modules.core.llm_client  import init_ollama
     from modules.web.atlas_web import generate_static_site
     init_ollama(config)
     logger.info("🔨 Rebuild complet...")
@@ -339,7 +450,7 @@ def cmd_build(config):
     logger.info("✅ Site généré.")
 
 def cmd_fetch(config):
-    from modules.core.ollama       import init_ollama
+    from modules.core.llm_client       import init_ollama
     from modules.fetch.atlas_fetch import ArticleFetcher
     from modules.web.atlas_web     import generate_static_site
     init_ollama(config)
@@ -349,7 +460,7 @@ def cmd_fetch(config):
     logger.info("✅ Collecte terminée.")
 
 def cmd_edition(config, edition_name):
-    from modules.core.ollama             import init_ollama
+    from modules.core.llm_client             import init_ollama
     from modules.editions.atlas_editions import EditionGenerator
     from modules.web.atlas_web           import generate_static_site
     init_ollama(config)
@@ -360,7 +471,7 @@ def cmd_edition(config, edition_name):
         logger.info(f"✅ → {out}")
 
 def cmd_report(config, day=None):
-    from modules.core.ollama      import init_ollama
+    from modules.core.llm_client      import init_ollama
     from modules.report.atlas_report import ReportGenerator
     from modules.web.atlas_web       import generate_static_site
     init_ollama(config)

@@ -126,7 +126,7 @@ class EditionGenerator:
 
     def _ollama_call(self, prompt: str) -> str:
         try:
-            from modules.core.ollama import ollama_call
+            from modules.core.llm_client import ollama_call
             return ollama_call(
                 prompt, model=self.model,
                 timeout=self.timeout, caller="editions"

@@ -63,11 +63,21 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             user_config = yaml.safe_load(f)
 
-        # Merge user config with defaults
-        config = DEFAULT_CONFIG.copy()
+        # Merge user config with defaults.
+        # NOTE: on fait des copies des dicts nested pour ne PAS muter
+        # DEFAULT_CONFIG (qui est partagé au niveau du module). Sinon
+        # deux load_config() successifs + mutation de la sortie du
+        # premier contamineraient les suivants.
+        import copy
+        config = copy.deepcopy(DEFAULT_CONFIG)
         for section, values in user_config.items():
             if isinstance(values, dict):
-                config.setdefault(section, {}).update(values)
+                # Si la section n'existe pas dans config, on crée un dict
+                # vide (pas une ref vers DEFAULT_CONFIG).
+                if section not in config or not isinstance(config.get(section), dict):
+                    config[section] = {}
+                for k, v in values.items():
+                    config[section][k] = v
             else:
                 config[section] = values
 

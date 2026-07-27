@@ -24,11 +24,17 @@ from pathlib import Path
 # ─── PRIORITÉS DES CALLERS ───────────────────────────────────────────────────
 
 CALLER_PRIORITY = {
-    "fetch":    10,
+    "fetch":    10,   # Plus haute : alimente le pool de news
+    "bulletin": 10,   # Bulletin 30 min scheduler (meme priorite que fetch) :
+                      # peut interrompre un fetch en cours pour ne pas rater
+                      # la fenetre de diffusion (l'article coupe sera re-resume
+                      # au prochain cycle)
+    "flash":    8,    # Bulletin a la demande : peut interrompre bulletin/report,
+                      # mais doit attendre la fin d'un fetch en cours
     "editions": 5,
     "report":   5,
+    "atlas":    3,    # Defaut
     "posts":    1,
-    "atlas":    3,
 }
 
 # ─── LANGUE ───────────────────────────────────────────────────────────────────
@@ -73,9 +79,74 @@ class OllamaClient:
         data_dir.mkdir(parents=True, exist_ok=True)
         self.lock_file = data_dir / "ollama.lock"
 
+        # Cache LLM sur disque (data/llm_cache/). Désactivé si use_cache=false
+        # dans la config, ou si on a un import error sur llm_cache.
+        self._cache = None
+        cache_cfg = llm_cfg.get("cache", {})
+        if cache_cfg.get("enabled", True):
+            try:
+                from modules.core.llm_cache import LLMCache
+                cache_dir = cache_cfg.get("dir") or (data_dir / "llm_cache")
+                ttl_days = int(cache_cfg.get("ttl_days", 7))
+                self._cache = LLMCache(cache_dir, ttl_days=ttl_days)
+            except Exception as e:
+                import logging as _l
+                _l.getLogger("nova.ollama").warning(
+                    f"Cache LLM désactivé (erreur init): {e}"
+                )
+
         import logging
         self.log = logging.getLogger("nova.ollama")
         self.log.info(f"LLM provider={self.provider} model={self.model} base_url={self.base_url}")
+
+        # Auto-détection du modèle via /v1/models (llama-server).
+        # Si le modèle configuré n'est pas dans la liste, on prend
+        # le premier dispo. Ça évite de garder un nom hardcodé obsolète.
+        if self.provider == "llama-server":
+            detected = self._detect_model_from_server()
+            if detected and detected != self.model:
+                self.log.info(
+                    f"Modèle configuré '{self.model}' non trouvé sur le serveur, "
+                    f"bascule sur '{detected}'"
+                )
+                self.model = detected
+            elif detected:
+                self.log.info(f"Modèle '{self.model}' confirmé sur le serveur")
+        if self._cache:
+            self.log.info(f"LLM cache activé: {self._cache.stats()}")
+
+    def _detect_model_from_server(self) -> str | None:
+        """
+        Interroge /v1/models du llama-server pour récupérer la liste
+        des modèles chargés. Retourne :
+          - self.model si présent dans la liste
+          - le 1er modèle de la liste si self.model n'y est pas
+          - None en cas d'erreur (serveur pas joignable, etc.)
+        """
+        import urllib.request, json as _json
+        try:
+            url = f"{self.base_url}/v1/models"
+            req = urllib.request.Request(url, headers={"User-Agent": "nova-atlas"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                data = _json.loads(r.read().decode("utf-8", errors="ignore"))
+        except Exception as e:
+            self.log.debug(f"Auto-détection modèle impossible: {e}")
+            return None
+        # Format OpenAI-compatible : data[].id, ou llama.cpp natif : models[].name
+        models = []
+        for m in (data.get("data") or []):
+            mid = m.get("id") or m.get("name")
+            if mid: models.append(mid)
+        for m in (data.get("models") or []):
+            mid = m.get("name") or m.get("id")
+            if mid: models.append(mid)
+        if not models:
+            return None
+        # Priorité : self.model s'il est dans la liste
+        if self.model in models:
+            return self.model
+        # Sinon, le premier
+        return models[0]
 
     # ── Verrou fichier ─────────────────────────────────────────────────────────
 
@@ -101,7 +172,21 @@ class OllamaClient:
 
             holder_priority = CALLER_PRIORITY.get(holder, 3)
 
-            if my_priority > holder_priority:
+            # Cas spécial : si le holder est un flash (bulletin à la demande),
+            # on attend TRÈS longtemps (le flash peut prendre 5-10 min pour les
+            # gros prompts, et l'utilisateur attend). Le fetch ne doit PAS
+            # interrompre un flash en cours, il attend même 30 min si nécessaire.
+            if holder == "flash" and caller == "fetch":
+                if waited >= 1800:  # 30 min max (flash peut être long)
+                    self.log.warning(f"Timeout d'attente d'un flash ({waited}s) — '{caller}' abandonne")
+                    return False
+                if waited == 0:
+                    self.log.info(f"'{caller}' attend la fin du flash en cours (max 30min)...")
+                time.sleep(5)
+                waited += 5
+                continue
+
+            if my_priority >= holder_priority:
                 if waited >= 30:
                     self.log.info(f"'{caller}' (prio {my_priority}) force '{holder}' (prio {holder_priority})")
                     break
@@ -164,10 +249,15 @@ class OllamaClient:
 
     def _call_llama_server(self, prompt: str, model: str, timeout: int) -> str:
         url = f"{self.base_url.rstrip('/')}/v1/chat/completions"
+        # max_tokens large : modèles "thinking" (Qwen3, DeepSeek-R1, etc.) brûlent
+        # 500-2000 tokens de réflexion AVANT la réponse utile. À 256 ou 512, le
+        # serveur tronque et on reçoit du texte vide / tronqué.
         payload = json.dumps({
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
+            "max_tokens": 4096,
+            "temperature": 0.3,
         }).encode("utf-8")
 
         req = urllib.request.Request(
@@ -177,34 +267,69 @@ class OllamaClient:
             method="POST",
         )
 
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                return data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-        except urllib.error.HTTPError as e:
-            self.log.error(f"llama-server HTTP {e.code}: {e.reason}")
+        # Cold-start: le 1er appel après boot du serveur ou swap de modèle
+        # peut renvoyer du vide. On retente 1 fois après 5s pour confirmer
+        # que c'est bien un cold-start et pas un vrai échec.
+        for attempt in range(2):
             try:
-                err_body = json.loads(e.read().decode("utf-8"))
-                self.log.error(f"  → {err_body}")
-            except Exception:
-                pass
-            return ""
-        except Exception as e:
-            self.log.error(f"Erreur llama-server : {e}")
-            return ""
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    content = (data.get("choices", [{}])[0]
+                                   .get("message", {})
+                                   .get("content", "")).strip()
+                    if content:
+                        return content
+                    # Contenu vide : c'est peut-être le cold-start. On retente.
+                    self.log.warning(
+                        f"llama-server a renvoyé un contenu vide "
+                        f"(attempt {attempt+1}/2) — "
+                        f"probable cold-start, retry dans 5s"
+                    )
+                    if attempt == 0:
+                        time.sleep(5)
+                        continue
+                    return ""
+            except urllib.error.HTTPError as e:
+                self.log.error(f"llama-server HTTP {e.code}: {e.reason}")
+                try:
+                    err_body = json.loads(e.read().decode("utf-8"))
+                    self.log.error(f"  → {err_body}")
+                except Exception:
+                    pass
+                return ""
+            except Exception as e:
+                self.log.error(f"Erreur llama-server : {e}")
+                return ""
+        return ""
 
     # ── Appel principal ────────────────────────────────────────────────────────
 
     def call(self, prompt: str,
              model:   str = None,
              timeout: int = None,
-             caller:  str = "atlas") -> str:
+             caller:  str = "atlas",
+             cache_key: str = None,
+             use_cache: bool = True) -> str:
         """
         Appel LLM thread-safe avec verrou fichier.
         Dispatch vers _call_ollama_cli() ou _call_llama_server() selon provider.
+
+        Si cache_key est fourni et use_cache=True (défaut), on :
+          1. cherche dans le cache disque (data/llm_cache/)
+          2. si trouvé, on renvoie sans appeler le LLM (gain ~67s/article)
+          3. sinon, on appelle le LLM et on stocke le résultat
+        Les chaînes vides (échecs LLM) ne sont jamais cachées.
         """
         if model   is None: model   = self.model
         if timeout is None: timeout = self.timeout_fetch
+
+        # ── Cache hit (pas de lock, lecture seule) ─────────────────────────
+        if cache_key and use_cache and self._cache is not None:
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                self.log.info(f"  ⚡ cache hit  {cache_key[:8]}  "
+                              f"({len(cached)} chars, caller={caller})")
+                return cached
 
         acquired = self._acquire_lock(caller, wait_max=timeout + 60)
         if not acquired:
@@ -212,9 +337,16 @@ class OllamaClient:
 
         try:
             if self.provider == "llama-server":
-                return self._call_llama_server(prompt, model, timeout)
+                result = self._call_llama_server(prompt, model, timeout)
             else:
-                return self._call_ollama_cli(prompt, model, timeout)
+                result = self._call_ollama_cli(prompt, model, timeout)
+
+            # ── Cache write (seulement si on a un contenu utile) ──────────
+            if cache_key and use_cache and self._cache is not None and result:
+                self._cache.put(cache_key, result, caller=caller, model=model)
+                self.log.info(f"  💾 cache miss → wrote {cache_key[:8]} "
+                              f"({len(result)} chars, caller={caller})")
+            return result
         except subprocess.TimeoutExpired:
             self.log.warning(f"Timeout ({timeout}s) — caller={caller} provider={self.provider}")
             return ""
@@ -364,17 +496,20 @@ def get_client() -> OllamaClient:
     if _client is None:
         raise RuntimeError(
             "OllamaClient non initialisé. "
-            "Appelle modules.core.ollama.init_ollama(config) en début de processus."
+            "Appelle modules.core.llm_client.init_ollama(config) en début de processus."
         )
     return _client
 
 
 def ollama_call(prompt: str,
-                model:   str = None,
-                timeout: int = None,
-                caller:  str = "atlas") -> str:
+                model:       str = None,
+                timeout:     int = None,
+                caller:      str = "atlas",
+                cache_key:   str = None,
+                use_cache:   bool = True) -> str:
     """Raccourci global."""
-    return get_client().call(prompt, model=model, timeout=timeout, caller=caller)
+    return get_client().call(prompt, model=model, timeout=timeout, caller=caller,
+                             cache_key=cache_key, use_cache=use_cache)
 
 
 def get_language() -> str:

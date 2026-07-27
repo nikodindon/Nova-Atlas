@@ -10,7 +10,7 @@ Refactorisé depuis atlas_fetch.py (pblart/nova-media) :
   - Toute la logique interne (RSS_SOURCES, round-robin, verrou seen_hashes,
     retry_pending_summaries, etc.) est conservée à l'identique
   - Les chemins viennent de config.paths.*
-  - Ollama passe par modules.core.ollama
+  - Ollama passe par modules.core.llm_client
 """
 
 import hashlib
@@ -26,99 +26,92 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from modules.core.ollama import init_ollama, ollama_call, get_language, get_fetch_timeout
+from modules.core.llm_client import init_ollama, ollama_call, get_language, get_fetch_timeout
 
-# ─── SOURCES RSS (identiques à atlas_fetch.py original) ───────────────────────
+# ─── SOURCES RSS (chargées depuis config/feeds.yaml) ───────────────────────
+# Avant : dict Python hardcodé (90+ lignes).
+# Maintenant : fichier YAML externe éditable + UI /config/feeds à venir.
+# Pour ajouter/retirer un flux : modifier config/feeds.yaml puis POST /config/restart.
 
+DEFAULT_FEEDS_PATH = Path("config/feeds.yaml")
+
+# Cache module-level pour éviter de relire le fichier à chaque fetch
+_cached_feeds: dict | None = None
+_cached_feeds_mtime: float = 0
+
+
+def _load_rss_sources(feeds_path: str | Path = None) -> dict:
+    """
+    Charge la liste des flux depuis config/feeds.yaml.
+    Met en cache par mtime pour éviter de relire si le fichier n'a pas changé.
+    En cas d'erreur, fallback sur un dict vide (le fetch tournera mais ne
+    ramènera rien — mieux qu'un crash).
+    """
+    global _cached_feeds, _cached_feeds_mtime
+    path = Path(feeds_path or DEFAULT_FEEDS_PATH)
+    if not path.exists():
+        return {}
+
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+
+    if _cached_feeds is not None and mtime == _cached_feeds_mtime:
+        return _cached_feeds
+
+    try:
+        from modules.core.feeds_loader import load_feeds
+        feeds = load_feeds(path)
+    except Exception as e:
+        import logging
+        logging.getLogger("nova.fetch").warning(
+            f"Impossible de charger {path}: {e} — fetch tournera à vide"
+        )
+        feeds = {}
+
+    _cached_feeds = feeds
+    _cached_feeds_mtime = mtime
+    return feeds
+
+
+def invalidate_feeds_cache():
+    """Force le rechargement au prochain appel (utilisé après /config/restart)."""
+    global _cached_feeds, _cached_feeds_mtime
+    _cached_feeds = None
+    _cached_feeds_mtime = 0
+
+
+# Backward-compat : RSS_SOURCES reste accessible comme un dict, mais
+# il est maintenant calculé à l'import. Les anciens imports continuent
+# de fonctionner mais le contenu vient de feeds.yaml.
+def _get_rss_sources() -> dict:
+    return _load_rss_sources()
+
+# Au premier import, on log combien de flux on a chargé
+def _log_rss_sources_count():
+    import logging
+    sources = _load_rss_sources()
+    total = sum(len(urls) for urls in sources.values())
+    logging.getLogger("nova.fetch").info(
+        f"RSS_SOURCES: {len(sources)} catégories, {total} flux actifs "
+        f"(depuis config/feeds.yaml)"
+    ) if total else None
+
+# Note: l'ancien dict RSS_SOURCES ci-dessous est conservé temporairement
+# comme fallback si config/feeds.yaml n'existe pas. Sera supprimé en v0.3.
 RSS_SOURCES = {
-    "geopolitique": [
-        "https://www.france24.com/fr/rss",
-        "https://www.france24.com/en/rss",
-        "https://feeds.bbci.co.uk/news/world/rss.xml",
-        "https://www.theguardian.com/world/rss",
-        "https://www.euronews.com/rss",
-        "https://feeds.reuters.com/reuters/topNews",
-        "https://apnews.com/apf-topnews.rss",
-        "https://www.aljazeera.com/xml/rss/all.xml",
-        "https://www.middleeasteye.net/rss",
-        "https://rss.dw.com/rdf/rss-en-all",
-        "https://rss.dw.com/rdf/rss-fr-all",
-        "https://www.courrierinternational.com/feed/rubrique/geopolitique/rss.xml",
-    ],
-    "economie": [
-        "https://bfmbusiness.bfmtv.com/rss/news-flux-rss/",
-        "https://www.cnbc.com/id/100003114/device/rss/rss.html",
-        "https://foreignpolicy.com/feed/",
-        "https://fr.investing.com/rss/news.rss",
-        "https://finance.yahoo.com/news/rssindex",
-        "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines",
-        "https://www.courrierinternational.com/feed/rubrique/economie/rss.xml",
-        "https://www.federalreserve.gov/feeds/press_all.xml",
-    ],
-    "crypto": [
-        "https://cointelegraph.com/rss",
-        "https://www.coindesk.com/arc/outboundfeeds/rss/",
-        "https://cryptopanic.com/news/rss/",
-        "https://theblock.co/rss.xml",
-        "https://decrypt.co/feed",
-    ],
-    "tech": [
-        "https://www.technologyreview.com/stories.rss",
-        "https://www.wired.com/feed/rss",
-        "https://www.futura-sciences.com/rss/actualites.xml",
-        "https://feeds.arstechnica.com/arstechnica/index",
-        "https://hnrss.org/frontpage",
-        "https://www.01net.com/rss/",
-        "https://next.ink/feed/",
-    ],
-    "france": [
-        "https://www.lemonde.fr/rss/une.xml",
-        "https://www.lemonde.fr/rss/en_continu.xml",
-        "https://www.liberation.fr/arc/outboundfeeds/rss/",
-        "https://www.lefigaro.fr/rss/figaro_actualites.xml",
-        "https://www.courrierinternational.com/feed/rubrique/france/rss.xml",
-        "https://www.courrierinternational.com/feed/rubrique/societe/rss.xml",
-    ],
-    "monde": [
-        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-        "https://feeds.nbcnews.com/nbcnews/public/world",
-        "https://www.courrierinternational.com/feed/all/rss.xml",
-        "https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr",
-        "https://news.google.com/rss?hl=en&gl=EN&ceid=EN:en",
-        "https://www.theatlantic.com/feed/all/",
-    ],
-    "science": [
-        "https://www.futura-sciences.com/rss/actualites.xml",
-        "https://www.sciencesetavenir.fr/rss.xml",
-        "https://feeds.feedburner.com/sciencedaily",
-        "https://www.nature.com/nature.rss",
-        "https://www.who.int/rss-feeds/news-english.xml",
-    ],
-    "environnement": [
-        "https://www.theguardian.com/environment/rss",
-        "https://www.courrierinternational.com/feed/rubrique/science-environnement/rss.xml",
-        "https://reporterre.net/spip.php?page=backend",
-        "https://www.revolution-energetique.com/feed/",
-        "https://www.goodplanet.info/feed/",
-    ],
-    "societe": [
-        "https://www.amnesty.org/en/feed/",
-        "https://www.hrw.org/rss",
-        "https://theconversation.com/global/articles.atom",
-        "https://www.courrierinternational.com/feed/rubrique/expat/rss.xml",
-    ],
-    "culture": [
-        "https://www.premiere.fr/rss/actu-cinema",
-        "https://www.lemonde.fr/arts/rss/une.xml",
-        "https://pitchfork.com/rss/news/",
-        "https://www.courrierinternational.com/feed/rubrique/culture/rss.xml",
-        "https://www.lesinrocks.com/feed/",
-    ],
-    "sport": [
-        "https://rmcsport.bfmtv.com/rss/news-flux-rss/",
-        "https://www.bbc.co.uk/sport/rss.xml",
-        "https://www.espn.com/espn/rss/news",
-    ],
+    "geopolitique": [],
+    "economie": [],
+    "crypto": [],
+    "tech": [],
+    "france": [],
+    "monde": [],
+    "science": [],
+    "environnement": [],
+    "societe": [],
+    "culture": [],
+    "sport": [],
 }
 
 MIN_TITLE_LEN     = 25
@@ -275,6 +268,8 @@ class ArticleFetcher:
 
         rss_cfg = config.get("rss", {})
         self.max_per_feed = int(rss_cfg.get("max_articles_per_feed", 8))
+        # 0 = pas de cap par catégorie. Active via config: rss.max_per_category: 8
+        self.max_per_category = int(rss_cfg.get("max_per_category", 0))
 
         # retry_summaries : False par défaut — désactivé pour garder un flux continu
         fetch_cfg = config.get("fetch", {})
@@ -285,8 +280,11 @@ class ArticleFetcher:
         self._config = config
         self._apply_config(config)
         # Recharge aussi le client Ollama (modèle peut avoir changé)
-        from modules.core.ollama import init_ollama as _init
+        from modules.core.llm_client import init_ollama as _init
         _init(config)
+        # Invalide le cache feeds.yaml pour forcer le rechargement
+        # des flux RSS au prochain cycle.
+        invalidate_feeds_cache()
         self.log.info("[FETCH] Config rechargée à chaud.")
 
     # ── Seen hashes ───────────────────────────────────────────────────────────
@@ -401,6 +399,11 @@ class ArticleFetcher:
     def _summarize(self, title: str, content: str, category: str) -> str:
         if not content.strip():
             return ""
+        from modules.core.llm_cache import cache_key as _cache_key
+        # La clé ne dépend PAS du prompt (qui peut évoluer) ni de la
+        # catégorie (peut être reclassifiée). Uniquement du contenu
+        # de l'article (title + content tronqué = signature stable).
+        key = _cache_key(title, content[:500])
         lang = get_language()
         prompt = (
             f"Tu es un journaliste de qualité. Résume cet article de manière claire et complète.\n"
@@ -413,10 +416,13 @@ class ArticleFetcher:
             f"- Ajoute le contexte nécessaire pour comprendre l'article\n"
             f"- Ton neutre et factuel\n"
             f"- Réponds en {lang}\n"
-            f"- N'invente rien qui ne soit pas dans le texte\n\n"
+            f"- N'invente rien qui ne soit pas dans le texte\n"
+            f"- Texte brut, sans markdown : pas d'astérisques (**), pas de dièses (#), "
+            f"pas de backticks (`), pas de liens [texte](url). Juste des phrases.\n\n"
             f"Résumé :"
         )
-        output = ollama_call(prompt, timeout=get_fetch_timeout(), caller="fetch")
+        output = ollama_call(prompt, timeout=get_fetch_timeout(),
+                             caller="fetch", cache_key=key)
         if not output:
             self.log.warning(f"Ollama vide/timeout : {title[:60]}")
             return output
@@ -427,7 +433,7 @@ class ArticleFetcher:
     def _translate_title(self, title: str) -> str:
         """Traduit le titre dans la langue cible si elle diffère de l'original.
         Utilise un prompt ultra-court pour minimiser le temps Ollama."""
-        from modules.core.ollama import get_language
+        from modules.core.llm_client import get_language
         lang = get_language()
         # Ne traduit pas si la langue cible est l'anglais ou le français
         # et que le titre semble déjà dans une de ces langues (heuristique rapide)
@@ -510,8 +516,13 @@ class ArticleFetcher:
         else:
             self.log.info(f"  [{category[:4].upper()}] {title[:65]}…")
             summary = self._summarize(title, content, category)
+            # Nettoie le résumé des artefacts markdown (filet de sécurité
+            # au cas où le LLM en mettrait encore malgré le prompt).
+            # Sans ça, le site affiche "**bold**" et la radio dit "astérisque".
+            from modules.utils.helpers import clean_for_tts
+            summary = clean_for_tts(summary)
             # Traduction du titre dans la langue cible (si différente)
-            from modules.core.ollama import get_language
+            from modules.core.llm_client import get_language
             lang = get_language()
             translated_title = self._translate_title(title) if lang not in ("français","french","fr") else title
             article = {
@@ -616,9 +627,13 @@ class ArticleFetcher:
             self.log.info(f"Phase 0 : {retried} résumés récupérés")
 
         # Phase 1 — Collecte RSS
+        # On recharge les flux depuis feeds.yaml (cached via mtime). Si le
+        # fichier a été modifié via /config/feeds ou /config/restart, la
+        # cache est invalidée (voir reload_config()).
+        rss_sources = _load_rss_sources()
         self.log.info("Collecte des flux RSS...")
         queues: dict = {}
-        for category, feeds in RSS_SOURCES.items():
+        for category, feeds in rss_sources.items():
             pending = []
             for feed_url in feeds:
                 items = self._fetch_rss(feed_url)
@@ -630,7 +645,26 @@ class ArticleFetcher:
                 queues[category] = pending
                 self.log.info(f"  {category:15} : {len(pending)} nouveaux")
 
+        # Log explicite des catégories sans nouvel article (pour qu'on sache
+        # qu'elles existent et qu'elles sont juste calmes dans la fenêtre).
+        all_cats = list(rss_sources.keys())
+        empty_cats = [c for c in all_cats if c not in queues]
+        if empty_cats:
+            self.log.info(f"  (calmes: {', '.join(empty_cats)})")
+
         total_pending = sum(len(v) for v in queues.values())
+
+        # Cap par catégorie (rss.max_per_category). On garantit le même
+        # quota à chaque catégorie pour préserver la diversité, plutôt
+        # qu'un cap global qui favorise les premières catégories remplies.
+        max_per_cat = self.max_per_category
+        if max_per_cat:
+            for cat in queues:
+                if len(queues[cat]) > max_per_cat:
+                    queues[cat] = queues[cat][:max_per_cat]
+            total_pending = sum(len(v) for v in queues.values())
+            self.log.info(f"Cap par catégorie : {max_per_cat} articles/cat (total: {total_pending})")
+
         self.log.info(f"Total à traiter : {total_pending} articles")
 
         if not total_pending:
@@ -655,3 +689,42 @@ class ArticleFetcher:
             f"({len(articles)} total aujourd'hui)"
         )
         return new_count
+
+    @staticmethod
+    def _cap_queues(queues: dict, cap: int) -> dict:
+        """
+        Réduit chaque queue proportionnellement pour atteindre `cap` au total,
+        en préservant au minimum 1 article par catégorie non vide.
+        """
+        non_empty = [c for c, v in queues.items() if v]
+        if not non_empty or cap <= 0:
+            return {}
+        # 1 article garanti par catégorie, le reste au prorata
+        per_cat_min = 1
+        leftover = cap - per_cat_min * len(non_empty)
+        if leftover < 0:
+            # Cap trop petit pour garantir 1 par cat : on prend round-robin jusqu'à épuisement
+            return {c: queues[c] for c in non_empty[:cap]}
+        sizes = {c: len(queues[c]) for c in non_empty}
+        total = sum(sizes.values())
+        if total <= 0:
+            return {c: queues[c] for c in non_empty}
+        out = {}
+        for c in non_empty:
+            share = per_cat_min + int(round(leftover * sizes[c] / total))
+            out[c] = queues[c][:share]
+        # Ajustement final : si on a dépassé ou sous-estimé, on rectifie sur les + gros
+        diff = cap - sum(len(v) for v in out.values())
+        if diff != 0:
+            order = sorted(non_empty, key=lambda c: -sizes[c])
+            i = 0
+            while diff != 0 and i < 1000:
+                c = order[i % len(order)]
+                if diff > 0 and len(out[c]) < sizes[c]:
+                    out[c] = queues[c][:len(out[c]) + 1]
+                    diff -= 1
+                elif diff < 0 and len(out[c]) > per_cat_min:
+                    out[c] = out[c][:-1]
+                    diff += 1
+                i += 1
+        return out

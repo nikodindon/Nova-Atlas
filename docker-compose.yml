@@ -1,8 +1,9 @@
-version: '3.8'
-
 services:
   icecast:
-    image: ghcr.io/karlheinzniebuhr/icecast:latest
+    # NOTE: l'image ghcr.io/karlheinzniebuhr/icecast:latest référencée avant
+    # n'est plus accessible (registry denied). Remplacée par moul/icecast:latest
+    # qui sert HTTP 200 sur /admin/ avec les creds par défaut.
+    image: moul/icecast:latest
     container_name: nova-icecast
     restart: unless-stopped
     ports:
@@ -11,8 +12,6 @@ services:
       - ICECAST_SOURCE_PASSWORD=hackme
       - ICECAST_ADMIN_PASSWORD=hackme
       - ICECAST_HOSTNAME=localhost
-    volumes:
-      - ./icecast.xml:/etc/icecast2/icecast.xml:ro
     networks:
       - nova-net
 
