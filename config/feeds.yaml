@@ -210,6 +210,11 @@ asie:
   # [AUDIT 2026-07-27] https://www.straitstimes.com/news/world/rss.xml      # 200 vide
   # [AUDIT 2026-07-27] https://www.inquirer.net/fullfeed              # KO round 1
   - https://phnompenhpost.com/feed                      # Phnom Penh Post (Cambodge, EN)
+  # Google News par pays (sprint 2026-07-27, audit 3/3 STABLES)
+  # Comble Japon/Chine/Coree qui n'ont AUCUNE source locale (anti-bots)
+  - https://news.google.com/rss/search?q=%E6%97%A5%E6%9C%AC&hl=ja&gl=JP&ceid=JP:ja  # Japon (JP natif, 102 items)
+  - https://news.google.com/rss/search?q=%E4%B8%AD%E5%9B%BD&hl=zh-CN&gl=CN&ceid=CN:zh-Hans  # Chine (CN natif, 104 items)
+  - https://news.google.com/rss/search?q=%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD&hl=ko&gl=KR&ceid=KR:ko  # Coree du Sud (KR, 104 items)
   # Inde / Asie du Sud
   # [AUDIT 2026-07-27] https://www.thehindu.com/news/international/feeder/default.rss  # 404
   # [AUDIT 2026-07-27] https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms   # 404
