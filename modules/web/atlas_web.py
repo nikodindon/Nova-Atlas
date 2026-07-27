@@ -57,10 +57,10 @@ CATEGORY_ICONS = {
     "sciences_humaines":"🧠",
     "auto":             "🚗",
     "regions":          "🗺️",  # anciennement local_france, renommé 2026-07-07
-    "asie":             "🇯🇵",  # ajoutée 2026-07-27 (audit + Asie)
+    "asie":             "🏯",  # ajoutée 2026-07-27 (pagode, symbole asiatique universel)
     "monde_arabe":      "🕌",  # ajoutée 2026-07-27 (Maghreb + Moyen-Orient)
-    "eurasie":          "🪆",  # ajoutée 2026-07-27 (Russie/Biélorussie/Kazakhstan)
-    "europe":           "🇪🇺",  # ajoutée 2026-07-27 (27 UE + UK) - backlog
+    "eurasie":          "🪆",  # ajoutée 2026-07-27 (matriochka, Russie)
+    "europe":           "🏰",  # ajoutée 2026-07-27 (chateau medieval, 27 UE + UK) - backlog
 }
 
 EDITION_CONFIG = {
