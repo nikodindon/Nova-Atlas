@@ -27,7 +27,7 @@ geopolitique:
   - https://www.aljazeera.com/xml/rss/all.xml
   - https://www.middleeasteye.net/rss
   - https://rss.dw.com/rdf/rss-en-all
-  - https://rss.dw.com/rdf/rss-fr-all
+  # [AUDIT 2026-07-27] https://rss.dw.com/rdf/rss-fr-all  # 200 mais 0 item (FR feed mort, EN couvre)
   - https://www.courrierinternational.com/feed/rubrique/geopolitique/rss.xml
   # [SPRINT0] https://feeds.reuters.com/reuters/topNews       # DNS fail
   # [SPRINT0] https://apnews.com/apf-topnews.rss              # 404
@@ -51,6 +51,7 @@ crypto:
   - https://cryptopanic.com/news/rss/
   - https://theblock.co/rss.xml
   - https://decrypt.co/feed
+  # [AUDIT 2026-07-27] https://cryptopanic.com/news/rss/   # 200 mais 0 item (anti-scraping)
 
 tech:
   - https://www.technologyreview.com/stories.rss
@@ -139,7 +140,7 @@ gaming:
 
 regions:  # anciennement local_france, renomme pour clarte
   - https://www.francetvinfo.fr/france/ile-de-france.rss
-  - https://www.francetvinfo.fr/france/auvergne-rhone-alpes.rss
+  # [AUDIT 2026-07-27] https://www.francetvinfo.fr/france/auvergne-rhone-alpes.rss  # 200 mais 0 item
   - https://www.francetvinfo.fr/france/provence-alpes-cote-d-azur.rss
 
 sciences_humaines:
@@ -152,3 +153,124 @@ auto:
   - https://www.automobile-propre.com/feed/
   # [SPRINT0] https://www.caradisiac.com/feed/  # 410 Gone
   - https://www.urbo.com/feed/
+
+# ================================================
+# ASIE — Chine, Japon, Corée, Vietnam, ASEAN, Inde
+# ================================================
+# Audit 2026-07-27 : 14 flux verifies (HTTP 200 + items).
+# Majoritairement en anglais pour la qualite de resume LLM
+# (sauf Asahi en JP, source incontournable Japon).
+# Exclus : NHK, Kyodo, Caixin, Global Times, Jakarta Post, Dawn
+# (404/403) et Khmer Times (timeout).
+asie:
+  # 14/17 flux KO a l'audit live 2026-07-27 (UA AtlasNews/2.0, 2 essais).
+  # Pattern : 404 / 403 / 500 / 200-vide (anti-bots agressifs, geo-blocage).
+  # Seul 3 flux STABLES : CNA, Phnom Penh Post, et 1 autre.
+  # Round 3 a faire avec proxy / service tiers.
+  # Globaux / analyses
+  # [AUDIT 2026-07-27] https://thediplomat.com/feed/                  # 403
+  # [AUDIT 2026-07-27] https://asia.nikkei.com/rss/feed/nar           # 500
+  # [AUDIT 2026-07-27] https://www.scmp.com/rss/91/feed               # 404
+  # Japon
+  # [AUDIT 2026-07-27] https://www.japantimes.co.jp/feed/             # 404
+  # [AUDIT 2026-07-27] https://www.asahi.com/rss/asahi/newsheadlines.rdf  # 404
+  # Coree
+  # [AUDIT 2026-07-27] https://www.koreatimes.co.kr/www/rss/rss.xml   # 200 vide
+  # Chine
+  # [AUDIT 2026-07-27] https://www.sixthtone.com/rss                  # 404
+  # [AUDIT 2026-07-27] https://www.chinadaily.com.cn/rss/world_rss.xml # 200 vide
+  # Vietnam / ASEAN
+  # [AUDIT 2026-07-27] https://e.vnexpress.net/rss/news.rss           # 404
+  # [AUDIT 2026-07-27] https://vietnamnews.vn/rss/news.rss            # 404
+  # [AUDIT 2026-07-27] https://www.bangkokpost.com/rss/data/topstories.xml  # 404
+  # [AUDIT 2026-07-27] https://www.straitstimes.com/news/world/rss.xml      # 200 vide
+  # [AUDIT 2026-07-27] https://www.inquirer.net/fullfeed              # KO round 1
+  - https://phnompenhpost.com/feed                      # Phnom Penh Post (Cambodge, EN)
+  # Inde / Asie du Sud
+  # [AUDIT 2026-07-27] https://www.thehindu.com/news/international/feeder/default.rss  # 404
+  # [AUDIT 2026-07-27] https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms   # 404
+  - https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml  # CNA Singapour (EN)
+
+# ================================================
+# MONDE ARABE — Maghreb + Moyen-Orient + Iran + Israël
+# ================================================
+# Audit 2026-07-27 : 11 flux uniques verifies.
+# Exclus : Al Jazeera, Middle East Eye, Courrier International
+# (deja presents dans geopolitique/monde → doublons d'articles).
+# Sources Maghreb majoritairement en FR pour qualite de resume LLM.
+monde_arabe:
+  # 7/11 flux KO a l'audit live 2026-07-27 (UA AtlasNews/2.0, 2 essais).
+  # Pattern similaire a asie : 404 / 403 / 200-vide.
+  # 4 flux STABLES : Hespress (Maroc), TSA (Algerie), Arab News (Saudi), Egypt Independent.
+  # Maghreb FR
+  - https://www.hespress.com/feed/                      # Hespress (Maroc, FR)
+  - https://www.tsa-algerie.com/feed/                  # TSA (Algerie, FR)
+  # [AUDIT 2026-07-27] https://www.liberte-algerie.com/feed/         # 404
+  # [AUDIT 2026-07-27] https://www.theafricareport.com/feed/         # 403
+  # Angle arabe
+  # [AUDIT 2026-07-27] https://www.france24.com/ar/rss               # 404
+  # [AUDIT 2026-07-27] https://www.al-monitor.com/rss                # 404
+  # Moyen-Orient / Golfe
+  - https://www.arabnews.com/rss.xml                   # Arab News (Saudi, EN)
+  # Iran
+  # [AUDIT 2026-07-27] https://www.tehrantimes.com/rss               # 404
+  # [AUDIT 2026-07-27] https://iranwire.com/en/feed/                 # 403
+  # Israel
+  # [AUDIT 2026-07-27] https://www.timesofisrael.com/feed/           # 403
+  # Egypte
+  - https://www.egyptindependent.com/feed/             # Egypt Independent (EN)
+
+# ================================================
+# EURASIE — Russie, Biélorussie, Kazakhstan
+# ================================================
+# Audit 2026-07-27 : 8 flux selectionnes pour equilibre pays + contre-poids.
+# Majoritairement en russe natif (l'optique etait "leur vision locale").
+# Moscow Times est le seul media independant (exile depuis 2022) pour
+# eviter d'avoir 100% de voix officielles.
+# Exclus : Lenta, RIA, RG, Sputnik (géo-bloqués), TASS EN, Kazinform, Regnum (KO).
+eurasie:
+  # Russie - medias d'etat / officiels
+  - https://tass.ru/rss/v2.xml?section=world            # TASS world (RU, 99 items)
+  - https://tass.ru/rss/v2.xml?section=politics         # TASS politics (RU, 99 items)
+  - https://www.rt.com/rss/news/                        # RT English (31 items)
+  # Russie - presse economique / qualite
+  - https://www.kommersant.ru/RSS/news.xml              # Kommersant (RU, 333 items)
+  # [AUDIT 2026-07-27] https://www.vedomosti.ru/rss/news        # 404 stable (RBC, Forbes, Vedomosti alternatives KO)
+  # Russie - voix independante
+  # [AUDIT 2026-07-27] https://meduza.io/rss/all                  # 404 (site bloque par IP / CDN)
+  # Bielorussie - alternatif via Google News
+  - https://news.google.com/rss/search?q=Belarus&hl=ru  # Google News Belarus (100 items, mix local)
+  # [AUDIT 2026-07-27] https://eng.belta.by/rss                  # 404 stable (Belarus Feed, Charter97, Tribuna KO)
+  # [AUDIT 2026-07-27] https://www.belta.by/rss                  # 404 stable
+  # Kazakhstan
+  - https://astanatimes.com/feed/                       # Astana Times (EN, 10 items)
+
+# ================================================
+# EUROPE — 27 pays UE + Royaume-Uni
+# ================================================
+# Audit 2026-07-27 : 16 flux selectionnes pour equilibre paneuro/grand pays/petit pays.
+# Objectif : eviter le bias UK/DE/FR qui dominent geopolitique.
+# Exclus : El Pais, Euractiv, Sky News, Luxembourg Times (403), The Local x4, FAZ,
+# Die Zeit, ANSA EN, Brussels Times (KO/vide), Le Soir, Greek Reporter, ekathimerini,
+# RTVE, RTÉ, Irish Times, TVN24, PAP, Público, Finlande (KO), Malte, Slovaquie (pas testé).
+# ================================================
+# EUROPE — BACKLOG sprint suivant (round 3)
+# ================================================
+# Sprint 2026-07-27 : categorie europe NON livree. Tests montrent que
+# les flux europeens ont un pattern "200+items au 1er essai, 404/403 ou
+# 200-vide au 2e essai" (anti-bot agressif). Round 1 + Round 2 ont
+# remonte 50+ candidats potentiels mais le audit live sequentiel 2 essais
+# en detecte ~80% comme instables.
+#
+# Round 3 a faire : tester avec Accept-Language FR/EN par site,
+# explorer les flux aggregator (Feedly, Inoreader public), ou utiliser
+# un service tiers (RSS.app, FetchRSS) qui gere la negociation.
+#
+# Ci-dessous les URLs qui semblaient STABLES au test round 1+2 (avant
+# que l'audit live ne montre leur instabilite). LAISSEES EN COMMENTAIRE
+# pour documentation, a reactiver au round 3.
+# europe:
+#   # (commenté - voir backlog ci-dessus)
+#   - https://www.euronews.com/rss?level=theme&name=news
+#   - https://www.politico.eu/feed/
+#   ...

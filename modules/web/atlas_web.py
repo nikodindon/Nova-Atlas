@@ -57,6 +57,10 @@ CATEGORY_ICONS = {
     "sciences_humaines":"🧠",
     "auto":             "🚗",
     "regions":          "🗺️",  # anciennement local_france, renommé 2026-07-07
+    "asie":             "🌏",  # ajoutée 2026-07-27 (audit + Asie)
+    "monde_arabe":      "🕌",  # ajoutée 2026-07-27 (Maghreb + Moyen-Orient)
+    "eurasie":          "🌍",  # ajoutée 2026-07-27 (Russie/Biélorussie/Kazakhstan)
+    # "europe" : pas livrée ce sprint, voir backlog dans config/feeds.yaml
 }
 
 EDITION_CONFIG = {
@@ -228,6 +232,10 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "Sciences Humaines",
         "auto":              "Auto",
         "regions":           "Régions",  # anciennement local_france, renommé 2026-07-07
+        "asie":              "Asie",     # ajoutée 2026-07-27
+        "monde_arabe":       "Monde Arabe",  # ajoutée 2026-07-27
+        "eurasie":           "Eurasie",       # ajoutée 2026-07-27
+        # "europe" backlog — pas livrée ce sprint
     },
     "en": {
         "geopolitique": "Geopolitics", "economie": "Economy", "crypto": "Crypto",
@@ -239,6 +247,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "Human Sciences",
         "auto":              "Auto",
         "regions":           "Regions",
+        "asie":              "Asia",
+        "monde_arabe":       "Arab World",
+        "eurasie":           "Eurasia",
     },
     "de": {
         "geopolitique": "Geopolitik", "economie": "Wirtschaft", "crypto": "Krypto",
@@ -250,6 +261,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "Geisteswissenschaften",
         "auto":              "Auto",
         "regions":           "Regionen",
+        "asie":              "Asien",
+        "monde_arabe":       "Arabische Welt",
+        "eurasie":           "Eurasien",
     },
     "es": {
         "geopolitique": "Geopolítica", "economie": "Economía", "crypto": "Cripto",
@@ -261,6 +275,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "Ciencias Humanas",
         "auto":              "Auto",
         "regions":           "Regiones",
+        "asie":              "Asia",
+        "monde_arabe":       "Mundo Árabe",
+        "eurasie":           "Eurasia",
     },
     "pt": {
         "geopolitique": "Geopolítica", "economie": "Economia", "crypto": "Cripto",
@@ -272,6 +289,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "Ciências Humanas",
         "auto":              "Auto",
         "regions":           "Regiões",
+        "asie":              "Ásia",
+        "monde_arabe":       "Mundo Árabe",
+        "eurasie":           "Eurásia",
     },
     "it": {
         "geopolitique": "Geopolitica", "economie": "Economia", "crypto": "Cripto",
@@ -283,6 +303,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "Scienze Umane",
         "auto":              "Auto",
         "regions":           "Regioni",
+        "asie":              "Asia",
+        "monde_arabe":       "Mondo Arabo",
+        "eurasie":           "Eurasia",
     },
     "ru": {
         "geopolitique": "Геополитика", "economie": "Экономика", "crypto": "Крипто",
@@ -294,6 +317,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "Гуманитарные науки",
         "auto":              "Авто",
         "regions":           "Регионы",
+        "asie":              "Азия",
+        "monde_arabe":       "Арабский мир",
+        "eurasie":           "Евразия",
     },
     "zh": {
         "geopolitique": "地缘政治", "economie": "经济", "crypto": "加密货币",
@@ -305,6 +331,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "人文学科",
         "auto":              "汽车",
         "regions":           "地区",
+        "asie":              "亚洲",
+        "monde_arabe":       "阿拉伯世界",
+        "eurasie":           "欧亚大陆",
     },
     "ar": {
         "geopolitique": "الجيوسياسية", "economie": "الاقتصاد", "crypto": "عملات مشفرة",
@@ -316,6 +345,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "علوم إنسانية",
         "auto":              "سيارات",
         "regions":           "المناطق",
+        "asie":              "آسيا",
+        "monde_arabe":       "العالم العربي",
+        "eurasie":           "أوراسيا",
     },
     "ja": {
         "geopolitique": "地政学", "economie": "経済", "crypto": "暗号資産",
@@ -327,6 +359,9 @@ _CAT_LABELS_I18N = {
         "sciences_humaines": "人文科学",
         "auto":              "車",
         "regions":           "地域",
+        "asie":              "アジア",
+        "monde_arabe":       "アラブ世界",
+        "eurasie":           "ユーラシア",
     },
 }
 
