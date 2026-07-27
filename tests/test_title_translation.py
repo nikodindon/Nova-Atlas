@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Tests pour la détection de langue et la traduction de titre.
+Tests pour la traduction de titre.
 
-Couvre :
-  - _has_non_latin_chars : détection des caractères non-latins (CJK, cyrillique,
-    arabe, hébreu, devanagari, thai)
-  - _translate_title avec force=True/False
-  - L'ancienne condition `if lang not in ("français","french","fr")` doit
-    être remplacée par la détection de caractères
+Politique : on traduit TOUJOURS le titre vers la langue cible (default_language
+du config.yaml). C'est plus simple, plus coherent (tous les titres dans la
+meme langue que les resumes), et le LLM est rapide (~1s/appel).
+
+Couverture :
+  - Titres en francais : traduits quand meme (coherence home)
+  - Titres en anglais : traduits
+  - Titres en CJK / cyrillique / arabe : traduits
+  - Titre vide : retourne vide, pas d'appel LLM
+  - LLM echec : fallback sur l'original
+  - LLM guillemets : strip
+  - LLM '[Timeout]' : fallback sur l'original
 """
 import sys
 from unittest.mock import patch, MagicMock
@@ -22,141 +28,130 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from modules.fetch.atlas_fetch import ArticleFetcher
 
 
-class TestNonLatinDetection:
-    """Tests pour la regex de detection de caracteres non-latins."""
-
-    def setup_method(self):
-        # ArticleFetcher a besoin d'un config minimal
-        self.fetcher = ArticleFetcher.__new__(ArticleFetcher)
-        self.fetcher.log = MagicMock()
-
-    def test_japanese_detected(self):
-        assert self.fetcher._has_non_latin_chars("日本円が急落")
-
-    def test_chinese_simplified_detected(self):
-        assert self.fetcher._has_non_latin_chars("中国政府发布新政策")
-
-    def test_chinese_traditional_detected(self):
-        assert self.fetcher._has_non_latin_chars("日本經濟成長")  # aussi CJK unifie
-
-    def test_korean_detected(self):
-        assert self.fetcher._has_non_latin_chars("한국 경제 성장")
-
-    def test_cyrillic_russian_detected(self):
-        assert self.fetcher._has_non_latin_chars("Путин встретился с Си")
-
-    def test_cyrillic_ukrainian_detected(self):
-        assert self.fetcher._has_non_latin_chars("Це новина українською")
-
-    def test_arabic_detected(self):
-        assert self.fetcher._has_non_latin_chars("الاقتصاد ينمو في مصر")
-
-    def test_hebrew_detected(self):
-        assert self.fetcher._has_non_latin_chars("המשק הישראלי צומח")
-
-    def test_hindi_detected(self):
-        assert self.fetcher._has_non_latin_chars("भारत की अर्थव्यवस्था")
-
-    def test_thai_detected(self):
-        assert self.fetcher._has_non_latin_chars("เศรษฐกิจไทยเติบโต")
-
-
-class TestLatinPassThrough:
-    """Titres en caracteres latins : ne doivent PAS declencher la traduction."""
+class TestAlwaysTranslate:
+    """Tous les titres sont traduits (coherence de la home)."""
 
     def setup_method(self):
         self.fetcher = ArticleFetcher.__new__(ArticleFetcher)
         self.fetcher.log = MagicMock()
 
-    def test_french_with_accents(self):
-        assert not self.fetcher._has_non_latin_chars("Macron rencontre Xi à Paris")
-
-    def test_french_typical(self):
-        assert not self.fetcher._has_non_latin_chars("Les prix du gaz augmentent en Europe")
-
-    def test_english_pure(self):
-        assert not self.fetcher._has_non_latin_chars("The economy grows in 2025")
-
-    def test_spanish_with_accents(self):
-        assert not self.fetcher._has_non_latin_chars("La economía española crece")
-
-    def test_japanese_name_romaji(self):
-        # Nom propre japonais enromaji (latin) - doit PAS declencher
-        assert not self.fetcher._has_non_latin_chars("Yamamoto wins gold in Paris")
-
-    def test_french_with_japanese_name(self):
-        # Francais avec nom propre japonais enromaji
-        assert not self.fetcher._has_non_latin_chars("Japon : Kishida announces election")
-
-
-class TestTranslateTitleSkipsLatin:
-    """Le bug d'origine : titres latins (FR/EN) declenchaient la traduction
-    si la langue cible etait differente. Avec le fix, ils sont skippes."""
-
-    def setup_method(self):
-        self.fetcher = ArticleFetcher.__new__(ArticleFetcher)
-        self.fetcher.log = MagicMock()
-
-    def test_latin_title_no_llm_call(self):
-        """Un titre latin ne doit PAS appeler ollama_call."""
+    def test_french_title_is_translated(self):
+        """Meme un titre francais est passe au LLM pour coherence."""
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
-            result = self.fetcher._translate_title("Macron meets Xi in Paris")
-            assert result == "Macron meets Xi in Paris"
-            assert mock_ollama.call_count == 0
-
-    def test_empty_title_returns_empty(self):
-        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
-            assert self.fetcher._translate_title("") == ""
-            assert self.fetcher._translate_title("   ") == "   "
-            assert mock_ollama.call_count == 0
-
-    def test_force_true_overrides_heuristic(self):
-        """force=True doit appeler ollama meme pour un titre latin."""
-        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
-            mock_ollama.return_value = "Macron meets Xi in Paris (translated)"
-            result = self.fetcher._translate_title("Macron meets Xi in Paris", force=True)
+            mock_ollama.return_value = "Macron rencontre Xi à Paris (traduit)"
+            result = self.fetcher._translate_title("Macron rencontre Xi à Paris")
             assert mock_ollama.call_count == 1
-            assert "translated" in result
+            assert "traduit" in result
 
-    def test_non_latin_title_calls_llm(self):
-        """Un titre CJK doit appeler ollama_call."""
+    def test_english_title_is_translated(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = "Macron rencontre Xi à Paris"
+            result = self.fetcher._translate_title("Macron meets Xi in Paris")
+            assert mock_ollama.call_count == 1
+            assert result == "Macron rencontre Xi à Paris"
+
+    def test_spanish_title_is_translated(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = "L'économie espagnole grandit"
+            result = self.fetcher._translate_title("La economía española crece")
+            assert mock_ollama.call_count == 1
+            assert "grandit" in result
+
+    def test_japanese_title_translated(self):
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
             mock_ollama.return_value = "Le yen chute fortement"
             result = self.fetcher._translate_title("日本円が急落")
             assert mock_ollama.call_count == 1
             assert result == "Le yen chute fortement"
 
-    def test_cyrillic_title_calls_llm(self):
+    def test_chinese_title_translated(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = "Le gouvernement chinois publie une nouvelle politique"
+            result = self.fetcher._translate_title("中国政府发布新政策")
+            assert mock_ollama.call_count == 1
+            assert "gouvernement chinois" in result
+
+    def test_korean_title_translated(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = "Croissance de l'économie coréenne"
+            result = self.fetcher._translate_title("한국 경제 성장")
+            assert mock_ollama.call_count == 1
+            assert "coréenne" in result
+
+    def test_cyrillic_title_translated(self):
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
             mock_ollama.return_value = "Poutine a rencontré Xi"
             result = self.fetcher._translate_title("Путин встретился с Си")
             assert mock_ollama.call_count == 1
-            assert result == "Poutine a rencontré Xi"
+            assert "Poutine" in result
 
-    def test_arabic_title_calls_llm(self):
+    def test_arabic_title_translated(self):
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
             mock_ollama.return_value = "L'économie grandit en Egypte"
             result = self.fetcher._translate_title("الاقتصاد ينمو في مصر")
             assert mock_ollama.call_count == 1
-            assert result == "L'économie grandit en Egypte"
+            assert "Egypte" in result
 
-    def test_llm_failure_falls_back_to_original(self):
-        """Si ollama_call echoue, on garde le titre original."""
+    def test_hindi_title_translated(self):
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
-            mock_ollama.return_value = ""  # echec
-            result = self.fetcher._translate_title("日本円が急落")
-            assert result == "日本円が急落"
+            mock_ollama.return_value = "L'économie indienne"
+            result = self.fetcher._translate_title("भारत की अर्थव्यवस्था")
+            assert mock_ollama.call_count == 1
+            assert "indienne" in result
 
-    def test_llm_brackets_falls_back(self):
-        """Si ollama retourne '[Timeout]' on garde l'original."""
+    def test_thai_title_translated(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = "L'économie thaïlandaise grandit"
+            result = self.fetcher._translate_title("เศรษฐกิจไทยเติบโต")
+            assert mock_ollama.call_count == 1
+            assert "thaïlandaise" in result
+
+
+class TestEmptyAndFallback:
+    """Cas limites : titre vide, LLM qui echoue."""
+
+    def setup_method(self):
+        self.fetcher = ArticleFetcher.__new__(ArticleFetcher)
+        self.fetcher.log = MagicMock()
+
+    def test_empty_string_returns_empty_no_llm(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            assert self.fetcher._translate_title("") == ""
+            assert mock_ollama.call_count == 0
+
+    def test_whitespace_returns_same_no_llm(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            assert self.fetcher._translate_title("   ") == "   "
+            assert mock_ollama.call_count == 0
+
+    def test_llm_returns_empty_falls_back_to_original(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = ""
+            result = self.fetcher._translate_title("Macron meets Xi in Paris")
+            assert result == "Macron meets Xi in Paris"
+
+    def test_llm_returns_brackets_falls_back(self):
+        """[Timeout], [Error], etc. → fallback sur l'original."""
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
             mock_ollama.return_value = "[Timeout]"
-            result = self.fetcher._translate_title("한국 경제 성장")
-            assert result == "한국 경제 성장"
+            result = self.fetcher._translate_title("Macron meets Xi in Paris")
+            assert result == "Macron meets Xi in Paris"
 
-    def test_llm_strips_quotes(self):
-        """Les guillemets autour de la traduction sont strips."""
+    def test_llm_returns_too_short_falls_back(self):
+        """Une reponse de moins de 4 chars est consideree comme echec."""
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = "ok"
+            result = self.fetcher._translate_title("Macron meets Xi in Paris")
+            assert result == "Macron meets Xi in Paris"
+
+    def test_llm_strips_surrounding_quotes(self):
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
             mock_ollama.return_value = '"Le yen chute"'
+            result = self.fetcher._translate_title("日本円が急落")
+            assert result == "Le yen chute"
+
+    def test_llm_strips_single_quotes(self):
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama:
+            mock_ollama.return_value = "'Le yen chute'"
             result = self.fetcher._translate_title("日本円が急落")
             assert result == "Le yen chute"

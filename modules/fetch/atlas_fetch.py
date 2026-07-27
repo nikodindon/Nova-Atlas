@@ -430,41 +430,21 @@ class ArticleFetcher:
 
     # ── Retry résumés en attente ───────────────────────────────────────────────
 
-    # Regex Unicode pour détecter les "caractères non-latins" (= non-français,
-    # non-anglais, non-espagnol, etc. — tout ce qu'un francophone ne lit pas
-    # naturellement). On matche les principaux blocs :
-    #   - CJK (chinois/japonais/coréen)
-    #   - Hiragana + Katakana (japonais spécifiquement)
-    #   - Cyrillique (russe/biélorusse/kazakh/etc.)
-    #   - Arabe
-    #   - Hébreu
-    #   - Devanagari (hindi)
-    #   - Thai
-    _NON_LATIN_RE = re.compile(
-        "[぀-ゟ゠-ヿ一-鿿가-힯؀-ۿ֐-׿ऀ-ॿ฀-๿Ѐ-ӿ]"
-    )
-
-    def _has_non_latin_chars(self, text: str) -> bool:
-        """Vrai si le titre contient des caractères non-latins (à traduire)."""
-        if not text:
-            return False
-        return bool(self._NON_LATIN_RE.search(text))
-
     def _translate_title(self, title: str, force: bool = False) -> str:
         """Traduit le titre dans la langue cible.
 
-        Si force=False (defaut), on skippe la traduction si le titre
-        semble deja etre en caracteres latins (lisible par un francophone).
-        Si force=True, on traduit systematiquement.
+        On traduit TOUJOURS (meme si le titre semble deja lisible),
+        pour avoir une home coherente : tous les titres dans la meme
+        langue que les resumes. Le cache LLM (via ollama_call) evite
+        les repetitions si un meme titre repasse.
+
+        Le parametre force est garde pour compatibilite (force=True
+        est l'equivalent de l'ancien comportement inconditionnel).
 
         Utilise un prompt ultra-court pour minimiser le temps Ollama.
-        Le cache LLM (via ollama_call) evite les repetitions.
         """
         from modules.core.llm_client import get_language
         if not title or not title.strip():
-            return title
-        # Heuristique rapide : pas besoin de LLM si deja lisible
-        if not force and not self._has_non_latin_chars(title):
             return title
         lang = get_language()
         prompt = (
