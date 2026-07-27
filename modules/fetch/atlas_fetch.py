@@ -430,15 +430,43 @@ class ArticleFetcher:
 
     # ── Retry résumés en attente ───────────────────────────────────────────────
 
-    def _translate_title(self, title: str) -> str:
-        """Traduit le titre dans la langue cible si elle diffère de l'original.
-        Utilise un prompt ultra-court pour minimiser le temps Ollama."""
+    # Regex Unicode pour détecter les "caractères non-latins" (= non-français,
+    # non-anglais, non-espagnol, etc. — tout ce qu'un francophone ne lit pas
+    # naturellement). On matche les principaux blocs :
+    #   - CJK (chinois/japonais/coréen)
+    #   - Hiragana + Katakana (japonais spécifiquement)
+    #   - Cyrillique (russe/biélorusse/kazakh/etc.)
+    #   - Arabe
+    #   - Hébreu
+    #   - Devanagari (hindi)
+    #   - Thai
+    _NON_LATIN_RE = re.compile(
+        "[぀-ゟ゠-ヿ一-鿿가-힯؀-ۿ֐-׿ऀ-ॿ฀-๿Ѐ-ӿ]"
+    )
+
+    def _has_non_latin_chars(self, text: str) -> bool:
+        """Vrai si le titre contient des caractères non-latins (à traduire)."""
+        if not text:
+            return False
+        return bool(self._NON_LATIN_RE.search(text))
+
+    def _translate_title(self, title: str, force: bool = False) -> str:
+        """Traduit le titre dans la langue cible.
+
+        Si force=False (defaut), on skippe la traduction si le titre
+        semble deja etre en caracteres latins (lisible par un francophone).
+        Si force=True, on traduit systematiquement.
+
+        Utilise un prompt ultra-court pour minimiser le temps Ollama.
+        Le cache LLM (via ollama_call) evite les repetitions.
+        """
         from modules.core.llm_client import get_language
-        lang = get_language()
-        # Ne traduit pas si la langue cible est l'anglais ou le français
-        # et que le titre semble déjà dans une de ces langues (heuristique rapide)
         if not title or not title.strip():
             return title
+        # Heuristique rapide : pas besoin de LLM si deja lisible
+        if not force and not self._has_non_latin_chars(title):
+            return title
+        lang = get_language()
         prompt = (
             f"Translate this news headline to {lang}. "
             f"Return ONLY the translated headline, nothing else:\n{title}"
@@ -446,7 +474,7 @@ class ArticleFetcher:
         translated = ollama_call(prompt, timeout=30, caller="fetch")
         if translated and len(translated) > 3 and not translated.startswith("["):
             return translated.strip().strip('"').strip("'")
-        return title  # fallback sur l'original si échec
+        return title  # fallback sur l'original si echec
 
     def _retry_pending(self, articles: list) -> tuple:
         """
@@ -521,10 +549,10 @@ class ArticleFetcher:
             # Sans ça, le site affiche "**bold**" et la radio dit "astérisque".
             from modules.utils.helpers import clean_for_tts
             summary = clean_for_tts(summary)
-            # Traduction du titre dans la langue cible (si différente)
-            from modules.core.llm_client import get_language
-            lang = get_language()
-            translated_title = self._translate_title(title) if lang not in ("français","french","fr") else title
+            # Traduction du titre dans la langue cible.
+            # On ne traduit QUE si le titre contient des caracteres non-latins
+            # (= pas lisible par un francophone). Force=True ignore l'heuristique.
+            translated_title = self._translate_title(title, force=False)
             article = {
                 "hash":          h,
                 "timestamp":     datetime.now().isoformat(),

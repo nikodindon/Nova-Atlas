@@ -58,6 +58,10 @@ def load_feeds(feeds_path: str | Path) -> Dict[str, List[str]]:
         # List item : "  - https://..." or "  - # [SPRINT0] https://..."
         if stripped.startswith("- "):
             url = stripped[2:].strip()
+            # Separe l'URL des commentaires inline (style "url  # comment").
+            # On garde uniquement la partie avant "  #" (au moins 2 espaces).
+            if "  #" in url:
+                url = url.split("  #", 1)[0].strip()
             # Skip commented-out items (start with # or contain [SPRINT0])
             if url.startswith("#") or "[SPRINT0]" in url:
                 continue
