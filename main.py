@@ -213,9 +213,12 @@ def run_news_engine(config: dict, debug: bool = False):
             bulletins_cfg = load_bulletins_config(news_paths)
             window = bulletins_cfg.get("window_minutes", 30)
             articles = get_recent_articles(news_paths, window_minutes=window)
-            # Cap à 20 articles max pour le bulletin (plus de matière = script plus riche)
-            articles = articles[:20]
-            log.info(f"[BULLETIN] {len(articles)} articles des {window} dernières min (cap 20)")
+            # Cap à 40 articles max pour le bulletin (plus de matière = script plus riche).
+            # Avant 2026-07-28 : cap 20. Le user a remonte que les bulletins etaient
+            # trop courts (594 mots au lieu des 1500 cibles), donc on passe a 40
+            # pour donner plus de choix au LLM et viser 2200 mots (vs 1500 avant).
+            articles = articles[:40]
+            log.info(f"[BULLETIN] {len(articles)} articles des {window} dernières min (cap 40)")
             path = bulletin_gen.build(articles)
             if path:
                 log.info(f"[BULLETIN] ✅ {path}")
@@ -344,9 +347,10 @@ def run_radio(config: dict, debug: bool = False):
             bulletins_cfg = load_bulletins_config(radio_paths)
             window = bulletins_cfg.get("window_minutes", 30)
             articles = get_recent_articles(radio_paths, window_minutes=window)
-            # Cap à 20 articles max pour le bulletin (plus de matière = script plus riche)
-            articles = articles[:20]
-            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap 20)")
+            # Cap à 40 articles max pour le bulletin. Avant : 20, le user a
+            # remonte des bulletins trop courts. Cf commentaire a la ligne 216.
+            articles = articles[:40]
+            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap 40)")
             path = builder.build(articles)
             if path:
                 streamer.enqueue_bulletin(path)

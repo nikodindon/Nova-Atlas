@@ -307,6 +307,7 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
       - L'ordre d'importance décroissant
     """
     target = config.get("target_words", 1500)
+    tolerance = config.get("tolerance_words", 300)
     structure = config.get("structure", {})
     total_news_words = sum(
         s.get("target_words", 0) for k, s in structure.items()
@@ -343,7 +344,7 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
 CONTEXTE :
 - Heure du bulletin : ~{datetime.now().strftime("%Hh%M")}
 - Langue de diffusion : {lang} (OBLIGATOIRE : tout le bulletin doit etre en {lang}, JAMAIS une autre langue)
-- Durée cible du bulletin : 10 minutes de parole (~{target} mots, ±200)
+- Durée cible du bulletin : 13-15 minutes de parole (~{target} mots, ±{tolerance})
 - Fenêtre temporelle couverte : 30 dernières minutes d'actualité
 - Audience : auditeur {lang} cultivé
 - Style : professionnel, neutre, factuel
@@ -354,13 +355,13 @@ ARTICLES À TRAITER (les plus importants en premier) :
 STRUCTURE DU BULLETIN :
 1. INTRO ({structure.get("intro", {}).get("target_words", 100)} mots) — Voix 1
 2. {news_blocks[0] if len(news_blocks) > 0 else "news_block_1"} ({total_news_words // max(1, len(news_blocks))} mots) — Voix 1
-   {len(news_blocks[0:1]) if news_blocks else 0}-3 news principales
+   4-5 news principales
 3. TRANSITION ({structure.get("transition", {}).get("target_words", 30)} mots) — Voix 2
 4. {news_blocks[1] if len(news_blocks) > 1 else "news_block_2"} ({total_news_words // max(1, len(news_blocks))} mots) — Voix 2
-   2-3 news secondaires
+   3-4 news secondaires
 5. TRANSITION 2 ({structure.get("transition_2", {}).get("target_words", 30)} mots) — Voix 1
 6. {news_blocks[2] if len(news_blocks) > 2 else "news_block_3"} ({total_news_words // max(1, len(news_blocks))} mots) — Voix 2
-   1-2 news de fond
+   2-3 news de fond
 7. OUTRO ({structure.get("outro", {}).get("target_words", 100)} mots) — Voix 1
 
 CONSIGNES STRICTES :
@@ -376,8 +377,8 @@ CONSIGNES STRICTES :
   * Tu ne dois JAMAIS reparler d'un même sujet plus tard (pas de redite)
   * Si tu as parlé du jugement Le Pen dans la news principale, tu ne le reprends
     pas dans les news secondaires, même sous un autre angle
-  * Le nombre d'articles dans chaque bloc doit être compté : 3 dans news_block_1,
-    2 dans news_block_2, 1 dans news_block_3 = 6 articles uniques au total
+  * Le nombre d'articles dans chaque bloc doit être compté : 4 dans news_block_1,
+    3 dans news_block_2, 2 dans news_block_3 = 9 articles uniques au total
 - Chaque news est reformulée pour être naturelle à l'oral, pas lue
 - 2-3 phrases par news, factuel, ton neutre
 - N'invente rien : utilise UNIQUEMENT les informations données

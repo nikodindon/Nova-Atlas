@@ -4,8 +4,12 @@
 # ============================================================
 #
 # Le projet génère maintenant 2 bulletins par heure (à :00 et :30)
-# au lieu d'un bulletin en continu. Chaque bulletin dure ~10 min
-# (cible : 1500 mots) et couvre les 30 dernières minutes d'actu.
+# au lieu d'un bulletin en continu. Chaque bulletin dure ~13-15 min
+# (cible : 2200 mots) et couvre les 30 dernières minutes d'actu.
+#
+# Changement 2026-07-28 : cible 1500 -> 2200 mots pour avoir un
+# temps d'écoute ~2x plus long. Le cap d'articles dans main.py
+# est aussi passé de 20 à 40 pour donner plus de matière au LLM.
 #
 # Les voix s'alternent (intro voix 1, news voix 1, transition
 # voix 2, news voix 2, outro voix 1) pour créer un "dialogue"
@@ -23,9 +27,11 @@ first_slot_hour: 7
 
 # ── Contenu ────────────────────────────────────────────────────
 # Cible mots par bulletin. ~150 mots/min en TTS français.
-# 1500 mots = 10 minutes. ±200 mots de tolérance.
-target_words: 1500
-tolerance_words: 200
+# 2200 mots ≈ 13-15 minutes de parole. ±300 mots de tolérance.
+# Avant (jusqu'au 2026-07-28) : 1500 mots = ~10 min. Trop court,
+# les auditeurs ont remonté que le bulletin ne tenait pas assez.
+target_words: 2200
+tolerance_words: 300
 
 # Nombre minimum d'articles dans la fenêtre 30 min pour générer.
 # En dessous, on skip (la radio continue la playlist musicale).
@@ -50,19 +56,21 @@ voices_extra:
 # ── Structure du journal ──────────────────────────────────────
 # Le LLM produit un script balisé [VOIX1]...[VOIX2]... qu'on split
 # en segments. Chaque segment a un tag de voix. Voici la structure
-# typique d'un journal de 1500 mots.
+# d'un journal de 2200 mots (cible depuis 2026-07-28, avant 1500).
+# Repartition : 4 news principales + 3 secondaires + 2 de fond = 9
+# articles uniques au total (vs 6 avant).
 structure:
-  intro:        { voice: primary,   target_words: 100 }   # "Bonjour, il est 16h..."
-  breaking:     { voice: breaking,  target_words: 200, optional: true }  # si breaking news
-  news_block_1: { voice: primary,   target_words: 400 }   # news principales (3-4 news)
-  transition:   { voice: secondary, target_words: 30  }   # "Dans un autre registre..."
-  news_block_2: { voice: secondary, target_words: 400 }   # news secondaires (3-4 news)
-  transition_2: { voice: primary,   target_words: 30  }   # "Et pendant ce temps..."
-  news_block_3: { voice: secondary, target_words: 300 }   # news de fond (2-3 news)
-  outro:        { voice: primary,   target_words: 100 }   # "C'est tout pour ce journal..."
+  intro:        { voice: primary,   target_words: 120 }   # "Bonjour, il est 16h..."
+  breaking:     { voice: breaking,  target_words: 250, optional: true }  # si breaking news
+  news_block_1: { voice: primary,   target_words: 600 }   # news principales (4-5 news)
+  transition:   { voice: secondary, target_words: 40  }   # "Dans un autre registre..."
+  news_block_2: { voice: secondary, target_words: 500 }   # news secondaires (3-4 news)
+  transition_2: { voice: primary,   target_words: 40  }   # "Et pendant ce temps..."
+  news_block_3: { voice: secondary, target_words: 400 }   # news de fond (2-3 news)
+  outro:        { voice: primary,   target_words: 120 }   # "C'est tout pour ce journal..."
 
 # Si pas de breaking news, on skip le segment "breaking" et on
-# redistribue les 200 mots sur les 3 news_block.
+# redistribue les 250 mots sur les 3 news_block.
 
 # ── Musique de fond (entre les bulletins) ──────────────────────
 # Le streamer continue de mixer la playlist musicale.
