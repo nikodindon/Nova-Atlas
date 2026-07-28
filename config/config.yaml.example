@@ -37,6 +37,9 @@ radio:
   background_volume: 0.30
 
   # Voices by language (edge-tts)
+  # Le code prend la liste de la langue par defaut (service.default_language).
+  # Pour ajouter une langue : ajouter une entree ci-dessous, puis changer
+  # service.default_language dans la section 'service' en haut du fichier.
   voices:
     fr:
       - "fr-FR-HenriNeural"
@@ -46,6 +49,43 @@ radio:
     en:
       - "en-US-AriaNeural"
       - "en-US-GuyNeural"
+    de:
+      - "de-DE-FlorianMultilingualNeural"
+      - "de-DE-AmalaNeural"
+      - "de-DE-ConradNeural"
+    es:
+      - "es-ES-XimenaNeural"
+      - "es-ES-AlvaroNeural"
+      - "es-MX-DaliaNeural"
+    it:
+      - "it-IT-DiegoNeural"
+      - "it-IT-ElsaNeural"
+      - "it-IT-GiuseppeMultilingualNeural"
+    pt:
+      - "pt-BR-ThalitaMultilingualNeural"
+      - "pt-BR-FranciscaNeural"
+      - "pt-PT-RaquelNeural"
+    ru:
+      - "ru-RU-DmitryNeural"
+      - "ru-RU-SvetlanaNeural"
+    zh:
+      - "zh-CN-XiaoxiaoNeural"
+      - "zh-CN-YunjianNeural"
+    ja:
+      - "ja-JP-NanamiNeural"
+      - "ja-JP-KeitaNeural"
+    ko:
+      - "ko-KR-SunHiNeural"
+      - "ko-KR-InJoonNeural"
+    ar:
+      - "ar-SA-ZariyahNeural"
+      - "ar-SA-HamedNeural"
+    hi:
+      - "hi-IN-SwaraNeural"
+      - "hi-IN-MadhurNeural"
+    nl:
+      - "nl-NL-MaartenNeural"
+      - "nl-NL-ColetteNeural"
 
 web:
   host: "0.0.0.0"
