@@ -323,14 +323,21 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
     intro = random.choice(intros).format(heure=now_str, date=date_str) if intros else f"Bonjour à tous, il est {now_str}."
     outro = random.choice(outros).format(heure=now_str, date=date_str) if outros else "C'est tout pour ce bulletin."
 
-    prompt = f"""Tu es un journaliste radio professionnel français. Tu produis un BULLETIN D'INFORMATION qui couvre les 30 dernières minutes d'actualité. Le bulletin est diffusé sur une radio d'information continue.
+    # Langue cible : on prend celle de service.default_language via llm_client.
+    # C'est la meme cle que pour les titres/articles, donc la radio parle
+    # dans la meme langue que le site.
+    from modules.core.llm_client import get_language
+    lang = get_language()
+
+    prompt = f"""Tu es un journaliste radio professionnel. Tu produis un BULLETIN D'INFORMATION qui couvre les 30 dernières minutes d'actualité. Le bulletin est diffusé sur une radio d'information continue.
 
 CONTEXTE :
 - Heure du bulletin : ~{datetime.now().strftime("%Hh%M")}
+- Langue de diffusion : {lang} (OBLIGATOIRE : tout le bulletin doit etre en {lang}, JAMAIS une autre langue)
 - Durée cible du bulletin : 10 minutes de parole (~{target} mots, ±200)
 - Fenêtre temporelle couverte : 30 dernières minutes d'actualité
-- Audience : auditeur français cultivé
-- Style : France Inter / France Info, professionnel, neutre
+- Audience : auditeur {lang} cultivé
+- Style : professionnel, neutre, factuel
 
 ARTICLES À TRAITER (les plus importants en premier) :
 {articles_text}
@@ -348,10 +355,11 @@ STRUCTURE DU BULLETIN :
 7. OUTRO ({structure.get("outro", {}).get("target_words", 100)} mots) — Voix 1
 
 CONSIGNES STRICTES :
+- Langue de sortie : {lang} OBLIGATOIRE. Reformule les expressions francaises donnees ci-dessous dans le style radio {lang} adapte (par exemple "France Inter" peut etre remplace par "BBC" ou "NPR" selon le style).
 - Utilise les BALISES [VOIX1] et [VOIX2] pour marquer les changements de voix
   Format : [VOIX1] texte parlé par la voix 1. [VOIX2] texte parlé par la voix 2. [VOIX1] retour voix 1.
-- INTRO (Voix 1) : adapte l'inspiration suivante au contexte — "{intro}"
-- OUTRO (Voix 1) : utilise une variation de — "{outro}"
+- INTRO (Voix 1) : adapte l'inspiration suivante au contexte, en {lang} — "{intro}"
+- OUTRO (Voix 1) : utilise une variation, en {lang}, de — "{outro}"
 - TRANSITIONS (Voix 2 ou Voix 1) : varie les expressions, n'utilise pas la même deux fois
 - Classement par ordre d'importance décroissante (grosse news en premier)
 - Chaque article n'est traité qu'UNE SEULE FOIS dans tout le bulletin :
@@ -595,31 +603,33 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
     outro = random.choice(outros).format(heure=now_str, date=date_str) if outros \
         else f"C'est tout pour ce flash {cat_label}."
 
-    prompt = f"""Tu es un journaliste radio professionnel français. Tu produis un FLASH D'INFORMATION SPECIALISE sur la catégorie « {cat_label} ».
+    # Langue cible : idem que le bulletin, on prend service.default_language.
+    from modules.core.llm_client import get_language
+    lang = get_language()
+
+    prompt = f"""Tu es un journaliste radio professionnel. Tu produis un FLASH D'INFORMATION SPECIALISE sur la catégorie « {cat_label} ».
 
 CONTEXTE :
 - Heure du flash : ~{datetime.now().strftime("%Hh%M")}
+- Langue de diffusion : {lang} (OBLIGATOIRE : tout le flash doit etre en {lang}, JAMAIS une autre langue)
 - Catégorie : {cat_label} ({category})
 - Durée cible : 5 minutes de parole (~{target_words} mots, ±100)
 - Fenêtre temporelle : depuis minuit de la journée en cours ({date_str})
-- Audience : auditeur français qui veut un résumé rapide
-- Style : France Inter, professionnel, neutre, factuel
+- Audience : auditeur {lang} qui veut un résumé rapide
+- Style : professionnel, neutre, factuel
 
 ARTICLES DE LA CATÉGORIE « {cat_label} » DEPUIS MINUIT :
 {articles_text}
 
 CONSIGNES STRICTES :
+- Langue de sortie : {lang} OBLIGATOIRE. Reformule les expressions francaises donnees en style radio {lang} adapte.
 - Utilise les BALISES [VOIX1] et [VOIX2] pour marquer les changements de voix
   Format : [VOIX1] texte parlé par la voix 1. [VOIX2] texte parlé par la voix 2.
 - INTRO (Voix 1) : COMMENCE OBLIGATOIREMENT par une phrase qui annonce
   explicitement qu'il s'agit d'un FLASH SPÉCIALISÉ sur la catégorie « {cat_label} ».
-  Exemples de formulations acceptées :
-    "Flash {cat_label}, il est {now_str}, voici l'actualité {cat_label.lower()} de la journée."
-    "Bonjour, nous sommes dans le flash {cat_label.lower()}, le résumé de la journée."
-    "{cat_label} : le flash du jour sur l'actualité {cat_label.lower()}."
-  Adapte l'inspiration suivante en l'enrichissant de cette annonce — "{intro}"
+  Adapte l'inspiration suivante en l'enrichissant de cette annonce, en {lang} — "{intro}"
 - OUTRO (Voix 1) : termine en rappelant qu'il s'agissait du flash {cat_label.lower()},
-  puis utilise une variation de — "{outro}"
+  puis utilise une variation, en {lang}, de — "{outro}"
 - Traite TOUS les articles, classés du plus important au moins important
 - Format : 1-2 phrases par article, ton radio rapide et factuel
 - N'invente rien : utilise UNIQUEMENT les informations données

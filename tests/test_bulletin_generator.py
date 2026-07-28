@@ -182,8 +182,9 @@ class TestBuildBulletinPrompt:
             {"title": "CAC 40 up", "summary": "Market up 2%.",
              "category": "economie", "source": "investing.com"},
         ]
-        prompt = build_bulletin_prompt(articles, cfg,
-                                       ["Bonjour {heure}"], ["Autre chose,"], ["Fin."])
+        with patch("modules.core.llm_client.get_language", return_value="francais"):
+            prompt = build_bulletin_prompt(articles, cfg,
+                                           ["Bonjour {heure}"], ["Autre chose,"], ["Fin."])
         assert "Trump meets Macron" in prompt
         assert "CAC 40 up" in prompt
         assert "lemonde.fr" in prompt
@@ -197,11 +198,25 @@ class TestBuildBulletinPrompt:
         cfg = load_bulletins_config(bulletins_yaml)
         long_summary = "x" * 1000
         articles = [{"title": "T", "summary": long_summary, "category": "t", "source": "s"}]
-        prompt = build_bulletin_prompt(articles, cfg, [], [], [])
+        with patch("modules.core.llm_client.get_language", return_value="francais"):
+            prompt = build_bulletin_prompt(articles, cfg, [], [], [])
         # Le résumé tronqué doit apparaître avec "…"
         assert "x" * 400 + "…" in prompt
         # Mais pas le résumé complet de 1000 chars
         assert "x" * 401 not in prompt
+
+    def test_prompt_includes_target_language(self, bulletins_yaml):
+        """Le prompt doit inclure la langue cible dynamique."""
+        cfg = load_bulletins_config(bulletins_yaml)
+        articles = [{"title": "T", "summary": "s", "category": "c", "source": "src"}]
+        with patch("modules.core.llm_client.get_language", return_value="english"):
+            prompt = build_bulletin_prompt(articles, cfg, [], [], [])
+        # Le prompt doit mentionner 'english' comme langue cible
+        assert "english" in prompt.lower()
+        # Et ne doit PAS contenir 'français' comme langue obligatoire
+        assert "OBLIGATOIRE" in prompt
+        # Le mot 'auditeur' peut etre 'auditor' en anglais, mais on garde 'auditeur'
+        # comme terme generique (le LLM adaptera)
 
 
 # ─── split_script_by_voice ─────────────────────────────────────────────────
