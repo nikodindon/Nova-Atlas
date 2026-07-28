@@ -365,13 +365,13 @@ ARTICLES À TRAITER (les plus importants en premier) :
 
 STRUCTURE DU BULLETIN :
 1. INTRO ({structure.get("intro", {}).get("target_words", 100)} mots) — Voix 1
-2. {news_blocks[0] if len(news_blocks) > 0 else "news_block_1"} ({total_news_words // max(1, len(news_blocks))} mots) — Voix 1
+2. {news_blocks[0] if len(news_blocks) > 0 else "news_block_1"} ({structure.get("news_block_1", {}).get("target_words", 600)} mots) — Voix 1
    {n_block_1} news principales
 3. TRANSITION ({structure.get("transition", {}).get("target_words", 30)} mots) — Voix 2
-4. {news_blocks[1] if len(news_blocks) > 1 else "news_block_2"} ({total_news_words // max(1, len(news_blocks))} mots) — Voix 2
+4. {news_blocks[1] if len(news_blocks) > 1 else "news_block_2"} ({structure.get("news_block_2", {}).get("target_words", 500)} mots) — Voix 2
    {n_block_2} news secondaires
 5. TRANSITION 2 ({structure.get("transition_2", {}).get("target_words", 30)} mots) — Voix 1
-6. {news_blocks[2] if len(news_blocks) > 2 else "news_block_3"} ({total_news_words // max(1, len(news_blocks))} mots) — Voix 2
+6. {news_blocks[2] if len(news_blocks) > 2 else "news_block_3"} ({structure.get("news_block_3", {}).get("target_words", 400)} mots) — Voix 2
    {n_block_3} news de fond
 7. OUTRO ({structure.get("outro", {}).get("target_words", 100)} mots) — Voix 1
 
