@@ -379,8 +379,21 @@ CONSIGNES STRICTES :
 - Langue de sortie : {lang} OBLIGATOIRE. Reformule les expressions francaises donnees ci-dessous dans le style radio {lang} adapte (par exemple "France Inter" peut etre remplace par "BBC" ou "NPR" selon le style).
 - Utilise les BALISES [VOIX1] et [VOIX2] pour marquer les changements de voix
   Format : [VOIX1] texte parlé par la voix 1. [VOIX2] texte parlé par la voix 2. [VOIX1] retour voix 1.
-- INTRO (Voix 1) : adapte l'inspiration suivante au contexte, en {lang} — "{intro}"
-- OUTRO (Voix 1) : utilise une variation, en {lang}, de — "{outro}"
+- INTRO (Voix 1) : COMMENCE OBLIGATOIREMENT par lister les {total_articles_in_bulletin} sujets
+  du bulletin en 1 phrase introductive ("Bonjour, voici les {total_articles_in_bulletin}
+  informations qui ont marque l'actualité des 30 dernieres minutes...")
+  PUIS liste les {total_articles_in_bulletin} sujets en une ligne chacun (sujet + categorie).
+  Exemple :
+    "Bonjour, il est 21h, voici votre bulletin d'information.
+     Au programme aujourd'hui :
+     1. Trump rencontre Netanyahou a Washington (geopolitique)
+     2. Incendie dans les Landes (france)
+     3. ..."
+  Cette liste doit correspondre EXACTEMENT aux {n_block_1}+{n_block_2}+{n_block_3}
+  sujets que tu developpes ensuite. Pas de surprise, pas de substitution
+  en cours de route : si tu annonces un sujet, tu le developpes, point.
+- OUTRO (Voix 1) : termine en {lang} en rappelant brievement les themes
+  principaux, puis utilise une variation de — "{outro}"
 - TRANSITIONS (Voix 2 ou Voix 1) : varie les expressions, n'utilise pas la même deux fois
 - Classement par ordre d'importance décroissante (grosse news en premier)
 - Chaque article n'est traité qu'UNE SEULE FOIS dans tout le bulletin :
