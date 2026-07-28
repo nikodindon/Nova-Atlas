@@ -155,3 +155,42 @@ class TestEmptyAndFallback:
             mock_ollama.return_value = "'Le yen chute'"
             result = self.fetcher._translate_title("日本円が急落")
             assert result == "Le yen chute"
+
+    def test_french_target_english_translation_falls_back(self):
+        """Si la cible est francais mais que la traduction est en anglais,
+        on garde l'original. C'est le bug rapporte par l'utilisateur
+        (ex: 'To protest against the emergency agricultural law' sur un
+        article du Figaro).
+        Le mock llm_client doit retourner une langue cible francais.
+        """
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama, \
+             patch("modules.core.llm_client.get_language", return_value="francais"):
+            mock_ollama.return_value = "The novelist returns her Legion of Honour in protest"
+            result = self.fetcher._translate_title(
+                "Pour protester contre la loi d'urgence agricole, la romanciere rend sa Legion d'honneur"
+            )
+            # Fallback sur l'original
+            assert result == "Pour protester contre la loi d'urgence agricole, la romanciere rend sa Legion d'honneur"
+            # Le titre garde bien le mot francais 'protester', pas 'protest' (anglais)
+            assert "rend sa" in result.lower()
+            # Pas de " the " dans la sortie (le marqueur anglais)
+            assert " the " not in result.lower()
+
+    def test_french_target_clean_translation_kept(self):
+        """Si la cible est francais et que la traduction est en francais,
+        on la garde. Pas de faux positif."""
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama, \
+             patch("modules.core.llm_client.get_language", return_value="francais"):
+            mock_ollama.return_value = "Le yen chute fortement face au dollar"
+            result = self.fetcher._translate_title("日本円が急落")
+            assert result == "Le yen chute fortement face au dollar"
+
+    def test_english_target_not_checked(self):
+        """Si la cible est l'anglais, on ne check pas la traduction
+        (meme si elle contient des mots francais par hasard)."""
+        with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama, \
+             patch("modules.core.llm_client.get_language", return_value="english"):
+            mock_ollama.return_value = "The yen falls sharply against the dollar"
+            result = self.fetcher._translate_title("日本円が急落")
+            # En anglais, on garde la traduction telle quelle
+            assert result == "The yen falls sharply against the dollar"

@@ -447,13 +447,37 @@ class ArticleFetcher:
         if not title or not title.strip():
             return title
         lang = get_language()
+        # Prompt renforce : les LLM ont tendance a traduire vers l'anglais
+        # par defaut. On etre tres explicite sur la langue cible et on
+        # precise que la source est generalement deja en francais (donc
+        # il faut reformuler, pas traduire litteralement).
         prompt = (
-            f"Translate this news headline to {lang}. "
-            f"Return ONLY the translated headline, nothing else:\n{title}"
+            f"Tu es un redacteur de titres de presse en {lang}. "
+            f"Reformule ce titre de maniere naturelle en {lang} "
+            f"(la langue cible est OBLIGATOIREMENT {lang}, JAMAIS anglais). "
+            f"Si le titre est deja en {lang}, reformule-le legerement pour "
+            f"varier le style. Reponds UNIQUEMENT avec le titre reformule, "
+            f"rien d'autre :\n{title}"
         )
         translated = ollama_call(prompt, timeout=30, caller="fetch")
         if translated and len(translated) > 3 and not translated.startswith("["):
-            return translated.strip().strip('"').strip("'")
+            cleaned = translated.strip().strip('"').strip("'")
+            # Filet de securite : si la langue cible est le francais mais
+            # que la traduction contient des mots anglais evidents,
+            # le LLM a mal traduit. On garde l'original plutot que
+            # d'afficher un titre anglais dans une home en francais.
+            if lang in ("francais", "french", "fr"):
+                english_markers = (
+                    " the ", " to ", " of ", " and ", " in ", " for ",
+                    " with ", " against ", " from ", " says ", " is ",
+                )
+                lower = " " + cleaned.lower() + " "
+                if any(m in lower for m in english_markers):
+                    self.log.warning(
+                        f"Traduction anglaise detectee, fallback sur l'original : {title[:60]}"
+                    )
+                    return title
+            return cleaned
         return title  # fallback sur l'original si echec
 
     def _retry_pending(self, articles: list) -> tuple:
