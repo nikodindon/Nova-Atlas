@@ -7,9 +7,11 @@ llm:
   model: qwen3:8b
   base_url: http://localhost:8080
   threads: 12
-  timeout_fetch: 240
-  timeout_report: 600
-  timeout_edition: 900
+  # timeouts par type d'appel (secondes). Adapter selon hardware/modele.
+  timeout_fetch:   240     # resume d'un article
+  timeout_report:  600     # rapport quotidien
+  timeout_edition: 900     # edition complete
+  timeout_bulletin: 900    # bulletin radio (40 articles en prompt)
   cache:
     enabled: true
     ttl_days: 7

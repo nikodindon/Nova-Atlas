@@ -70,6 +70,7 @@ class OllamaClient:
         self.timeout_fetch   = int(llm_cfg.get("timeout_fetch",   240))
         self.timeout_report  = int(llm_cfg.get("timeout_report",  600))
         self.timeout_edition = int(llm_cfg.get("timeout_edition", 900))
+        self.timeout_bulletin = int(llm_cfg.get("timeout_bulletin", 900))
 
         lang = config.get("service", {}).get("default_language", "fr")
         self.language = _LANG_MAP.get(lang.lower(), lang)

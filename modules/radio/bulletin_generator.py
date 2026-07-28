@@ -470,7 +470,11 @@ def generate_bulletin_script(articles: List[dict], config: dict,
     prompt = build_bulletin_prompt(articles, config, intros, transitions, outros)
     try:
         # Timeout long car génération ~1500 mots
-        out = ollama_call(prompt, timeout=300, caller="bulletin")
+        # 2026-07-28 : timeout configurable via config.llm.timeout_bulletin
+        # (defaut 900s = 15 min). Avant : hardcode 300s = 5 min, trop
+        # court quand le fetch occupe le GPU en parallele.
+        timeout = config.get("llm", {}).get("timeout_bulletin", 900)
+        out = ollama_call(prompt, timeout=timeout, caller="bulletin")
         if not out:
             logger.warning("LLM a renvoyé un script vide")
             return None
