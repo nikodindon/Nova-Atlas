@@ -18,9 +18,6 @@ rss:
   max_total_articles: 30
   live_window_hours: 20
 radio:
-  # Seuil de declenchement auto (watcher) : si N nouvelles news arrivent
-  # depuis le dernier bulletin, on en genere un nouveau. Defaut 5.
-  news_per_bulletin: 5
   # Cap d'articles collectes pour generer un bulletin (utilise par
   # main.py generate_bulletin). Avant 2026-07-28 etait hardcode a 20,
   # puis 40. Maintenant parametre. Defaut 40 = ~13-15 min de bulletin.
@@ -32,7 +29,12 @@ radio:
   # repartition automatique 45%/35%/20% sur les 3 news_block.
   # Exemples : 6 -> 3+2+1, 9 -> 4+3+2, 12 -> 5+4+3, 15 -> 7+5+3.
   articles_in_bulletin: 9
-  news_interval_seconds: 30
+  # Le declenchement des bulletins se fait par le scheduler (cf
+  # bulletins.yaml post_hours), pas par un seuil de news.
+  # Avant 2026-07-28, on avait un systeme de declenchement auto
+  # via news_watcher.py quand N nouvelles news arrivaient. Ce
+  # systeme a ete desactive (seuil mis a 1000) puis supprime
+  # completement le 2026-07-28 car le scheduler par heure suffit.
   background_volume: 0.3
   voices:
     fr:

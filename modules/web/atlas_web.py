@@ -3880,20 +3880,6 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       <div class="cfg-card">
         <div class="cfg-row">
           <div>
-            <div class="cfg-row-label">Articles par bulletin</div>
-            <div class="cfg-row-desc">Nombre de nouvelles news pour déclencher un bulletin</div>
-          </div>
-          <input type="number" id="radio-nbulletin" value="{{ radio.get('news_per_bulletin',5) }}" min="1" max="20">
-        </div>
-        <div class="cfg-row">
-          <div>
-            <div class="cfg-row-label">Intervalle de surveillance (s)</div>
-            <div class="cfg-row-desc">Fréquence de vérification des nouveaux articles</div>
-          </div>
-          <input type="number" id="radio-interval" value="{{ radio.get('news_interval_seconds',30) }}" min="5" max="300">
-        </div>
-        <div class="cfg-row">
-          <div>
             <div class="cfg-row-label">Volume musique de fond</div>
             <div class="cfg-row-desc">0.0 = silence · 1.0 = plein volume (défaut 0.30)</div>
           </div>
@@ -4117,8 +4103,6 @@ function saveRss(){
 
 function saveRadio(){
   Promise.all([
-    post({section:'radio',key:'news_per_bulletin',      value:+document.getElementById('radio-nbulletin').value},'ind-radio'),
-    post({section:'radio',key:'news_interval_seconds',  value:+document.getElementById('radio-interval').value},'ind-radio'),
     post({section:'radio',key:'background_volume',      value:+document.getElementById('radio-bgvol').value},'ind-radio'),
     post({section:'radio',key:'bitrate',                value:document.getElementById('radio-bitrate').value},'ind-radio'),
   ]);

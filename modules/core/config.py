@@ -25,8 +25,6 @@ DEFAULT_CONFIG = {
     },
     "radio": {
         "post_hours": [7, 9, 11, 13, 15, 17, 19, 21],
-        "news_per_bulletin": 5,
-        "news_interval_seconds": 30,
         "background_volume": 0.30,
         "voices": {
             "fr": ["fr-FR-HenriNeural", "fr-FR-DeniseNeural"]

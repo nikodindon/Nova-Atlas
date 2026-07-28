@@ -294,16 +294,21 @@ def run_news_engine(config: dict, debug: bool = False):
 def run_radio(config: dict, debug: bool = False):
     """
     3 threads daemon :
-      NewsWatcher  — surveille les JSON d'articles
       BulletinGen  — TTS + mix audio à la demande
       Streamer     — flux Icecast continu via pipe ffmpeg
+
+    Le declenchement des bulletins est assure par le scheduler
+    integre (cf bulletins.yaml post_hours : 5 min avant chaque :30
+    et :00 de 7h a 21h30). Avant 2026-07-28 il y avait un
+    NewsWatcher qui declenchait un bulletin quand N nouvelles
+    news arrivaient, mais ce systeme a ete supprime car le
+    scheduler par heure suffit et est plus previsible.
 
     Le config.yaml de la radio est déjà dans config (sections icecast, radio, tts).
     Le fichier messages.yaml (intros, transitions, outros) est lu par bulletin_generator
     depuis config/messages.yaml — chemin résolu par le module radio.
     """
     setup_logging(debug)
-    from modules.radio.news_watcher    import NewsWatcher
     from modules.radio.streamer        import Streamer, AndroidStreamer
     from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
     from pathlib import Path as _P
@@ -328,17 +333,6 @@ def run_radio(config: dict, debug: bool = False):
     }
     builder = BulletinGenerator(config, radio_paths)
 
-    # Le watcher remplit le pool, le scheduler cadence les bulletins
-    pool_lock = threading.Lock()
-    pending_batches: list = []   # batches en attente (au cas où 2 bulletins se chevauchent)
-
-    def on_news_ready(articles: list):
-        """Le watcher appelle ça à chaque nouvelle news. On accumule, on ne déclenche plus."""
-        with pool_lock:
-            pending_batches.append(articles)
-        # Log discret : on ne génère plus un journal par 5 news
-        log.debug(f"  Pool: +{len(articles)} news (total pending: {sum(len(b) for b in pending_batches)})")
-
     def generate_bulletin():
         """Génère un bulletin avec les articles des 30 dernières minutes."""
         try:
@@ -361,14 +355,7 @@ def run_radio(config: dict, debug: bool = False):
         except Exception as e:
             log.error(f"Erreur bulletin : {e}", exc_info=True)
 
-    # Le watcher ne déclenche plus rien par 5 news : on remplace son seuil
-    # par un seuil élevé (1000) pour qu'il accumule, et on cadence nous-mêmes.
-    # Note : le watcher cherche la cle 'news_per_bulletin' (cf news_watcher.py
-    # ligne 30), pas 'per_bulletin'. On utilise la bonne cle.
-    radio_cfg = dict(config.get("radio", {}))
-    radio_cfg["news_per_bulletin"] = 1000  # désactive le déclenchement auto
-    watcher = NewsWatcher(radio_cfg, on_news_ready)
-    threading.Thread(target=watcher.run,  daemon=True, name="NewsWatcher").start()
+    # Lance les 2 workers principaux (Streamer + BulletinGen via scheduler)
     threading.Thread(target=streamer.run, daemon=True, name="Streamer").start()
     threading.Thread(target=android_streamer.run, daemon=True, name="AndroidStreamer").start()
 
