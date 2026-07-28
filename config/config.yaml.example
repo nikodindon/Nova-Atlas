@@ -18,7 +18,13 @@ rss:
   max_total_articles: 30
   live_window_hours: 20
 radio:
+  # Seuil de declenchement auto (watcher) : si N nouvelles news arrivent
+  # depuis le dernier bulletin, on en genere un nouveau. Defaut 5.
   news_per_bulletin: 5
+  # Cap d'articles collectes pour generer un bulletin (utilise par
+  # main.py generate_bulletin). Avant 2026-07-28 etait hardcode a 20,
+  # puis 40. Maintenant parametre. Defaut 40 = ~13-15 min de bulletin.
+  max_articles_per_bulletin: 40
   news_interval_seconds: 30
   background_volume: 0.3
   voices:
