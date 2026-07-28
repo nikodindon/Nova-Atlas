@@ -710,26 +710,29 @@ class BulletinGenerator:
         # qui etait hardcode francais (primary: fr-FR-HenriNeural). Bug
         # rapporte en prod le 2026-07-28 : 'le bulletin est en anglais
         # mais la voix est clairement francaise'.
+        #
+        # Depuis le 2026-07-28 on pioche 2 voix random parmi TOUTES les
+        # voix disponibles pour la langue, pour avoir de la variete audio
+        # d'un bulletin a l'autre (au lieu d'entendre toujours les memes
+        # voix). Si la liste ne contient qu'1 voix, on l'utilise 2 fois.
+        # Si la langue n'a aucune voix, fallback sur bulletins.yaml.
+        import random
         from modules.core.llm_client import get_language
         try:
             target_lang = get_language()
         except Exception:
             target_lang = "francais"
-        # Cle de lookup dans config.yaml.voices (fr, en, de, es, ...)
         lang_key = self._lang_to_config_key(target_lang)
-        # Voix depuis config.yaml, fallback sur bulletins.yaml si pas trouve
         radio_voices = config.get("radio", {}).get("voices", {})
-        voices_for_lang = radio_voices.get(lang_key, [])
-        # Si pas de voix pour cette langue, fallback sur bulletins.yaml
-        # (compatibilite avec les anciennes configs)
+        voices_for_lang = list(radio_voices.get(lang_key, []))
         voices_cfg = self.bulletins_cfg.get("voices", {})
         if len(voices_for_lang) >= 2:
-            primary   = voices_for_lang[0]
-            secondary = voices_for_lang[1]
+            # Pioche 2 voix differentes au hasard
+            primary, secondary = random.sample(voices_for_lang, 2)
         elif len(voices_for_lang) == 1:
-            primary   = voices_for_lang[0]
-            secondary = voices_for_lang[0]
+            primary = secondary = voices_for_lang[0]
         else:
+            # Fallback sur bulletins.yaml (compatibilite anciennes configs)
             primary   = voices_cfg.get("primary",   "fr-FR-HenriNeural")
             secondary = voices_cfg.get("secondary", "fr-FR-DeniseNeural")
         voices_extra = self.bulletins_cfg.get("voices_extra", {})
@@ -745,6 +748,9 @@ class BulletinGenerator:
         self.tmp_dir   = paths["root"] / paths.get("tmp_dir",         "tmp")
         self.queue_dir.mkdir(parents=True, exist_ok=True)
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
+        # Log des voix choisies pour ce bulletin (debug/audit)
+        logger.info(f"[bulletin] Voix choisies pour '{lang_key}' : "
+                    f"VOIX1={primary}, VOIX2={secondary}")
 
     def _lang_to_config_key(self, lang: str) -> str:
         """Convertit une langue LLM (francais, english) en cle config (fr, en)."""

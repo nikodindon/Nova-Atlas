@@ -1,118 +1,247 @@
-# ================================================
-# NOVA MEDIA — Configuration centrale
-# ================================================
-
 service:
-  name: "Nova Media"                    # ← Changez ceci selon votre projet (ex: "Asia Sentinel", "Le Journal IA")
-  tagline: "Your personal AI news engine & radio"
-  default_language: "fr"
-
+  name: Nova Media
+  tagline: Your personal AI news engine & radio
+  default_language: fr
 llm:
-  provider: "ollama"                    # "ollama" (CLI) ou "llama-server" (HTTP API)
-  model: "qwen3:8b"                     # Modèle à utiliser
-  base_url: "http://localhost:8080"      # Utilisé uniquement par llama-server
-  threads: 12                           # Threads CPU pour llama-server (défaut: 6)
+  provider: ollama
+  model: qwen3:8b
+  base_url: http://localhost:8080
+  threads: 12
   timeout_fetch: 240
   timeout_report: 600
   timeout_edition: 900
-  # Cache disque des résumés (data/llm_cache/). Évite de re-payer un appel
-  # LLM complet pour un article déjà résumé dans les N derniers jours.
-  # Mets enabled: false pour forcer un appel LLM à chaque cycle (utile pour
-  # tester un nouveau prompt ou un nouveau modèle).
   cache:
     enabled: true
     ttl_days: 7
-
 rss:
   max_articles_per_feed: 3
-  # Cap global d'articles par cycle (0 = pas de cap, prend tout).
-  # Évite les cycles de 7+ heures sur le modèle de raisonnement distant.
-  # 30 = ~30 min de résumé par cycle.
   max_total_articles: 30
   live_window_hours: 20
-
 radio:
   news_per_bulletin: 5
   news_interval_seconds: 30
-  background_volume: 0.30
-
-  # Voices by language (edge-tts)
-  # Le code prend la liste de la langue par defaut (service.default_language).
-  # Pour ajouter une langue : ajouter une entree ci-dessous, puis changer
-  # service.default_language dans la section 'service' en haut du fichier.
+  background_volume: 0.3
   voices:
     fr:
-      - "fr-FR-HenriNeural"
-      - "fr-FR-DeniseNeural"
-      - "fr-CA-AntoineNeural"
-      - "fr-FR-RemyMultilingualNeural"
+    - fr-FR-HenriNeural
+    - fr-FR-DeniseNeural
+    - fr-FR-EloiseNeural
+    - fr-FR-RemyMultilingualNeural
+    - fr-FR-VivienneMultilingualNeural
+    - fr-CA-AntoineNeural
+    - fr-CA-SylvieNeural
+    - fr-CA-JeanNeural
+    - fr-CA-ThierryNeural
+    - fr-CH-ArianeNeural
+    - fr-CH-FabriceNeural
+    - fr-BE-CharlineNeural
+    - fr-BE-GerardNeural
     en:
-      - "en-US-AriaNeural"
-      - "en-US-GuyNeural"
+    - en-US-AriaNeural
+    - en-US-DavisNeural
+    - en-US-JennyNeural
+    - en-US-GuyNeural
+    - en-US-MichelleNeural
+    - en-US-RogerNeural
+    - en-US-AnaNeural
+    - en-US-AndrewNeural
+    - en-US-AvaNeural
+    - en-US-BrianNeural
+    - en-US-EmmaNeural
+    - en-US-SteffanNeural
+    - en-US-ChristopherNeural
+    - en-US-EricNeural
+    - en-US-AndrewMultilingualNeural
+    - en-US-AvaMultilingualNeural
+    - en-US-BrianMultilingualNeural
+    - en-US-EmmaMultilingualNeural
+    - en-GB-RyanNeural
+    - en-GB-SoniaNeural
+    - en-GB-LibbyNeural
+    - en-GB-MaisieNeural
+    - en-GB-ThomasNeural
+    - en-AU-NatashaNeural
+    - en-AU-WilliamMultilingualNeural
+    - en-IN-NeerjaNeural
+    - en-IN-PrabhatNeural
+    - en-IN-NeerjaExpressiveNeural
+    - en-CA-ClaraNeural
+    - en-CA-LiamNeural
+    - en-IE-EmilyNeural
+    - en-IE-ConnorNeural
+    - en-NZ-MollyNeural
+    - en-NZ-MitchellNeural
+    - en-ZA-LeahNeural
+    - en-ZA-LukeNeural
+    - en-HK-YanNeural
+    - en-HK-SamNeural
+    - en-SG-LunaNeural
+    - en-SG-WayneNeural
+    - en-PH-JamesNeural
+    - en-PH-RosaNeural
+    - en-NG-AbeoNeural
+    - en-NG-EzinneNeural
+    - en-KE-AsiliaNeural
+    - en-KE-ChilembaNeural
     de:
-      - "de-DE-FlorianMultilingualNeural"
-      - "de-DE-AmalaNeural"
-      - "de-DE-ConradNeural"
+    - de-DE-FlorianMultilingualNeural
+    - de-DE-SeraphinaMultilingualNeural
+    - de-DE-AmalaNeural
+    - de-DE-ConradNeural
+    - de-DE-KatjaNeural
+    - de-DE-KillianNeural
+    - de-AT-IngridNeural
+    - de-AT-JonasNeural
+    - de-CH-LeniNeural
+    - de-CH-JanNeural
     es:
-      - "es-ES-XimenaNeural"
-      - "es-ES-AlvaroNeural"
-      - "es-MX-DaliaNeural"
+    - es-ES-XimenaNeural
+    - es-ES-AlvaroNeural
+    - es-ES-ElviraNeural
+    - es-ES-ArnauNeural
+    - es-MX-DaliaNeural
+    - es-MX-JorgeNeural
+    - es-AR-ElenaNeural
+    - es-AR-TomasNeural
+    - es-CO-SalomeNeural
+    - es-CO-GonzaloNeural
+    - es-CL-LorenzoNeural
+    - es-CL-CatalinaNeural
+    - es-PE-AlexNeural
+    - es-PE-CamilaNeural
+    - es-VE-PaolaNeural
+    - es-VE-SebastianNeural
+    - es-BO-SofiaNeural
+    - es-BO-MarceloNeural
+    - es-CR-MariaNeural
+    - es-CR-JuanNeural
+    - es-CU-BelkysNeural
+    - es-CU-ManuelNeural
+    - es-DO-RamonaNeural
+    - es-DO-EmilioNeural
+    - es-EC-AndreaNeural
+    - es-EC-LuisNeural
+    - es-GQ-TeresaNeural
+    - es-GQ-JavierNeural
+    - es-GT-MartaNeural
+    - es-GT-AndresNeural
+    - es-HN-KarlaNeural
+    - es-HN-CarlosNeural
+    - es-NI-YolandaNeural
+    - es-NI-FedericoNeural
+    - es-PA-MargaritaNeural
+    - es-PA-RobertoNeural
+    - es-PR-KarinaNeural
+    - es-PR-VictorNeural
+    - es-PY-TaniaNeural
+    - es-PY-MarioNeural
+    - es-SV-LorenaNeural
+    - es-SV-RodrigoNeural
+    - es-US-PalomaNeural
+    - es-US-AlonsoNeural
+    - es-UY-ValentinaNeural
+    - es-UY-MateoNeural
     it:
-      - "it-IT-DiegoNeural"
-      - "it-IT-ElsaNeural"
-      - "it-IT-GiuseppeMultilingualNeural"
+    - it-IT-IsabellaNeural
+    - it-IT-DiegoNeural
+    - it-IT-ElsaNeural
+    - it-IT-GiuseppeMultilingualNeural
     pt:
-      - "pt-BR-ThalitaMultilingualNeural"
-      - "pt-BR-FranciscaNeural"
-      - "pt-PT-RaquelNeural"
+    - pt-PT-RaquelNeural
+    - pt-PT-DuarteNeural
+    - pt-BR-FranciscaNeural
+    - pt-BR-ThalitaMultilingualNeural
+    - pt-BR-AntonioNeural
     ru:
-      - "ru-RU-DmitryNeural"
-      - "ru-RU-SvetlanaNeural"
+    - ru-RU-SvetlanaNeural
+    - ru-RU-DmitryNeural
     zh:
-      - "zh-CN-XiaoxiaoNeural"
-      - "zh-CN-YunjianNeural"
+    - zh-CN-XiaoxiaoNeural
+    - zh-CN-YunxiNeural
+    - zh-CN-YunjianNeural
+    - zh-CN-XiaoyiNeural
+    - zh-CN-YunyangNeural
+    - zh-CN-YunxiaNeural
+    - zh-CN-liaoning-XiaobeiNeural
+    - zh-CN-shaanxi-XiaoniNeural
+    - zh-HK-HiuMaanNeural
+    - zh-HK-WanLungNeural
+    - zh-HK-HiuGaaiNeural
+    - zh-TW-HsiaoChenNeural
+    - zh-TW-YunJheNeural
+    - zh-TW-HsiaoYuNeural
     ja:
-      - "ja-JP-NanamiNeural"
-      - "ja-JP-KeitaNeural"
+    - ja-JP-NanamiNeural
+    - ja-JP-KeitaNeural
     ko:
-      - "ko-KR-SunHiNeural"
-      - "ko-KR-InJoonNeural"
+    - ko-KR-SunHiNeural
+    - ko-KR-InJoonNeural
+    - ko-KR-HyunsuMultilingualNeural
     ar:
-      - "ar-SA-ZariyahNeural"
-      - "ar-SA-HamedNeural"
+    - ar-EG-SalmaNeural
+    - ar-EG-ShakirNeural
+    - ar-SA-ZariyahNeural
+    - ar-SA-HamedNeural
+    - ar-AE-FatimaNeural
+    - ar-AE-HamdanNeural
+    - ar-DZ-AminaNeural
+    - ar-DZ-IsmaelNeural
+    - ar-MA-MounaNeural
+    - ar-MA-JamalNeural
+    - ar-TN-ReemNeural
+    - ar-TN-HediNeural
+    - ar-LY-ImanNeural
+    - ar-LY-OmarNeural
+    - ar-BH-LailaNeural
+    - ar-BH-AliNeural
+    - ar-IQ-RanaNeural
+    - ar-IQ-BasselNeural
+    - ar-JO-SanaNeural
+    - ar-JO-TaimNeural
+    - ar-KW-NouraNeural
+    - ar-KW-FahedNeural
+    - ar-LB-LaylaNeural
+    - ar-LB-RamiNeural
+    - ar-OM-AyshaNeural
+    - ar-OM-AbdullahNeural
+    - ar-QA-AmalNeural
+    - ar-QA-MoazNeural
+    - ar-SY-AmanyNeural
+    - ar-SY-LaithNeural
+    - ar-YE-MaryamNeural
+    - ar-YE-SalehNeural
     hi:
-      - "hi-IN-SwaraNeural"
-      - "hi-IN-MadhurNeural"
+    - hi-IN-SwaraNeural
+    - hi-IN-MadhurNeural
     nl:
-      - "nl-NL-MaartenNeural"
-      - "nl-NL-ColetteNeural"
-
+    - nl-NL-ColetteNeural
+    - nl-NL-FennaNeural
+    - nl-NL-MaartenNeural
+    - nl-BE-DenaNeural
+    - nl-BE-ArnaudNeural
 web:
-  host: "0.0.0.0"
+  host: 0.0.0.0
   port: 5055
   enable_live_feed: true
   enable_editions: true
-
 posts:
   nb_posts_per_cycle: 4
   window_hours: 2
   max_chars_x: 280
-
 paths:
-  data_dir: "data"
-  articles_dir: "data/articles"
-  reports_dir: "data/reports"
-  editions_dir: "data/editions"
-  posts_dir: "data/posts"
-  site_dir: "site"
-  audio_queue: "audio_queue"
-  tmp_dir: "tmp"
-  background_music: "background_music"
-  music: "music"
-
+  data_dir: data
+  articles_dir: data/articles
+  reports_dir: data/reports
+  editions_dir: data/editions
+  posts_dir: data/posts
+  site_dir: site
+  audio_queue: audio_queue
+  tmp_dir: tmp
+  background_music: background_music
+  music: music
 icecast:
-  host: "localhost"
+  host: localhost
   port: 8000
-  password: "hackme"
-  mount: "/nova"
-  user: "source"
+  password: hackme
+  mount: /nova
+  user: source
