@@ -805,10 +805,17 @@ class BulletinGenerator:
             # Charge les intros/transitions/outros depuis messages.yaml
             intros, transitions, outros = self._load_messages()
 
-            # 1) Prompt LLM — passe self.config (la config globale qui a la
-            # section llm) et non cfg (qui vient de bulletins.yaml et n'a pas
-            # la section llm, ce qui forcerait les defaults ollama/mistral).
-            script = generate_bulletin_script(articles, self.config, intros, transitions, outros)
+            # 1) Prompt LLM. Avant 2026-07-28 on passait self.config
+            # (= config.yaml global) ici, mais build_bulletin_prompt a
+            # besoin de target_words/structure/articles_in_bulletin qui
+            # sont dans bulletins.yaml (self.bulletins_cfg), pas dans
+            # config.yaml. Resultat : le prompt disait "9 articles" mais
+            # sans cible de mots ni structure, donc le LLM sortait 595
+            # mots au lieu de 2200. Maintenant on merge les deux.
+            # - bulletins_cfg : target_words, tolerance_words, structure, articles_in_bulletin
+            # - self.config : necessaire pour init_ollama() dans generate_bulletin_script
+            prompt_config = {**self.bulletins_cfg, **self.config}
+            script = generate_bulletin_script(articles, prompt_config, intros, transitions, outros)
             if not script:
                 return None
         else:
