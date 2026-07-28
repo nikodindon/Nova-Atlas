@@ -218,6 +218,24 @@ class TestBuildBulletinPrompt:
         # Le mot 'auditeur' peut etre 'auditor' en anglais, mais on garde 'auditeur'
         # comme terme generique (le LLM adaptera)
 
+    def test_prompt_falls_back_on_olama_not_init(self, bulletins_yaml):
+        """Si get_language() leve RuntimeError (Ollama non init dans
+        un process/thread separe), le prompt ne crashe pas et utilise
+        'francais' comme fallback. C'est le bug rapporte en prod le
+        2026-07-28 : 'Erreur bulletin : OllamaClient non initialise'."""
+        cfg = load_bulletins_config(bulletins_yaml)
+        articles = [{"title": "T", "summary": "s", "category": "c", "source": "src"}]
+        with patch("modules.core.llm_client.get_language",
+                   side_effect=RuntimeError("OllamaClient non initialise")):
+            # Ne doit PAS lever d'exception
+            prompt = build_bulletin_prompt(articles, cfg, [], [], [])
+        # Fallback sur francais
+        assert "francais" in prompt.lower()
+        # Le prompt doit toujours etre genere
+        assert len(prompt) > 100
+        # Et contenir les articles
+        assert "T" in prompt
+
 
 # ─── split_script_by_voice ─────────────────────────────────────────────────
 

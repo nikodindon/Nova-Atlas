@@ -326,8 +326,17 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
     # Langue cible : on prend celle de service.default_language via llm_client.
     # C'est la meme cle que pour les titres/articles, donc la radio parle
     # dans la meme langue que le site.
-    from modules.core.llm_client import get_language
-    lang = get_language()
+    # Le try/except gere le cas ou OllamaClient n'est pas encore init
+    # (process/thread separe, cas observe en prod le 2026-07-28).
+    # Si ca plante, on fallback sur 'francais' pour ne pas crasher tout
+    # le bulletin : mieux un bulletin en francais qu'un bulletin absent.
+    try:
+        from modules.core.llm_client import get_language
+        lang = get_language()
+        if not lang:
+            lang = "francais"
+    except Exception:
+        lang = "francais"
 
     prompt = f"""Tu es un journaliste radio professionnel. Tu produis un BULLETIN D'INFORMATION qui couvre les 30 dernières minutes d'actualité. Le bulletin est diffusé sur une radio d'information continue.
 
@@ -422,11 +431,19 @@ def generate_bulletin_script(articles: List[dict], config: dict,
                               intros: List[str], transitions: List[str],
                               outros: List[str]) -> Optional[str]:
     """Appelle le LLM pour générer le script balisé. Retourne None si erreur."""
-    prompt = build_bulletin_prompt(articles, config, intros, transitions, outros)
+    # IMPORTANT : initialiser Ollama AVANT de construire le prompt, car
+    # build_bulletin_prompt appelle get_language() qui crash si le
+    # client Ollama n'est pas initialise (process/thread separe).
+    # Ce bug est apparu quand on a ajoute la langue dynamique au
+    # prompt (commit 3d4a40f) : avant, le prompt etait 100% hardcode
+    # francais et get_language() n'etait pas appele.
     try:
-        # S'assure que le LLM est initialisé (sinon OllamaClient non initialisé)
         from modules.core.llm_client import init_ollama as _init_ollama
         _init_ollama(config)
+    except Exception as e:
+        logger.debug(f"init_ollama deja fait ou echoue: {e}")
+    prompt = build_bulletin_prompt(articles, config, intros, transitions, outros)
+    try:
         # Timeout long car génération ~1500 mots
         out = ollama_call(prompt, timeout=300, caller="bulletin")
         if not out:
@@ -604,8 +621,14 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
         else f"C'est tout pour ce flash {cat_label}."
 
     # Langue cible : idem que le bulletin, on prend service.default_language.
-    from modules.core.llm_client import get_language
-    lang = get_language()
+    # Try/except pour le cas ou Ollama n'est pas init dans ce thread.
+    try:
+        from modules.core.llm_client import get_language
+        lang = get_language()
+        if not lang:
+            lang = "francais"
+    except Exception:
+        lang = "francais"
 
     prompt = f"""Tu es un journaliste radio professionnel. Tu produis un FLASH D'INFORMATION SPECIALISE sur la catégorie « {cat_label} ».
 
@@ -648,11 +671,15 @@ FORMAT DE SORTIE :
 def generate_flash_script(articles: List[dict], category: str, cat_label: str,
                           config: dict, intros: List[str], outros: List[str]) -> Optional[str]:
     """Appelle le LLM pour générer le script d'un Flash spécialisé. Retourne None si erreur."""
-    prompt = build_flash_prompt(articles, category, cat_label, intros, outros)
+    # Initialiser Ollama AVANT de construire le prompt (meme raison que
+    # pour le bulletin : get_language() est appele dans build_flash_prompt).
     try:
-        # S'assure que le LLM est initialisé
         from modules.core.llm_client import init_ollama as _init_ollama
         _init_ollama(config)
+    except Exception as e:
+        logger.debug(f"init_ollama deja fait ou echoue: {e}")
+    prompt = build_flash_prompt(articles, category, cat_label, intros, outros)
+    try:
         # Timeout court pour un flash de 5 min
         out = ollama_call(prompt, timeout=600, caller="flash")  # 10 min max pour les gros prompts
         if not out:
