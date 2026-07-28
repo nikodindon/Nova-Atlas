@@ -60,7 +60,9 @@ CATEGORY_ICONS = {
     "asie":             "🏯",  # ajoutée 2026-07-27 (pagode, symbole asiatique universel)
     "monde_arabe":      "🕌",  # ajoutée 2026-07-27 (Maghreb + Moyen-Orient)
     "eurasie":          "🪆",  # ajoutée 2026-07-27 (matriochka, Russie)
-    "europe":           "🏰",  # ajoutée 2026-07-27 (chateau medieval, 27 UE + UK) - backlog
+    "europe":           "🏰",  # ajoutée 2026-07-27 (chateau medieval, 27 UE + UK)
+    "afrique":          "🌍",  # ajoutée 2026-07-28 (savane, Afrique sub-saharienne)
+    "amerique_latine":  "🌴",  # ajoutée 2026-07-28 (palmier, symbole tropical)
 }
 
 EDITION_CONFIG = {
@@ -235,7 +237,9 @@ _CAT_LABELS_I18N = {
         "asie":              "Asie",     # ajoutée 2026-07-27
         "monde_arabe":       "Monde Arabe",  # ajoutée 2026-07-27
         "eurasie":           "Eurasie",       # ajoutée 2026-07-27
-        # "europe" backlog — pas livrée ce sprint
+        "europe":            "Europe",         # ajoutée 2026-07-28 (GN pays europeens)
+        "afrique":           "Afrique",        # ajoutée 2026-07-28 (GN Nigeria, ZA)
+        "amerique_latine":   "Amérique Latine",  # ajoutée 2026-07-28 (GN Brésil, Mexique)
     },
     "en": {
         "geopolitique": "Geopolitics", "economie": "Economy", "crypto": "Crypto",
@@ -250,6 +254,9 @@ _CAT_LABELS_I18N = {
         "asie":              "Asia",
         "monde_arabe":       "Arab World",
         "eurasie":           "Eurasia",
+        "europe":            "Europe",
+        "afrique":           "Africa",
+        "amerique_latine":   "Latin America",
     },
     "de": {
         "geopolitique": "Geopolitik", "economie": "Wirtschaft", "crypto": "Krypto",
@@ -264,6 +271,9 @@ _CAT_LABELS_I18N = {
         "asie":              "Asien",
         "monde_arabe":       "Arabische Welt",
         "eurasie":           "Eurasien",
+        "europe":            "Europa",
+        "afrique":           "Afrika",
+        "amerique_latine":   "Lateinamerika",
     },
     "es": {
         "geopolitique": "Geopolítica", "economie": "Economía", "crypto": "Cripto",
@@ -278,6 +288,9 @@ _CAT_LABELS_I18N = {
         "asie":              "Asia",
         "monde_arabe":       "Mundo Árabe",
         "eurasie":           "Eurasia",
+        "europe":            "Europa",
+        "afrique":           "África",
+        "amerique_latine":   "América Latina",
     },
     "pt": {
         "geopolitique": "Geopolítica", "economie": "Economia", "crypto": "Cripto",
@@ -292,6 +305,9 @@ _CAT_LABELS_I18N = {
         "asie":              "Ásia",
         "monde_arabe":       "Mundo Árabe",
         "eurasie":           "Eurásia",
+        "europe":            "Europa",
+        "afrique":           "África",
+        "amerique_latine":   "América Latina",
     },
     "it": {
         "geopolitique": "Geopolitica", "economie": "Economia", "crypto": "Cripto",
@@ -306,6 +322,9 @@ _CAT_LABELS_I18N = {
         "asie":              "Asia",
         "monde_arabe":       "Mondo Arabo",
         "eurasie":           "Eurasia",
+        "europe":            "Europa",
+        "afrique":           "Africa",
+        "amerique_latine":   "America Latina",
     },
     "ru": {
         "geopolitique": "Геополитика", "economie": "Экономика", "crypto": "Крипто",
@@ -320,6 +339,9 @@ _CAT_LABELS_I18N = {
         "asie":              "Азия",
         "monde_arabe":       "Арабский мир",
         "eurasie":           "Евразия",
+        "europe":            "Европа",
+        "afrique":           "Африка",
+        "amerique_latine":   "Латинская Америка",
     },
     "zh": {
         "geopolitique": "地缘政治", "economie": "经济", "crypto": "加密货币",
@@ -334,6 +356,9 @@ _CAT_LABELS_I18N = {
         "asie":              "亚洲",
         "monde_arabe":       "阿拉伯世界",
         "eurasie":           "欧亚大陆",
+        "europe":            "欧洲",
+        "afrique":           "非洲",
+        "amerique_latine":   "拉丁美洲",
     },
     "ar": {
         "geopolitique": "الجيوسياسية", "economie": "الاقتصاد", "crypto": "عملات مشفرة",
@@ -348,6 +373,9 @@ _CAT_LABELS_I18N = {
         "asie":              "آسيا",
         "monde_arabe":       "العالم العربي",
         "eurasie":           "أوراسيا",
+        "europe":            "أوروبا",
+        "afrique":           "أفريقيا",
+        "amerique_latine":   "أمريكا اللاتينية",
     },
     "ja": {
         "geopolitique": "地政学", "economie": "経済", "crypto": "暗号資産",
@@ -362,6 +390,9 @@ _CAT_LABELS_I18N = {
         "asie":              "アジア",
         "monde_arabe":       "アラブ世界",
         "eurasie":           "ユーラシア",
+        "europe":            "ヨーロッパ",
+        "afrique":           "アフリカ",
+        "amerique_latine":   "ラテンアメリカ",
     },
 }
 

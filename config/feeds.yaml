@@ -75,6 +75,11 @@ france:
   # [SPRINT0] https://www.lemonde.fr/rss/en_continu.xml
 
 monde:
+  # 2026-07-28 : refactor - les Google News par pays ont ete sortis vers
+  # des sous-categories dediees (europe, afrique, amerique_latine, asie)
+  # pour eviter que 'monde' domine la home avec 30+ flux et 45 articles/cycle.
+  # Avant : 33 flux, ~45 articles/cycle (cap a 8 = pas tous visibles).
+  # Apres : 9 flux, ~10-15 articles/cycle.
   - https://feeds.nbcnews.com/nbcnews/public/world
   - https://www.courrierinternational.com/feed/all/rss.xml
   - https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr
@@ -83,9 +88,13 @@ monde:
   - https://www.lefigaro.fr/rss/figaro_international.xml
   - https://www.france24.com/fr/economie/rss
   # [SPRINT0] https://rss.nytimes.com/services/xml/rss/nyt/World.xml
-  # Google News par pays (sprint 2026-07-27, audit 18/18 STABLES)
-  # Comble les pays sans source locale (Portugal, Belgique, Grèce, Scandinavie, etc.)
-  # Europe
+
+# ================================================
+# EUROPE — sous-categorie de monde
+# Google News par pays europeens (audite 2026-07-27, 9/9 STABLES)
+# Pas de sources locales (anti-bots), GN suffit largement.
+# ================================================
+europe:
   - https://news.google.com/rss/search?q=Portugal&hl=pt-PT&gl=PT&ceid=PT:pt
   - https://news.google.com/rss/search?q=Belgique&hl=fr&gl=BE&ceid=BE:fr
   - https://news.google.com/rss/search?q=Belgie&hl=nl&gl=BE&ceid=BE:nl
@@ -95,17 +104,25 @@ monde:
   - https://news.google.com/rss/search?q=Danmark&hl=da&gl=DK&ceid=DK:da
   - https://news.google.com/rss/search?q=Suomi&hl=fi&gl=FI&ceid=FI:fi
   - https://news.google.com/rss/search?q=Slovensko&hl=sk&gl=SK&ceid=SK:sk
-  # Asie
-  - https://news.google.com/rss/search?q=Indonesia&hl=id&gl=ID&ceid=ID:id
-  - https://news.google.com/rss/search?q=Philippines&hl=en&gl=PH&ceid=PH:en
-  - https://news.google.com/rss/search?q=Malaysia&hl=en&gl=MY&ceid=MY:en
-  - https://news.google.com/rss/search?q=Pakistan&hl=en&gl=PK&ceid=PK:en
-  # Eurasie
-  - https://news.google.com/rss/search?q=%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D0%B0&hl=uk&gl=UA&ceid=UA:uk
-  # Autres continents
-  - https://news.google.com/rss/search?q=Brasil&hl=pt-BR&gl=BR&ceid=BR:pt
+  # Ukraine (Europe de l'Est)
+  - https://news.google.com/rss/search?q=%D0%A3%D0%BA%D1%80%D0%B0%D97%D0%BD%D0%B0&hl=uk&gl=UA&ceid=UA:uk
+
+# ================================================
+# AFRIQUE — sous-categorie de monde
+# Seulement 2 GN pour l'instant. Sources locales (RFI, France24 Afrique)
+# non testees - a investiguer si besoin.
+# ================================================
+afrique:
   - https://news.google.com/rss/search?q=South+Africa&hl=en&gl=ZA&ceid=ZA:en
   - https://news.google.com/rss/search?q=Nigeria&hl=en&gl=NG&ceid=NG:en
+
+# ================================================
+# AMERIQUE LATINE — sous-categorie de monde
+# Seulement 2 GN. Sources locales (Clarín, Folha, El País US) en espagnol
+# a investiguer si besoin de plus de matiere.
+# ================================================
+amerique_latine:
+  - https://news.google.com/rss/search?q=Brasil&hl=pt-BR&gl=BR&ceid=BR:pt
   - https://news.google.com/rss/search?q=Mexico&hl=es&gl=MX&ceid=MX:es
 
 science:
@@ -214,7 +231,12 @@ asie:
   # Comble Japon/Chine/Coree qui n'ont AUCUNE source locale (anti-bots)
   - https://news.google.com/rss/search?q=%E6%97%A5%E6%9C%AC&hl=ja&gl=JP&ceid=JP:ja  # Japon (JP natif, 102 items)
   - https://news.google.com/rss/search?q=%E4%B8%AD%E5%9B%BD&hl=zh-CN&gl=CN&ceid=CN:zh-Hans  # Chine (CN natif, 104 items)
-  - https://news.google.com/rss/search?q=%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD&hl=ko&gl=KR&ceid=KR:ko  # Coree du Sud (KR, 104 items)
+  - https://news.google.com/rss/search?q=%EB%8C%80%ED%95%9C%EB%AF%B8%EA%B5%AD&hl=ko&gl=KR&ceid=KR:ko  # Coree du Sud (KR, 104 items)
+  # 2026-07-28 : 4 GN ajoutes (sortis de 'monde' pour equilibrer)
+  - https://news.google.com/rss/search?q=Indonesia&hl=id&gl=ID&ceid=ID:id
+  - https://news.google.com/rss/search?q=Philippines&hl=en&gl=PH&ceid=PH:en
+  - https://news.google.com/rss/search?q=Malaysia&hl=en&gl=MY&ceid=MY:en
+  - https://news.google.com/rss/search?q=Pakistan&hl=en&gl=PK&ceid=PK:en
   # Inde / Asie du Sud
   # [AUDIT 2026-07-27] https://www.thehindu.com/news/international/feeder/default.rss  # 404
   # [AUDIT 2026-07-27] https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms   # 404
