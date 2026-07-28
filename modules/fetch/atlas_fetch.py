@@ -430,6 +430,108 @@ class ArticleFetcher:
 
     # ── Retry résumés en attente ───────────────────────────────────────────────
 
+    # Filet de securite multi-langues : pour chaque langue cible, on
+    # detecte les mots tres specifiques des AUTRES langues qui ne
+    # devraient PAS apparaitre. Si on en trouve, c'est que le LLM a
+    # traduit vers la mauvaise langue.
+    #
+    # Langues latines/syllabiques couvertes par mots-cles :
+    #   - francais, english, deutsch, espanol, italiano, portuges, nederlands
+    # Langues non-latines couvertes par regex Unicode (cf _NON_LATIN_SCRIPT_RE) :
+    #   - russe, chinois, japonais, coreen, arabe, hindi
+    _LANG_KEYWORDS = {
+        "francais":  (" the ", " and ", " with ", " this ", " that ", " are ", " have ",
+                      " from ", " they ", " been ", " der ", " die ", " das ", " und ",
+                      " ist ", " nicht ", " el ", " la ", " los ", " que ", " con ",
+                      " il ", " lo ", " gli ", " che ", " per ", " o ", " os ", " as ",
+                      " que ", " com ", " het ", " een ", " van "),
+        "french":    (" the ", " and ", " with ", " this ", " that ", " are ", " have ",
+                      " from ", " they ", " been ", " der ", " die ", " das ", " und ",
+                      " ist ", " nicht ", " el ", " la ", " los ", " que ", " con ",
+                      " il ", " lo ", " gli ", " che ", " per ", " o ", " os ", " as ",
+                      " que ", " com ", " het ", " een ", " van "),
+        "english":   (" le ", " la ", " les ", " des ", " une ", " est ", " sont ",
+                      " avec ", " pour ", " dans ", " der ", " die ", " das ", " und ",
+                      " ist ", " el ", " la ", " los ", " que ", " con ", " il ", " gli ",
+                      " che ", " o ", " os ", " com ", " het ", " een ", " van "),
+        "deutsch":   (" the ", " and ", " with ", " is ", " are ", " le ", " la ", " les ",
+                      " une ", " est ", " avec ", " pour ", " dans ", " el ", " la ",
+                      " los ", " que ", " con ", " il ", " gli ", " che ", " o ", " os ",
+                      " com ", " het ", " een ", " van "),
+        "espanol":   (" the ", " and ", " with ", " is ", " are ", " le ", " la ", " les ",
+                      " une ", " est ", " avec ", " pour ", " dans ", " der ", " die ",
+                      " das ", " und ", " ist ", " il ", " gli ", " che ", " o ", " os ",
+                      " com ", " het ", " een ", " van "),
+        "italiano":  (" the ", " and ", " with ", " is ", " are ", " le ", " la ", " les ",
+                      " une ", " est ", " avec ", " pour ", " dans ", " der ", " die ",
+                      " das ", " und ", " ist ", " el ", " la ", " los ", " que ", " con ",
+                      " o ", " os ", " com ", " het ", " een ", " van "),
+        "portugues": (" the ", " and ", " with ", " is ", " are ", " le ", " la ", " les ",
+                      " une ", " est ", " avec ", " pour ", " dans ", " der ", " die ",
+                      " das ", " und ", " ist ", " el ", " la ", " los ", " que ", " con ",
+                      " il ", " gli ", " che ", " het ", " een ", " van "),
+        "nederlands":(" the ", " and ", " with ", " is ", " are ", " le ", " la ", " les ",
+                      " une ", " est ", " avec ", " pour ", " dans ", " der ", " die ",
+                      " das ", " und ", " ist ", " el ", " la ", " los ", " que ", " con ",
+                      " il ", " gli ", " che ", " o ", " os ", " com "),
+    }
+
+    # Regex pour les langues a ecriture non-latine (cyrillique, CJK, arabe, etc.)
+    _NON_LATIN_SCRIPT_RE = re.compile(
+        "[Ѐ-ӿ぀-ゟ゠-ヿ一-鿿가-힯؀-ۿ֐-׿ऀ-ॿ฀-๿]"
+    )
+
+    def _is_wrong_language(self, text: str, target_lang: str) -> bool:
+        """
+        Detecte si 'text' est ecrit dans une AUTRE langue que target_lang.
+
+        Deux strategies :
+        1. Si la cible attend des caracteres non-latins (russe, CJK, etc.)
+           et que text n'en a pas, c'est louche (probablement traduit
+           vers le francais par defaut).
+        2. Pour les langues latines : on cherche des mots-cles specifiques
+           d'autres langues dans text.
+
+        Retourne True si text semble etre dans une mauvaise langue.
+        """
+        if not text or not target_lang:
+            return False
+
+        target = target_lang.lower().strip()
+
+        # Cas 1 : cible non-latine (russe, japonais, chinois, coreen, arabe, hindi)
+        # Si la traduction ne contient AUCUN caractere non-latin, c'est suspect.
+        non_latin_targets = {
+            "russian", "русский", "japanese", "日本語",
+            "chinese", "中文", "korean", "한국어",
+            "arabic", "العربية", "hindi",
+        }
+        if target in non_latin_targets and not self._NON_LATIN_SCRIPT_RE.search(text):
+            return True
+
+        # Cas 2 : recherche de mots-cles d'autres langues latines
+        # On normalise la cle de lookup
+        lang_aliases = {
+            "fr": "francais", "french": "francais", "francais": "francais", "français": "francais",
+            "en": "english", "english": "english", "anglais": "english",
+            "de": "deutsch", "german": "deutsch", "deutsch": "deutsch", "allemand": "deutsch",
+            "es": "espanol", "spanish": "espanol", "espanol": "espanol", "español": "espanol",
+            "it": "italiano", "italian": "italiano", "italiano": "italiano", "italien": "italiano",
+            "pt": "portugues", "portuguese": "portugues", "portugues": "portugues",
+            "nl": "nederlands", "dutch": "nederlands", "nederlands": "nederlands", "neerlandais": "nederlands",
+        }
+        key = lang_aliases.get(target, target)
+        markers = self._LANG_KEYWORDS.get(key)
+        if markers is None:
+            # Langue non couverte par le filet (on ne sait pas detecter)
+            return False
+        lower = " " + text.lower() + " "
+        hits = sum(1 for marker in markers if marker in lower)
+        # On exige au moins 2 marqueurs pour declencher le filet. Un seul
+        # mot commun (ex: " la " qui est OK en francais) declencherait
+        # trop de faux positifs.
+        return hits >= 2
+
     def _translate_title(self, title: str, force: bool = False) -> str:
         """Traduit le titre dans la langue cible.
 
@@ -438,23 +540,20 @@ class ArticleFetcher:
         langue que les resumes. Le cache LLM (via ollama_call) evite
         les repetitions si un meme titre repasse.
 
-        Le parametre force est garde pour compatibilite (force=True
-        est l'equivalent de l'ancien comportement inconditionnel).
+        Le parametre force est garde pour compatibilite.
 
-        Utilise un prompt ultra-court pour minimiser le temps Ollama.
+        Filet de securite multi-langues : si la traduction semble etre
+        dans une AUTRE langue que la cible, on fallback sur l'original.
         """
         from modules.core.llm_client import get_language
         if not title or not title.strip():
             return title
         lang = get_language()
-        # Prompt renforce : les LLM ont tendance a traduire vers l'anglais
-        # par defaut. On etre tres explicite sur la langue cible et on
-        # precise que la source est generalement deja en francais (donc
-        # il faut reformuler, pas traduire litteralement).
+        # Prompt renforce : on est tres explicite sur la langue cible.
         prompt = (
             f"Tu es un redacteur de titres de presse en {lang}. "
             f"Reformule ce titre de maniere naturelle en {lang} "
-            f"(la langue cible est OBLIGATOIREMENT {lang}, JAMAIS anglais). "
+            f"(la langue cible est OBLIGATOIREMENT {lang}, JAMAIS une autre). "
             f"Si le titre est deja en {lang}, reformule-le legerement pour "
             f"varier le style. Reponds UNIQUEMENT avec le titre reformule, "
             f"rien d'autre :\n{title}"
@@ -462,21 +561,14 @@ class ArticleFetcher:
         translated = ollama_call(prompt, timeout=30, caller="fetch")
         if translated and len(translated) > 3 and not translated.startswith("["):
             cleaned = translated.strip().strip('"').strip("'")
-            # Filet de securite : si la langue cible est le francais mais
-            # que la traduction contient des mots anglais evidents,
-            # le LLM a mal traduit. On garde l'original plutot que
-            # d'afficher un titre anglais dans une home en francais.
-            if lang in ("francais", "french", "fr"):
-                english_markers = (
-                    " the ", " to ", " of ", " and ", " in ", " for ",
-                    " with ", " against ", " from ", " says ", " is ",
+            # Filet de securite multi-langues : detecte si la traduction
+            # a ete faite dans une autre langue que la cible.
+            if self._is_wrong_language(cleaned, lang):
+                self.log.warning(
+                    f"Traduction vers la mauvaise langue (cible={lang}), "
+                    f"fallback sur l'original : {title[:60]}"
                 )
-                lower = " " + cleaned.lower() + " "
-                if any(m in lower for m in english_markers):
-                    self.log.warning(
-                        f"Traduction anglaise detectee, fallback sur l'original : {title[:60]}"
-                    )
-                    return title
+                return title
             return cleaned
         return title  # fallback sur l'original si echec
 

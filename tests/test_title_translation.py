@@ -165,7 +165,7 @@ class TestEmptyAndFallback:
         """
         with patch("modules.fetch.atlas_fetch.ollama_call") as mock_ollama, \
              patch("modules.core.llm_client.get_language", return_value="francais"):
-            mock_ollama.return_value = "The novelist returns her Legion of Honour in protest"
+            mock_ollama.return_value = "The novelist returns her Legion of Honour and the protest is against the law"
             result = self.fetcher._translate_title(
                 "Pour protester contre la loi d'urgence agricole, la romanciere rend sa Legion d'honneur"
             )
@@ -194,3 +194,172 @@ class TestEmptyAndFallback:
             result = self.fetcher._translate_title("日本円が急落")
             # En anglais, on garde la traduction telle quelle
             assert result == "The yen falls sharply against the dollar"
+
+
+class TestIsWrongLanguage:
+    """Tests unitaires pour la detection de mauvaise langue.
+
+    Le filet de securite est multi-langues depuis le commit d'extension :
+    francais, english, deutsch, espanol, italiano, portuges, nederlands.
+    Langues non-latines (russe, CJK, arabe, hindi) gerees par regex Unicode.
+    """
+
+    def setup_method(self):
+        self.fetcher = ArticleFetcher.__new__(ArticleFetcher)
+        self.fetcher.log = MagicMock()
+
+    # ── Francais : on detecte les autres langues ──
+
+    def test_french_english_in_text_detected(self):
+        """Si la cible est francais mais que le texte contient 2+ marqueurs
+        anglais (' the ', ' and ', etc.), c'est detecte comme anglais."""
+        assert self.fetcher._is_wrong_language(
+            "The novelist returns her Legion of Honour and the protest continues", "francais"
+        )
+
+    def test_french_german_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "Der Bundeskanzler ist mit dem Präsidenten und der Opposition", "francais"
+        )
+
+    def test_french_spanish_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "El presidente se reúne con el primer ministro y los senadores", "francais"
+        )
+
+    def test_french_clean_text_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "Le président rencontre le premier ministre", "francais"
+        )
+
+    def test_french_single_marker_not_triggered(self):
+        """Un seul marqueur (ex: ' the ' dans un titre) ne doit pas declencher."""
+        # ' the ' tout seul dans un titre ne suffit pas
+        assert not self.fetcher._is_wrong_language(
+            "The book is about Macron", "francais"
+        )
+
+    # ── English : on detecte francais, allemand, etc. ──
+
+    def test_english_french_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "Le président est avec le premier ministre et les ministres", "english"
+        )
+
+    def test_english_german_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "Der Kanzler ist mit dem Präsidenten und der Opposition", "english"
+        )
+
+    def test_english_clean_text_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "The president meets the prime minister", "english"
+        )
+
+    # ── Deutsch : on detecte anglais, francais, etc. ──
+
+    def test_german_english_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "The president is with the prime minister and the opposition", "deutsch"
+        )
+
+    def test_german_french_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "Le président est avec le premier ministre et les ministres", "deutsch"
+        )
+
+    def test_german_clean_text_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "Der Bundeskanzler trifft sich mit dem Präsidenten", "deutsch"
+        )
+
+    # ── Espanol / Italiano / Portugues / Nederlands ──
+
+    def test_spanish_french_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "Le président est avec le premier ministre et les ministres", "espanol"
+        )
+
+    def test_italian_clean_text_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "Il presidente incontra il primo ministro", "italiano"
+        )
+
+    def test_italian_english_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "The president is with the prime minister and the opposition", "italiano"
+        )
+
+    def test_portuguese_clean_text_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "O presidente encontra o primeiro ministro", "portugues"
+        )
+
+    def test_dutch_clean_text_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "De premier ontmoet de minister", "nederlands"
+        )
+
+    def test_dutch_french_in_text_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "Le président est avec le premier ministre et les ministres", "nederlands"
+        )
+
+    # ── Langues non-latines : on detecte l'absence de caracteres non-latins ──
+
+    def test_russian_no_cyrillic_detected(self):
+        """Si la cible est russe mais que le texte est en francais,
+        c'est detecte (pas de cyrillique)."""
+        assert self.fetcher._is_wrong_language(
+            "Le président rencontre le premier ministre", "russian"
+        )
+
+    def test_russian_with_cyrillic_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "Путин встретился с президентом", "russian"
+        )
+
+    def test_japanese_no_cjk_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "The president meets the prime minister", "japanese"
+        )
+
+    def test_japanese_with_cjk_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "日本円が急落", "japanese"
+        )
+
+    def test_chinese_no_cjk_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "Le président rencontre le premier ministre", "chinese"
+        )
+
+    def test_arabic_no_arabic_detected(self):
+        assert self.fetcher._is_wrong_language(
+            "The president meets the prime minister", "arabic"
+        )
+
+    def test_arabic_with_arabic_kept(self):
+        assert not self.fetcher._is_wrong_language(
+            "الاقتصاد ينمو في مصر", "arabic"
+        )
+
+    # ── Aliases de langues ──
+
+    def test_lang_aliases_work(self):
+        """'fr', 'french', 'francais', 'français' doivent tous marcher."""
+        bad = "The president is with the prime minister and the opposition"
+        for alias in ("fr", "french", "francais", "français"):
+            assert self.fetcher._is_wrong_language(bad, alias), f"alias {alias!r} pas detecte"
+
+    def test_unknown_lang_returns_false(self):
+        """Une langue non couverte retourne False (on ne sait pas detecter)."""
+        assert not self.fetcher._is_wrong_language(
+            "anything goes", "swahili"
+        )
+
+    def test_empty_text_returns_false(self):
+        assert not self.fetcher._is_wrong_language("", "francais")
+
+    def test_empty_target_returns_false(self):
+        assert not self.fetcher._is_wrong_language("any text", "")
