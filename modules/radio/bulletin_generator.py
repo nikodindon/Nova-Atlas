@@ -705,14 +705,39 @@ class BulletinGenerator:
         self.config = config
         self.paths = paths
         self.bulletins_cfg = load_bulletins_config(paths)
-        # Voix
+        # Voix : on prend dans la langue cible (service.default_language)
+        # depuis config.yaml.voices[lang]. Avant, on lisait bulletins.yaml
+        # qui etait hardcode francais (primary: fr-FR-HenriNeural). Bug
+        # rapporte en prod le 2026-07-28 : 'le bulletin est en anglais
+        # mais la voix est clairement francaise'.
+        from modules.core.llm_client import get_language
+        try:
+            target_lang = get_language()
+        except Exception:
+            target_lang = "francais"
+        # Cle de lookup dans config.yaml.voices (fr, en, de, es, ...)
+        lang_key = self._lang_to_config_key(target_lang)
+        # Voix depuis config.yaml, fallback sur bulletins.yaml si pas trouve
+        radio_voices = config.get("radio", {}).get("voices", {})
+        voices_for_lang = radio_voices.get(lang_key, [])
+        # Si pas de voix pour cette langue, fallback sur bulletins.yaml
+        # (compatibilite avec les anciennes configs)
         voices_cfg = self.bulletins_cfg.get("voices", {})
+        if len(voices_for_lang) >= 2:
+            primary   = voices_for_lang[0]
+            secondary = voices_for_lang[1]
+        elif len(voices_for_lang) == 1:
+            primary   = voices_for_lang[0]
+            secondary = voices_for_lang[0]
+        else:
+            primary   = voices_cfg.get("primary",   "fr-FR-HenriNeural")
+            secondary = voices_cfg.get("secondary", "fr-FR-DeniseNeural")
         voices_extra = self.bulletins_cfg.get("voices_extra", {})
         self.voice_map = {
-            "[VOIX1]":         voices_cfg.get("primary",   "fr-FR-HenriNeural"),
-            "[VOIX2]":         voices_cfg.get("secondary", "fr-FR-DeniseNeural"),
-            "[VOIX3]":         voices_cfg.get("primary",   "fr-FR-HenriNeural"),
-            "[VOIX_BREAKING]": voices_extra.get("breaking", voices_cfg.get("primary", "fr-FR-HenriNeural")),
+            "[VOIX1]":         primary,
+            "[VOIX2]":         secondary,
+            "[VOIX3]":         primary,
+            "[VOIX_BREAKING]": voices_extra.get("breaking", primary),
         }
         # Chemins
         self.bg_dir    = paths["root"] / paths.get("background_music", "background_music")
@@ -720,6 +745,22 @@ class BulletinGenerator:
         self.tmp_dir   = paths["root"] / paths.get("tmp_dir",         "tmp")
         self.queue_dir.mkdir(parents=True, exist_ok=True)
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    def _lang_to_config_key(self, lang: str) -> str:
+        """Convertit une langue LLM (francais, english) en cle config (fr, en)."""
+        if not lang:
+            return "fr"
+        lang = lang.lower().strip()
+        aliases = {
+            "francais": "fr", "français": "fr", "french": "fr",
+            "english": "en", "anglais": "en",
+            "deutsch": "de", "german": "de", "allemand": "de",
+            "espanol": "es", "español": "es", "spanish": "es",
+            "italiano": "it", "italian": "it",
+            "portugues": "pt", "portuguese": "pt",
+            "nederlands": "nl", "dutch": "nl",
+        }
+        return aliases.get(lang, lang[:2])
 
     def build(self, articles: List[dict], script: Optional[str] = None) -> Optional[Path]:
         """
