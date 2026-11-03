@@ -74,3 +74,25 @@ La disponibilité réseau des flux n'est pas vérifiée ; compatibilité statiqu
 120 entrées et fixtures uniquement. Voir HTTP_SECURITY.md pour budgets, refus
 conservateurs IPv6/ports, DNS libc non annulable, confiance envers le routage hôte
 et configuration des services internes. XSS/CSP et autres P0 restent ouverts.
+
+## Mise à jour Sprint 01C
+
+Socle : dev@48bf5b4 après fusion explicitement autorisée de la PR #4, CI réussie.
+Les cinq reproductions exécutées **avant** modification de production échouaient :
+attente absente, fetch initial doublé, même heure confondue entre dates, posts
+chevauchants et doublons à l'heure d'hiver. Elles passent après le correctif.
+
+| Constat | Statut 01C | Preuve / non-régression |
+|---|---|---|
+| Boucle news active au repos | Corrigée | run_loop attend Event.wait à chaque tour, horloge/attente injectables ; tests idle et arrêt |
+| Slots HH:MM et dernier post_hour sans date | Corrigés | Clés famille + date/heure civile, tests minuit/mois/année et posts le lendemain |
+| Fetch initial doublé dans une fenêtre | Corrigé | Réservation du créneau initial et maintien de l'ordre initial fetch→autres tâches |
+| Chevauchements et références de threads | Corrigés dans chaque scheduler | Admission atomique par famille, nettoyage et historique borné, tests de race avec barrière |
+| Reload pendant traitement actif | Différé | Flag conservé jusqu'au repos, nouveau config transmis aux callbacks, historique conservé |
+| Radio h24 forcée et bulletins simultanés | Corrigés | Heures cibles YAML, fenêtres :25/:55 conservées ; une génération à la fois, streamers simulés |
+| Arrêt brutal des travaux planifiés | Arrêt normal coopératif | Event partagé, drain des tâches, contrôles superviseur simulés ; arrêt forcé/panne toujours hors garantie |
+| Doublons après restart ou entre instances | Non garantis, politique historique explicite | Historique mémoire 1 024 tentatives, aucune persistance/catchup ; test de redémarrage simulé |
+
+Les défauts du verrou LLM, dates de déduplication, reprises, segments audio et XSS/CSP
+restent ouverts. Les protections 01A/01B sont conservées. Détails et limites :
+SCHEDULER.md et testing/SPRINT_01C.md ; aucune mesure CPU ou radio live exécutée.

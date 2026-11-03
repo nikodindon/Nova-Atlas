@@ -9,6 +9,8 @@
 > fiabilité ni la sécurité du déploiement. Les routes d'administration doivent
 > rester sur un réseau maîtrisé ; l’audit XSS complet reste à traiter.
 > Sprint 01B centralise la [protection HTTP/SSRF](docs/HTTP_SECURITY.md) des sources.
+> Sprint 01C fiabilise le [scheduler et son arrêt](docs/SCHEDULER.md) ;
+> la radio respecte désormais les heures cibles de `config/bulletins.yaml`.
 >
 > [Vision V2](docs/VISION_V2.md) · [Architecture](docs/ARCHITECTURE_V2.md) ·
 > [Roadmap V2](docs/ROADMAP_V2.md) · [Audit P0](docs/AUDIT_P0.md) ·

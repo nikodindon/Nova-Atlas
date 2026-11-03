@@ -1,0 +1,7 @@
+=========================== short test summary info ============================
+FAILED tests/test_scheduler_reproductions.py::test_idle_news_loop_must_wait
+FAILED tests/test_scheduler_reproductions.py::test_startup_fetch_must_not_duplicate_current_slot
+FAILED tests/test_scheduler_reproductions.py::test_previous_day_same_fetch_time_is_a_new_slot
+FAILED tests/test_scheduler_reproductions.py::test_long_posts_cannot_overlap_next_hour
+FAILED tests/test_scheduler_reproductions.py::test_autumn_repeated_hour_does_not_duplicate_civil_slots
+5 failed in 0.31s
