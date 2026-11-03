@@ -96,3 +96,27 @@ chevauchants et doublons à l'heure d'hiver. Elles passent après le correctif.
 Les défauts du verrou LLM, dates de déduplication, reprises, segments audio et XSS/CSP
 restent ouverts. Les protections 01A/01B sont conservées. Détails et limites :
 SCHEDULER.md et testing/SPRINT_01C.md ; aucune mesure CPU ou radio live exécutée.
+
+## Mise à jour Sprint 01D
+
+Socle : dev@597a7a7 après fusion autorisée de la PR #5 et vérification de ses CI.
+Six reproductions exécutées avant modification échouaient : création impossible
+annoncée réussie, suppression par non-détenteur, vol par priorité, vol par ancienneté,
+génération malgré échec et deux acquisitions lors d'une course exists/open.
+
+| Constat | Statut 01D | Preuve / non-régression |
+|---|---|---|
+| Verrou témoin non atomique | Corrigé | LocalLLMLock, flock sur inode stable ; deux processus avec générations simulées, plusieurs threads même client |
+| Libération étrangère | Refusée | Descripteur et bail PID/thread privés ; tests client/thread étrangers et enfant forké |
+| Erreur d'acquisition autorisant un appel | Corrigée | Échec fermé open/flock/métadonnées/plateforme/budget ; transport jamais appelé |
+| Préemption par priorité ou TTL | Supprimée | Attente monotone bornée, âge JSON ignoré, aucun retrait du fichier ni signal au détenteur |
+| Fuite du bail sur exception/mort | Corrigée dans le périmètre OS | finally/context manager, SIGKILL d'un enfant de test, récupération du verrou ; handles fork/exec traités |
+| Métadonnées partielles | Écriture atomique séparée | Lecteurs concurrents, JSON invalide sans autorité, erreurs d'écriture testées |
+| Cache manqué simultanément | Revérifié après attente | Une génération pour deux appels concurrents de même clé ; hits toujours sans attente de ressource |
+| Sérialisation future cloud | Frontière explicite | Seuls ollama/llama-server exclusifs ; provider inconnu refusé, ressources indépendantes possibles |
+
+Pas de FIFO ni garantie de non-famine ; pas de coordination multi-hôtes, entre
+répertoires distincts ou avec l'ancien protocole. Un timeout client ne certifie pas
+l'arrêt effectif du calcul serveur. Le cache txt/meta reste non transactionnel.
+Voir LLM_LOCKING.md. Dates de déduplication, reprises, segments audio et XSS/CSP
+restent ouverts. Aucun modèle/fournisseur réel ni service de production lancé.

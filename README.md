@@ -11,6 +11,8 @@
 > Sprint 01B centralise la [protection HTTP/SSRF](docs/HTTP_SECURITY.md) des sources.
 > Sprint 01C fiabilise le [scheduler et son arrêt](docs/SCHEDULER.md) ;
 > la radio respecte désormais les heures cibles de `config/bulletins.yaml`.
+> Sprint 01D sécurise le [verrou LLM local](docs/LLM_LOCKING.md) ; tous les processus
+> doivent être mis à jour ensemble lors d’un déploiement autorisé.
 >
 > [Vision V2](docs/VISION_V2.md) · [Architecture](docs/ARCHITECTURE_V2.md) ·
 > [Roadmap V2](docs/ROADMAP_V2.md) · [Audit P0](docs/AUDIT_P0.md) ·

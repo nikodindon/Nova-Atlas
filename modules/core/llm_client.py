@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-modules/core/ollama.py — Nova-Atlas
+modules/core/llm_client.py — Nova-Atlas
 Point d'entrée unique pour tous les appels LLM (Ollama CLI ou llama-server HTTP).
 Gère le verrou fichier pour éviter les appels concurrents.
 
@@ -11,6 +11,7 @@ Providers supportés :
 """
 
 import json
+import math
 import os
 import re
 import subprocess
@@ -18,24 +19,16 @@ import time
 import urllib.request
 import urllib.error
 import threading
-from datetime import datetime
 from pathlib import Path
+
+from modules.core.llm_lock import LocalLLMLock, LOCAL_EXCLUSIVE_PROVIDERS, resource_path, safe_caller
 
 # ─── PRIORITÉS DES CALLERS ───────────────────────────────────────────────────
 
-CALLER_PRIORITY = {
-    "fetch":    10,   # Plus haute : alimente le pool de news
-    "bulletin": 10,   # Bulletin 30 min scheduler (meme priorite que fetch) :
-                      # peut interrompre un fetch en cours pour ne pas rater
-                      # la fenetre de diffusion (l'article coupe sera re-resume
-                      # au prochain cycle)
-    "flash":    8,    # Bulletin a la demande : peut interrompre bulletin/report,
-                      # mais doit attendre la fin d'un fetch en cours
-    "editions": 5,
-    "report":   5,
-    "atlas":    3,    # Defaut
-    "posts":    1,
-}
+# Compatibility labels only. No priority can preempt an active OS lease.
+# A fair/priority queue belongs to a later capacity-management adapter.
+CALLER_PRIORITY = {'fetch': 10, 'bulletin': 10, 'flash': 8, 'editions': 5,
+                   'report': 5, 'atlas': 3, 'posts': 1}
 
 # ─── LANGUE ───────────────────────────────────────────────────────────────────
 
@@ -78,7 +71,11 @@ class OllamaClient:
         # Verrou fichier dans data/
         data_dir = Path(config.get("paths", {}).get("data_dir", "data"))
         data_dir.mkdir(parents=True, exist_ok=True)
-        self.lock_file = data_dir / "ollama.lock"
+        lock_dir = Path(llm_cfg.get('lock_dir') or data_dir)
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_file = resource_path(lock_dir, llm_cfg.get('lock_resource', 'local-llm'))
+        self._resource_lock = (LocalLLMLock(self.lock_file)
+                               if self.provider in LOCAL_EXCLUSIVE_PROVIDERS else None)
 
         # Cache LLM sur disque (data/llm_cache/). Désactivé si use_cache=false
         # dans la config, ou si on a un import error sur llm_cache.
@@ -93,12 +90,12 @@ class OllamaClient:
             except Exception as e:
                 import logging as _l
                 _l.getLogger("nova.ollama").warning(
-                    f"Cache LLM désactivé (erreur init): {e}"
+                    'Cache LLM désactivé : initialisation impossible'
                 )
 
         import logging
         self.log = logging.getLogger("nova.ollama")
-        self.log.info(f"LLM provider={self.provider} model={self.model} base_url={self.base_url}")
+        self.log.info('LLM backend=%s', self.provider if self.provider in LOCAL_EXCLUSIVE_PROVIDERS else 'unsupported')
 
         # Auto-détection du modèle via /v1/models (llama-server).
         # Si le modèle configuré n'est pas dans la liste, on prend
@@ -106,13 +103,10 @@ class OllamaClient:
         if self.provider == "llama-server":
             detected = self._detect_model_from_server()
             if detected and detected != self.model:
-                self.log.info(
-                    f"Modèle configuré '{self.model}' non trouvé sur le serveur, "
-                    f"bascule sur '{detected}'"
-                )
+                self.log.info('Modèle serveur détecté ; configuration adaptée')
                 self.model = detected
             elif detected:
-                self.log.info(f"Modèle '{self.model}' confirmé sur le serveur")
+                self.log.info('Modèle confirmé sur le serveur')
         if self._cache:
             self.log.info(f"LLM cache activé: {self._cache.stats()}")
 
@@ -131,7 +125,7 @@ class OllamaClient:
             with urllib.request.urlopen(req, timeout=5) as r:
                 data = _json.loads(r.read().decode("utf-8", errors="ignore"))
         except Exception as e:
-            self.log.debug(f"Auto-détection modèle impossible: {e}")
+            self.log.debug('Auto-détection modèle impossible (%s)', type(e).__name__)
             return None
         # Format OpenAI-compatible : data[].id, ou llama.cpp natif : models[].name
         models = []
@@ -152,74 +146,16 @@ class OllamaClient:
     # ── Verrou fichier ─────────────────────────────────────────────────────────
 
     def _read_lock_info(self) -> dict:
-        try:
-            with open(self.lock_file) as f:
-                return json.load(f)
-        except Exception:
-            return {}
+        return self._resource_lock.read_info() if self._resource_lock else {}
 
-    def _acquire_lock(self, caller: str, wait_max: int = 1200) -> bool:
-        my_priority = CALLER_PRIORITY.get(caller, 3)
-        waited = 0
-
-        while self.lock_file.exists():
-            info   = self._read_lock_info()
-            holder = info.get("caller", "?")
-            age    = int(time.time()) - info.get("ts", int(time.time()))
-
-            if age > 1200:
-                self.log.warning(f"Verrou expiré ({age}s) de '{holder}' — forcé par '{caller}'")
-                break
-
-            holder_priority = CALLER_PRIORITY.get(holder, 3)
-
-            # Cas spécial : si le holder est un flash (bulletin à la demande),
-            # on attend TRÈS longtemps (le flash peut prendre 5-10 min pour les
-            # gros prompts, et l'utilisateur attend). Le fetch ne doit PAS
-            # interrompre un flash en cours, il attend même 30 min si nécessaire.
-            if holder == "flash" and caller == "fetch":
-                if waited >= 1800:  # 30 min max (flash peut être long)
-                    self.log.warning(f"Timeout d'attente d'un flash ({waited}s) — '{caller}' abandonne")
-                    return False
-                if waited == 0:
-                    self.log.info(f"'{caller}' attend la fin du flash en cours (max 30min)...")
-                time.sleep(5)
-                waited += 5
-                continue
-
-            if my_priority >= holder_priority:
-                if waited >= 30:
-                    self.log.info(f"'{caller}' (prio {my_priority}) force '{holder}' (prio {holder_priority})")
-                    break
-                if waited == 0:
-                    self.log.info(f"'{caller}' attend '{holder}' (prio inférieure, max 30s)...")
-            else:
-                if waited >= wait_max:
-                    self.log.warning(f"Timeout d'attente du verrou ({wait_max}s) — '{caller}' abandonne")
-                    return False
-                if waited == 0:
-                    self.log.info(f"'{caller}' attend verrou de '{holder}' ({age}s écoulées)...")
-
-            time.sleep(5)
-            waited += 5
-
-        try:
-            with open(self.lock_file, "w") as f:
-                json.dump({
-                    "caller": caller,
-                    "since":  datetime.now().isoformat(),
-                    "ts":     int(time.time()),
-                }, f)
-            return True
-        except Exception:
-            return True
+    def _acquire_lock(self, caller: str, wait_max: int = 1200, *, cancel_event=None) -> bool:
+        if self._resource_lock is None:
+            self.log.error('Backend sans politique de capacité supportée ; génération refusée')
+            return False
+        return self._resource_lock.acquire(caller, wait_max, cancel_event=cancel_event)
 
     def _release_lock(self):
-        try:
-            if self.lock_file.exists():
-                self.lock_file.unlink()
-        except Exception:
-            pass
+        return self._resource_lock.release() if self._resource_lock else False
 
     # ── Nettoyage ANSI ─────────────────────────────────────────────────────────
 
@@ -291,15 +227,10 @@ class OllamaClient:
                         continue
                     return ""
             except urllib.error.HTTPError as e:
-                self.log.error(f"llama-server HTTP {e.code}: {e.reason}")
-                try:
-                    err_body = json.loads(e.read().decode("utf-8"))
-                    self.log.error(f"  → {err_body}")
-                except Exception:
-                    pass
+                self.log.error('llama-server HTTP %s', e.code)
                 return ""
             except Exception as e:
-                self.log.error(f"Erreur llama-server : {e}")
+                self.log.error('Erreur llama-server (%s)', type(e).__name__)
                 return ""
         return ""
 
@@ -310,7 +241,8 @@ class OllamaClient:
              timeout: int = None,
              caller:  str = "atlas",
              cache_key: str = None,
-             use_cache: bool = True) -> str:
+             use_cache: bool = True,
+             cancel_event=None) -> str:
         """
         Appel LLM thread-safe avec verrou fichier.
         Dispatch vers _call_ollama_cli() ou _call_llama_server() selon provider.
@@ -321,22 +253,42 @@ class OllamaClient:
           3. sinon, on appelle le LLM et on stocke le résultat
         Les chaînes vides (échecs LLM) ne sont jamais cachées.
         """
+        caller = safe_caller(caller)
+        if cancel_event is not None and cancel_event.is_set():
+            return ''
+        if self.provider not in LOCAL_EXCLUSIVE_PROVIDERS:
+            self.log.error('Backend non supporté ; génération refusée')
+            return ''
         if model   is None: model   = self.model
         if timeout is None: timeout = self.timeout_fetch
+        try:
+            valid_timeout = (type(timeout) in (int, float) and math.isfinite(timeout) and timeout > 0)
+        except (OverflowError, ValueError):
+            valid_timeout = False
+        if not valid_timeout:
+            self.log.error('Budget de génération LLM invalide ; appel refusé')
+            return ''
 
         # ── Cache hit (pas de lock, lecture seule) ─────────────────────────
         if cache_key and use_cache and self._cache is not None:
             cached = self._cache.get(cache_key)
             if cached is not None:
-                self.log.info(f"  ⚡ cache hit  {cache_key[:8]}  "
-                              f"({len(cached)} chars, caller={caller})")
+                self.log.info('LLM cache hit caller=%s', caller)
                 return cached
 
-        acquired = self._acquire_lock(caller, wait_max=timeout + 60)
+        acquired = self._acquire_lock(caller, wait_max=timeout + 60, cancel_event=cancel_event)
         if not acquired:
             return ""
 
         try:
+            if cancel_event is not None and cancel_event.is_set():
+                return ''
+            # A contender may have populated the cache while this call waited.
+            if cache_key and use_cache and self._cache is not None:
+                cached = self._cache.get(cache_key)
+                if cached is not None:
+                    self.log.info('LLM cache hit after wait caller=%s', caller)
+                    return cached
             if self.provider == "llama-server":
                 result = self._call_llama_server(prompt, model, timeout)
             else:
@@ -345,14 +297,13 @@ class OllamaClient:
             # ── Cache write (seulement si on a un contenu utile) ──────────
             if cache_key and use_cache and self._cache is not None and result:
                 self._cache.put(cache_key, result, caller=caller, model=model)
-                self.log.info(f"  💾 cache miss → wrote {cache_key[:8]} "
-                              f"({len(result)} chars, caller={caller})")
+                self.log.info('LLM cache stored caller=%s', caller)
             return result
         except subprocess.TimeoutExpired:
             self.log.warning(f"Timeout ({timeout}s) — caller={caller} provider={self.provider}")
             return ""
         except Exception as e:
-            self.log.error(f"Erreur LLM ({self.provider}) : {e}")
+            self.log.error('Erreur LLM (%s)', type(e).__name__)
             return ""
         finally:
             self._release_lock()
@@ -403,7 +354,7 @@ def start_llama_server(model: str, base_url: str = "http://localhost:8080",
             if resp.status == 200:
                 import logging
                 logging.getLogger("nova.ollama").info(
-                    f"llama-server déjà actif sur {base_url}")
+                    'llama-server déjà actif')
                 return True
     except Exception:
         pass
@@ -421,7 +372,7 @@ def start_llama_server(model: str, base_url: str = "http://localhost:8080",
 
         import logging
         log = logging.getLogger("nova.ollama")
-        log.info(f"Démarrage llama-server : {binary} -m {model} --host {host} --port {port}")
+        log.info('Démarrage du serveur LLM local configuré')
 
         _llama_server_process = subprocess.Popen(
             [binary, "-m", model, "--host", host, "--port", str(port),
@@ -440,13 +391,13 @@ def start_llama_server(model: str, base_url: str = "http://localhost:8080",
                     headers={"Accept": "application/json"})
                 with urllib.request.urlopen(req, timeout=2) as resp:
                     if resp.status == 200:
-                        log.info(f"✅ llama-server prêt sur {base_url}")
+                        log.info('llama-server prêt')
                         return True
             except Exception:
                 pass
             if _llama_server_process.poll() is not None:
                 out, err = _llama_server_process.communicate(timeout=1)
-                log.error(f"llama-server a crashé : {err.decode('utf-8', errors='replace')}")
+                log.error('llama-server a quitté avant disponibilité, code=%s', _llama_server_process.returncode)
                 _llama_server_process = None
                 return False
 
@@ -484,12 +435,7 @@ def init_ollama(config: dict) -> OllamaClient:
 def reload_ollama(config: dict) -> OllamaClient:
     """Recharge le client LLM avec une nouvelle config."""
     import logging
-    llm_cfg = config.get("llm", {})
-    logging.getLogger("nova.ollama").info(
-        f"Rechargement LLM : provider={llm_cfg.get('provider','?')} "
-        f"model={llm_cfg.get('model','?')} "
-        f"langue={config.get('service',{}).get('default_language','?')}"
-    )
+    logging.getLogger("nova.ollama").info('Rechargement de la configuration LLM')
     return init_ollama(config)
 
 
@@ -507,10 +453,11 @@ def ollama_call(prompt: str,
                 timeout:     int = None,
                 caller:      str = "atlas",
                 cache_key:   str = None,
-                use_cache:   bool = True) -> str:
+                use_cache:   bool = True,
+                cancel_event=None) -> str:
     """Raccourci global."""
     return get_client().call(prompt, model=model, timeout=timeout, caller=caller,
-                             cache_key=cache_key, use_cache=use_cache)
+                             cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event)
 
 
 def get_language() -> str:

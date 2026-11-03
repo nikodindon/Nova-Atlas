@@ -1,0 +1,8 @@
+=========================== short test summary info ============================
+FAILED tests/test_llm_lock_reproductions.py::test_lock_creation_failure_is_not_success
+FAILED tests/test_llm_lock_reproductions.py::test_non_owner_cannot_release_another_clients_lock
+FAILED tests/test_llm_lock_reproductions.py::test_priority_never_preempts_active_request
+FAILED tests/test_llm_lock_reproductions.py::test_old_timestamp_never_expires_an_active_owner
+FAILED tests/test_llm_lock_reproductions.py::test_failed_lock_never_calls_provider
+FAILED tests/test_llm_lock_reproductions.py::test_atomic_admission_when_two_existence_checks_race
+6 failed in 0.11s
