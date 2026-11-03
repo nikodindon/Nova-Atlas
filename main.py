@@ -33,16 +33,12 @@ from datetime import datetime
 
 from modules.core.config import load_config, get_service_name
 
+from modules.core.scheduler import (
+    FETCH_HOURS, REPORT_HOUR, REPORT_MIN, BUILD_HOUR, BUILD_MIN, EDITION_SCHEDULE,
+    DEFAULT_POST_HOURS, ThreadRunner, news_tasks, radio_tasks, run_loop, validate_hours,
+)
+
 logger = logging.getLogger("nova.main")
-
-# ─── SCHEDULER CONSTANTS (pattern atlas.py) ───────────────────────────────────
-
-FETCH_HOURS      = list(range(5, 24)) + list(range(0, 5))
-REPORT_HOUR      = 23
-REPORT_MIN       = 0
-BUILD_HOUR       = 23
-BUILD_MIN        = 30
-EDITION_SCHEDULE = [(6, "matin"), (12, "midi"), (19, "soir")]
 
 # ─── ARGS & LOGGING ───────────────────────────────────────────────────────────
 
@@ -84,11 +80,14 @@ def setup_logging(debug: bool):
 
 # ─── PROCESSUS : NEWS ENGINE ──────────────────────────────────────────────────
 
-def run_news_engine(config: dict, debug: bool = False):
+def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
     """
-    Scheduler news engine — boucle 60s, pattern atlas.py.
-    Chaque tâche est lancée dans un thread daemon.
+    Scheduler news — vérifications à la minute, fenêtres historiques conservées.
+    Attente interruptible ; tâches non-daemon drainées avant arrêt.
     """
+    stop_event = stop_event or threading.Event()
+    if stop_event.is_set():
+        return
     # Sur Windows (spawn), le processus enfant repart de zéro :
     # il faut réinitialiser le logging pour que les logs apparaissent en console.
     setup_logging(debug)
@@ -100,7 +99,6 @@ def run_news_engine(config: dict, debug: bool = False):
     from modules.editions.atlas_editions import EditionGenerator
     from modules.posts.atlas_posts       import PostsGenerator
     from modules.web.atlas_web           import generate_static_site
-    from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
 
     init_ollama(config)
 
@@ -110,35 +108,30 @@ def run_news_engine(config: dict, debug: bool = False):
     reporter  = ReportGenerator(config)
     editioner = EditionGenerator(config)
     poster    = PostsGenerator(config)
-    # BulletinGenerator (radio "30 minutes", 2×/h)
-    from pathlib import Path as _P
-    _proj = _P(__file__).parent.resolve()
-    news_paths = {
-        "root":            _proj,
-        "data":            _proj / "data",
-        "articles":        _proj / "data" / "articles",
-        "audio_queue":     _proj / "audio_queue",
-        "tmp":             _proj / "tmp",
-        "background_music": _proj / "background_music",
-    }
-    bulletin_gen = BulletinGenerator(config, news_paths)
-
-    post_hours = config.get("radio", {}).get("post_hours",
-                 [7, 9, 11, 13, 15, 17, 19, 21])
+    post_hours = validate_hours(config.get('radio', {}).get('post_hours', DEFAULT_POST_HOURS))
+    runner = ThreadRunner(log=log)
+    reload_deferred = False
 
     # ── Reload config à chaud ────────────────────────────────────────────────
     # Surveille un fichier flag créé par /config/restart
     # pour recharger la config sans tuer le processus
     import pathlib as _pl
-    _reload_flag = _pl.Path("data/.reload_config")
+    _reload_flag = _pl.Path(config.get('paths', {}).get('data_dir', 'data')) / '.reload_config'
 
     def _check_reload():
-        nonlocal post_hours
+        nonlocal post_hours, config, _reload_flag, reload_deferred
         if _reload_flag.exists():
+            if runner.active_count:
+                if not reload_deferred:
+                    log.info('Rechargement différé : traitements actifs')
+                    reload_deferred = True
+                return
+            reload_deferred = False
             try:
                 _reload_flag.unlink()
                 from modules.core.llm_client import reload_ollama
                 new_cfg = load_config("config/config.yaml")
+                new_post_hours = validate_hours(new_cfg.get('radio', {}).get('post_hours', DEFAULT_POST_HOURS))
                 # Recharge Ollama EN PREMIER (modèle + langue)
                 reload_ollama(new_cfg)
                 # Puis recharge tous les modules (chemins, timeouts, etc.)
@@ -146,33 +139,14 @@ def run_news_engine(config: dict, debug: bool = False):
                 reporter.reload_config(new_cfg)
                 editioner.reload_config(new_cfg)
                 poster.reload_config(new_cfg)
-                post_hours = new_cfg.get("radio", {}).get(
-                    "post_hours", [7, 9, 11, 13, 15, 17, 19, 21])
+                post_hours = new_post_hours
+                config = new_cfg
+                _reload_flag = _pl.Path(config.get('paths', {}).get('data_dir', 'data')) / '.reload_config'
                 log.info("✅ [NewsEngine] Config rechargée — modèle=%s langue=%s",
                          new_cfg.get("llm",{}).get("model","?"),
                          new_cfg.get("service",{}).get("default_language","?"))
             except Exception as e:
                 log.error(f"Erreur reload config : {e}", exc_info=True)
-
-    # Suivi des slots (pattern atlas.py)
-    last_fetch_slot  = ""
-    last_report_day  = ""
-    last_build_day   = ""
-    last_post_hour   = -1
-    last_edition_day: dict = {}
-    # Note: last_bulletin_slot a été supprimé — le scheduler bulletins est
-    # centralisé dans run_radio (log "⏰ Pré-génération"). Garder une copie
-    # ici provoquait 2 bulletins générés pour le même slot.
-    active_threads:   dict = {}
-
-    def run_in_thread(name: str, fn, *args):
-        t = active_threads.get(name)
-        if t and t.is_alive():
-            log.debug(f"[SKIP] {name} déjà en cours")
-            return
-        t = threading.Thread(target=fn, args=args, daemon=True, name=name)
-        active_threads[name] = t
-        t.start()
 
     def fetch_and_rebuild():
         try:
@@ -206,24 +180,6 @@ def run_news_engine(config: dict, debug: bool = False):
         except Exception as e:
             log.error(f"Erreur posts : {e}", exc_info=True)
 
-    def bulletin_job():
-        """Génère un bulletin radio "30 minutes" à partir des articles récents."""
-        try:
-            from modules.radio.bulletin_generator import load_bulletins_config
-            bulletins_cfg = load_bulletins_config(news_paths)
-            window = bulletins_cfg.get("window_minutes", 30)
-            articles = get_recent_articles(news_paths, window_minutes=window)
-            # Cap d'articles lu depuis config radio. Avant 2026-07-28 c'etait
-            # hardcode (20, puis 40). Maintenant parametre configurable.
-            max_articles = config.get("radio", {}).get("max_articles_per_bulletin", 40)
-            articles = articles[:max_articles]
-            log.info(f"[BULLETIN] {len(articles)} articles des {window} dernières min (cap {max_articles})")
-            path = bulletin_gen.build(articles)
-            if path:
-                log.info(f"[BULLETIN] ✅ {path}")
-        except Exception as e:
-            log.error(f"Erreur bulletin : {e}", exc_info=True)
-
     log.info("╔══════════════════════════════════════════════╗")
     log.info("║       Nova-Atlas — News Engine prêt         ║")
     log.info("║  Fetch        : toutes les 30 min           ║")
@@ -232,70 +188,30 @@ def run_news_engine(config: dict, debug: bool = False):
     log.info(f"║  Rapport      : {REPORT_HOUR:02d}h{REPORT_MIN:02d}                       ║")
     log.info("╚══════════════════════════════════════════════╝")
 
-    log.info("Fetch initial au démarrage...")
-    try:
-        fetcher.run()
-        generate_static_site(config, full=False)
-    except Exception as e:
-        log.error(f"Fetch initial : {e}")
+    def initial_fetch_and_rebuild():
+        # Preserve the startup rebuild even when the initial fetch returns zero articles.
+        try:
+            fetcher.run()
+            generate_static_site(config, full=False)
+        except Exception as e:
+            log.error(f"Fetch initial : {e}")
 
-    while True:
-        now   = datetime.now()
-        h, m  = now.hour, now.minute
-        today = now.strftime("%Y%m%d")
-
-        # Vérifie si un reload config a été demandé
-        _check_reload()
-
-        # Fetch RSS toutes les 30 min
-        current_slot = f"{h:02d}:{(m // 30) * 30:02d}"
-        if h in FETCH_HOURS and m % 30 < 2 and current_slot != last_fetch_slot:
-            last_fetch_slot = current_slot
-            log.info(f"[FETCH] Cycle {current_slot}")
-            run_in_thread(f"fetch_{current_slot}", fetch_and_rebuild)
-
-        # Rapport quotidien à 23h00
-        if (h == REPORT_HOUR and REPORT_MIN <= m < REPORT_MIN + 5
-                and last_report_day != today):
-            last_report_day = today
-            log.info(f"[REPORT] Génération rapport {today}")
-            run_in_thread("rapport", rapport_and_rebuild, today)
-
-        # Rebuild site à 23h30
-        if (h == BUILD_HOUR and BUILD_MIN <= m < BUILD_MIN + 5
-                and last_build_day != today):
-            last_build_day = today
-            log.info("[WEB] Rebuild post-rapport")
-            run_in_thread("rebuild", generate_static_site, config, True)
-
-        # Posts réseaux sociaux
-        if h in post_hours and m < 3 and h != last_post_hour:
-            last_post_hour = h
-            log.info(f"[POSTS] Génération {h:02d}h00")
-            run_in_thread(f"posts_{h}", posts_job, today)
-
-        # Éditions Matin / Midi / Soir
-        for ed_hour, ed_name in EDITION_SCHEDULE:
-            key = f"{today}_{ed_name}"
-            if h == ed_hour and m < 5 and key not in last_edition_day:
-                last_edition_day[key] = True
-                log.info(f"[EDITION] Génération {ed_name}")
-                run_in_thread(f"edition_{ed_name}", edition_and_rebuild, ed_name, today)
-
-        # Bulletins radio : géré par le scheduler de run_radio (plus complet,
-        # log "⏰ Pré-génération"). On ne duplique PAS le scheduling ici pour
-        # éviter que 2 bulletins soient générés pour le même slot.
-        # Le watcher de news détecte les news fraîches, mais la décision
-        # de générer un bulletin est centralisée dans run_radio.
+    run_loop(
+        lambda now: news_tasks(now, post_hours),
+        {'fetch': fetch_and_rebuild, 'report': rapport_and_rebuild,
+         'edition': edition_and_rebuild, 'posts': posts_job,
+         'rebuild': lambda: generate_static_site(config, full=True)},
+        stop_event, runner=runner, clock=lambda: datetime.now(),
+        before_tick=lambda now: _check_reload(), startup=initial_fetch_and_rebuild,
+    )
 
 
 # ─── PROCESSUS : RADIO ────────────────────────────────────────────────────────
 
-def run_radio(config: dict, debug: bool = False):
+def run_radio(config: dict, debug: bool = False, *, stop_event=None):
     """
-    3 threads daemon :
-      BulletinGen  — TTS + mix audio à la demande
-      Streamer     — flux Icecast continu via pipe ffmpeg
+    Streamers daemon ; génération bulletin non-daemon, une seule à la fois.
+    Le scheduler attend les bulletins actifs avant l'arrêt des streamers.
 
     Le declenchement des bulletins est assure par le scheduler
     integre (cf bulletins.yaml post_hours : 5 min avant chaque :30
@@ -308,12 +224,13 @@ def run_radio(config: dict, debug: bool = False):
     Le fichier messages.yaml (intros, transitions, outros) est lu par bulletin_generator
     depuis config/messages.yaml — chemin résolu par le module radio.
     """
+    stop_event = stop_event or threading.Event()
+    if stop_event.is_set():
+        return
     setup_logging(debug)
     from modules.radio.streamer        import Streamer, AndroidStreamer
     from modules.radio.bulletin_generator import BulletinGenerator, get_recent_articles
     from pathlib import Path as _P
-    import threading
-
     log = logging.getLogger("nova.radio")
     log.info("Initialisation radio...")
 
@@ -356,47 +273,40 @@ def run_radio(config: dict, debug: bool = False):
             log.error(f"Erreur bulletin : {e}", exc_info=True)
 
     # Lance les 2 workers principaux (Streamer + BulletinGen via scheduler)
-    threading.Thread(target=streamer.run, daemon=True, name="Streamer").start()
-    threading.Thread(target=android_streamer.run, daemon=True, name="AndroidStreamer").start()
+    stream_threads = [threading.Thread(target=streamer.run, daemon=True, name="Streamer"),
+                      threading.Thread(target=android_streamer.run, daemon=True, name="AndroidStreamer")]
+    for thread in stream_threads:
+        thread.start()
 
     ic = config.get("icecast", {})
     log.info(f"✅ Radio → http://localhost:{ic.get('port',8000)}{ic.get('mount','/nova')}")
     log.info(f"✅ Android → http://localhost:{ic.get('port',8000)}{ic.get('android_mount','/nova-android')}")
 
-    # Scheduler 2×/h (X:00, X:30) — pré-déclenchement à :25 et :55
-    # pour que la génération (1-2 min) soit prête à l'heure pile
-    from datetime import datetime
-    # Bulletins h24 (toutes les 30 min, 24h/24) pour ceux qui
-    # ecoutent la radio a n'importe quelle heure
-    post_hours = list(range(0, 24))
-    last_slot = ""
-    last_heartbeat = 0
-    while True:
+    # Keep :25/:55 pre-generation, using the configured TARGET hour.
+    post_hours = ()
+    last_heartbeat = None
+    def refresh_radio_schedule(now):
+        nonlocal post_hours, last_heartbeat
+        from modules.radio.bulletin_generator import load_bulletins_config
         try:
-            now = datetime.now()
-            m, h = now.minute, now.hour
-            # Pré-déclenchement 5 min avant le slot pile :
-            #   :25-27 → vise h:30 (qui arrive dans ~5 min)
-            #   :55-57 → vise (h+1):00 (qui arrive dans ~5 min)
-            if 25 <= m < 27 and h in post_hours:
-                target_slot = f"{h:02d}:30"
-            elif 55 <= m < 57 and (h + 1) % 24 in post_hours:
-                target_slot = f"{(h + 1) % 24:02d}:00"
-            else:
-                target_slot = ""
-            # Heartbeat toutes les 5 min pour confirmer que le scheduler tourne
-            if now.timestamp() - last_heartbeat >= 300:
-                log.info(f"⏰ Scheduler actif (h={h:02d}:{m:02d}, post_hours={post_hours[:3]}...)")
-                last_heartbeat = now.timestamp()
-            if target_slot:
-                if target_slot != last_slot:
-                    last_slot = target_slot
-                    log.info(f"⏰ Pré-génération pour slot cible {target_slot}")
-                    threading.Thread(target=generate_bulletin, daemon=True, name=f"BulletinGen_{target_slot}").start()
-            time.sleep(10)  # check 6×/min pour tomber dans la fenetre [:25-:27] ou [:55-:57]
-        except Exception as e:
-            log.error(f"Erreur scheduler bulletin: {e}", exc_info=True)
-            time.sleep(10)  # ne pas mourrir en boucle
+            post_hours = validate_hours(load_bulletins_config(radio_paths).get('post_hours', []))
+        except Exception:
+            log.warning('Calendrier radio invalide : dernières heures valides conservées')
+        current = time.monotonic()
+        if last_heartbeat is None or current - last_heartbeat >= 300:
+            log.info('⏰ Scheduler radio actif, post_hours=%s', post_hours)
+            last_heartbeat = current
+
+    try:
+        run_loop(lambda now: radio_tasks(now, post_hours), {'bulletin': generate_bulletin},
+                 stop_event, runner=ThreadRunner(log=log), clock=lambda: datetime.now(),
+                 before_tick=refresh_radio_schedule)
+    finally:
+        # run_loop drains bulletin work first; stop audio only after its final enqueue.
+        streamer.stop()
+        android_streamer.stop()
+        for thread in stream_threads:
+            thread.join()
 
 
 # ─── PROCESSUS : WEB SERVER ───────────────────────────────────────────────────
@@ -475,11 +385,36 @@ def cmd_report(config, day=None):
 
 # ─── ORCHESTRATEUR ────────────────────────────────────────────────────────────
 
+def _scheduler_process(fn, args, stop_event):
+    def request_stop(sig, frame):
+        stop_event.set()
+    signal.signal(signal.SIGINT, request_stop)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, request_stop)
+    fn(*args, stop_event=stop_event)
+
+
 def _start_process(fn, name: str, *args) -> multiprocessing.Process:
-    p = multiprocessing.Process(target=fn, args=args, name=name, daemon=True)
+    if fn in (run_news_engine, run_radio):
+        stop_event = multiprocessing.Event()
+        p = multiprocessing.Process(target=_scheduler_process, args=(fn, args, stop_event),
+                                    name=name, daemon=True)
+        p.scheduler_stop_event = stop_event
+    else:
+        p = multiprocessing.Process(target=fn, args=args, name=name, daemon=True)
     p.start()
     logger.info(f"▶  '{name}' démarré (pid={p.pid})")
     return p
+
+
+def _stop_process(process):
+    event = getattr(process, 'scheduler_stop_event', None)
+    if event is not None:
+        event.set()
+        process.join()  # Preserve active jobs: no forced timeout/terminate on normal stop.
+    elif process.is_alive():
+        process.terminate()
+        process.join(timeout=5)
 
 
 def main():
@@ -543,15 +478,29 @@ def main():
     logger.info("=" * 68)
     logger.info("Ctrl+C pour arrêter")
 
+    stopping = False
+    restart_requested = False
     def shutdown(sig, frame):
-        logger.info("\n⛔ Arrêt...")
+        nonlocal stopping
+        if stopping:
+            return
+        stopping = True
+        logger.info("\n⛔ Arrêt : attente des traitements actifs...")
         for p in processes:
-            if p.is_alive():
-                p.terminate()
+            event = getattr(p, 'scheduler_stop_event', None)
+            if event is not None:
+                event.set()
+        for p in processes:
+            _stop_process(p)
         sys.exit(0)
 
-    def restart_all(sig, frame):
-        """Redémarre tous les processus (déclenché par SIGUSR1 depuis /config/restart)."""
+    def request_restart(sig, frame):
+        nonlocal restart_requested
+        if not stopping:
+            restart_requested = True
+
+    def restart_all():
+        """Executed serially in the supervisor loop, never inside a signal handler."""
         logger.info("🔄 Redémarrage demandé via SIGUSR1 — rechargement config...")
         # Recharge la config depuis le disque
         new_config = load_config(args.config)
@@ -559,8 +508,7 @@ def main():
             p = processes[i]
             if p.is_alive():
                 logger.info(f"   Arrêt '{name}'...")
-                p.terminate()
-                p.join(timeout=5)
+                _stop_process(p)
             # Relance avec la nouvelle config
             new_args = (new_config,) + fn_args[1:]  # remplace config, garde le reste
             new_p = _start_process(fn, name, *new_args)
@@ -573,16 +521,23 @@ def main():
     if sys.platform != "win32":
         signal.signal(signal.SIGTERM, shutdown)
         if hasattr(signal, 'SIGUSR1'):
-            signal.signal(signal.SIGUSR1, restart_all)
+            signal.signal(signal.SIGUSR1, request_restart)
             logger.info("💡 Redémarrage à distance disponible via POST /config/restart")
 
     # Watchdog : relance un processus crashé
     while True:
         time.sleep(15)
+        if restart_requested:
+            restart_requested = False
+            restart_all()
+            continue
         for i, (fn, name, fn_args) in enumerate(proc_defs):
             if not processes[i].is_alive():
                 logger.warning(f"⚠️  '{name}' mort (exit={processes[i].exitcode}) — relance...")
-                processes[i] = _start_process(fn, name, *fn_args)
+                current_config = load_config(args.config)
+                current_args = (current_config,) + fn_args[1:]
+                processes[i] = _start_process(fn, name, *current_args)
+                proc_defs[i] = (fn, name, current_args)
 
 
 if __name__ == "__main__":

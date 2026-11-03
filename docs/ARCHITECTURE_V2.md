@@ -56,3 +56,10 @@ DNS validé intégralement et IP fixée à la socket, redirects et ressources bo
 Ce même point d'entrée devra servir aux futurs tests/découverte Source Manager.
 Le proxy Icecast utilise une politique interne distincte à origine/mounts configurés.
 Les clients LLM de confiance restent séparés. Voir [HTTP_SECURITY.md](HTTP_SECURITY.md).
+
+## Livraison incrémentale Sprint 01C
+
+Le scheduler reste dans les processus existants. Décisions isolées dans
+modules/core/scheduler.py, attente Event, créneaux civils datés, admissions par
+famille et arrêt coopératif. L'historique est borné et en mémoire ; les jobs durables
+et l'idempotence inter-instances restent au sprint SQL. Voir SCHEDULER.md.
