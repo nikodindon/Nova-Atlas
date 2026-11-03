@@ -76,7 +76,7 @@ def load_feeds(feeds_path: str | Path) -> Dict[str, List[str]]:
     if bad_lines:
         import logging
         logging.getLogger("nova.feeds").warning(
-            f"{len(bad_lines)} lignes malformées dans {feeds_path}: {bad_lines[:3]}"
+            "%d lignes malformées dans le fichier de flux (contenu masqué)", len(bad_lines)
         )
     return feeds
 

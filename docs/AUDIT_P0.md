@@ -31,3 +31,26 @@ réussissent aujourd'hui : elles documentent l'existant, elles ne prouvent pas s
 sécurité. Elles devront changer lors de la correction accompagnée de sa régression.
 Le test pipeline bulletin existant n'affirme pas une sortie audio valide ; la
 couverture actuelle ne valide ni continuité Icecast ni qualité TTS/LLM.
+
+## Mise à jour Sprint 01A
+
+Le socle de cette PR est dev@a1db974 (PR #2 fusionnée). Les numéros de ligne du
+tableau précédent restent ceux de l'audit original ; les fonctions ci-dessous
+identifient les correctifs malgré le déplacement des lignes.
+
+| Constat | Statut 01A | Preuve / non-régression |
+|---|---|---|
+| Accès administratif sans auth/CSRF | Corrigé dans le périmètre Flask mono-processus | admin_security.install_admin_security : refus par défaut, sessions révoquées/expirées, CSRF ; tests sur chaque route sensible |
+| Confiance automatique ProxyFix | Retirée | TrustedProxy ne reconnaît HTTPS que depuis CIDR explicites ; en-têtes d'identité ignorés, tests de spoofing |
+| Mot de passe Icecast rendu, erreurs brutes et chemins serveur | Corrigé sur les surfaces traitées | safe_view, champ password vide, erreurs génériques, statut flash avec URL ; tests de non-divulgation |
+| Écriture arbitraire de section YAML/chemins | Corrigée côté web | Allowlist typée, écriture atomique/verrou, secrets vides/masques conservés ; tests de rejet et de concurrence |
+| Fallback de config vers checkout réel / fichiers arbitraires | Corrigé | create_app root explicite, allowlist assets, contrôle des symlinks ; tests temporaires sans service |
+| Génération flash et restart sans limites | Bornés | Auth/CSRF, 5/minute, un flash actif ; threads simulés dans les tests |
+| SSRF complet | Ouvert — 01B après revue | Auth ne valide pas DNS/destination ; proxy et extraction restent à auditer |
+| XSS/HTML/JS eval | Partiellement durci, toujours ouvert | Valeurs config échappées et données feeds hors littéraux JS ; audit global/CSP encore requis |
+| Scheduler, verrou LLM, dates, reprises, audio | Inchangés | Caractérisations Sprint 00 conservées ; correctifs dédiés à venir |
+| Clé OpenRouter historique | Action propriétaire en attente de confirmation | Aucune révocation effectuée par l'agent |
+
+Limite explicite : sessions/limites en mémoire dans un seul processus web. Pas de
+protection multi-workers tant qu'un stockage partagé n'est pas implémenté.
+Voir SECRETS_AND_ADMIN.md pour configuration, inventaire complet et incompatibilités.
