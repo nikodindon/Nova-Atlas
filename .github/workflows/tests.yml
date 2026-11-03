@@ -18,6 +18,10 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.lock
       - run: python -m pip install -r requirements-dev.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/test_csrf.cjs
       - run: python -m compileall -q main.py modules tests
       - run: python -m pytest -q --junitxml=pytest-results.xml
       - uses: actions/upload-artifact@v4

@@ -3,16 +3,18 @@
 > **État Sprint 00 / V2 (novembre 2026)** : le socle actuel est Python/Flask,
 > stockage JSON/YAML, Ollama CLI ou llama-server, Edge TTS/FFmpeg/Icecast.
 > Les pages sont générées et servies par Flask ; la V2 n'est pas encore livrée.
+> Sprint 01A ajoute une administration Flask fermée par défaut :
+> [initialisation et connexion](docs/SECRETS_AND_ADMIN.md).
 > Les descriptions ci-dessous restent historiques et ne garantissent pas la
 > fiabilité ni la sécurité du déploiement. Les routes d'administration doivent
-> être restreintes en attendant leurs correctifs dédiés.
+> rester sur un réseau maîtrisé ; SSRF et audit XSS complet restent à traiter.
 >
 > [Vision V2](docs/VISION_V2.md) · [Architecture](docs/ARCHITECTURE_V2.md) ·
 > [Roadmap V2](docs/ROADMAP_V2.md) · [Audit P0](docs/AUDIT_P0.md) ·
 > [Baseline et tests hors ligne](docs/testing/BASELINE.md) ·
 > [Secrets et routes admin](docs/SECRETS_AND_ADMIN.md).
 > Baseline : 185 tests existants réussis ; suite Sprint 00 : 190 réussis.
-> `.env.example` prépare les variables futures et n'est pas chargé actuellement.
+> Les variables admin sont lues dans l’environnement du processus ; `.env` n’est pas chargé automatiquement.
 > Incident historique OpenRouter signalé : révocation à réaliser par le propriétaire.
 
 

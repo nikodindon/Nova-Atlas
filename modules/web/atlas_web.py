@@ -9,7 +9,7 @@ Différences vs version standalone pblart/nova-media :
     issu de config/config.yaml, via les deux fonctions publiques :
       run_server(config, host, port)
       generate_static_site(config, full)
-  - L'objet Flask est instancié à l'intérieur de run_server() pour que les
+  - L'objet Flask est instancié par create_app(), appelée par run_server(), pour que les
     chemins soient correctement résolus au moment de l'appel, pas au chargement
     du module.
   - load_atlas_config() / save_atlas_config() utilisent paths.data_dir
@@ -411,10 +411,10 @@ def _get_cat_labels(config: dict) -> dict:
 
 # ─── RÉSOLUTION DES CHEMINS ───────────────────────────────────────────────────
 
-def _resolve_paths(config: dict) -> dict:
+def _resolve_paths(config: dict, root: Path = None) -> dict:
     """Extrait les chemins absolus + branding + i18n depuis le dict config Nova-Atlas."""
     paths = config.get("paths", {})
-    root  = Path.cwd()
+    root  = Path(root) if root is not None else Path.cwd()
     svc   = config.get("service", {})
     name  = svc.get("name", "Nova Atlas")
     parts     = name.upper().rsplit(" ", 1)
@@ -510,7 +510,8 @@ def _branding(paths: dict) -> dict:
 # ─── CONFIG ATLAS (JSON) ──────────────────────────────────────────────────────
 
 def _config_file(paths: dict) -> Path:
-    return paths["data"] / "atlas_config.json"
+    from modules.web.config_security import confined_file
+    return confined_file(paths["data"], "atlas_config.json")
 
 def load_atlas_config(paths: dict) -> dict:
     f = _config_file(paths)
@@ -528,8 +529,8 @@ def load_atlas_config(paths: dict) -> dict:
 def save_atlas_config(paths: dict, cfg: dict):
     f = _config_file(paths)
     f.parent.mkdir(parents=True, exist_ok=True)
-    with open(f, "w", encoding="utf-8") as fp:
-        json.dump(cfg, fp, ensure_ascii=False, indent=2)
+    from modules.web.config_security import atomic_text
+    atomic_text(f, json.dumps(cfg, ensure_ascii=False, indent=2))
 
 # ─── HELPERS DATA ─────────────────────────────────────────────────────────────
 
@@ -545,14 +546,16 @@ def format_day_label(day: str) -> str:
     return d.strftime("%d/%m/%Y")
 
 def load_articles_for_day(day: str, paths: dict) -> list:
-    f = paths["articles"] / f"{day}_articles.json"
+    from modules.web.config_security import confined_file
+    f = confined_file(paths["articles"], f"{day}_articles.json")
     if not f.exists():
         return []
     with open(f, "r", encoding="utf-8") as fp:
         return json.load(fp)
 
 def load_report(day: str, paths: dict) -> str:
-    f = paths["reports"] / f"{day}_report.md"
+    from modules.web.config_security import confined_file
+    f = confined_file(paths["reports"], f"{day}_report.md")
     if not f.exists():
         return ""
     with open(f, "r", encoding="utf-8") as fp:
@@ -591,7 +594,8 @@ def get_breaking_news(paths: dict, max_items: int = 6) -> list:
 
     articles = []
     for day in [yesterday, today]:
-        f = paths["articles"] / f"{day}_articles.json"
+        from modules.web.config_security import confined_file
+        f = confined_file(paths["articles"], f"{day}_articles.json")
         if f.exists():
             try:
                 with open(f, "r", encoding="utf-8") as fp:
@@ -747,7 +751,8 @@ def render_report_page(day: str, paths: dict) -> str:
 
 
 def load_edition(day: str, edition_name: str, paths: dict) -> str:
-    f = paths["editions"] / f"{day}_{edition_name}.md"
+    from modules.web.config_security import confined_file
+    f = confined_file(paths["editions"], f"{day}_{edition_name}.md")
     if not f.exists():
         return ""
     with open(f, "r", encoding="utf-8") as fp:
@@ -976,6 +981,8 @@ def build_live_feed(paths: dict) -> str:
 def build_config_yaml_page(paths: dict, config: dict) -> str:
     """Page de configuration complète depuis config.yaml."""
     from jinja2 import Template
+    from modules.web.config_security import safe_view
+    config = safe_view(config)
     svc    = config.get("service",  {})
     llm    = config.get("llm",   {})
     radio  = config.get("radio",    {})
@@ -1035,7 +1042,8 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
 
 def build_config_page(paths: dict) -> str:
     from jinja2 import Template
-    cfg = load_atlas_config(paths)
+    from modules.web.config_security import safe_view
+    cfg = safe_view(load_atlas_config(paths))
     return Template(CONFIG_TEMPLATE).render(
         **_branding(paths),
         global_script=GLOBAL_SCRIPT,
@@ -1137,14 +1145,14 @@ function render(cats) {
     div.className = 'feed-cat';
     let items = urls.map((u, i) => `
       <div class="feed-item" data-url="${escapeHtml(u)}">
-        <button class="feed-btn" onclick="mv('${escapeHtml(cat)}', '${escapeHtml(u)}', 'up')"   ${i===0?'disabled':''}>↑</button>
-        <button class="feed-btn" onclick="mv('${escapeHtml(cat)}', '${escapeHtml(u)}', 'down')" ${i===urls.length-1?'disabled':''}>↓</button>
-        <span class="feed-url" title="${escapeHtml(u)}" onclick="window.open('${escapeHtml(u)}','_blank')">${escapeHtml(shortUrl(u))}</span>
-        <button class="feed-btn"        onclick="tg('${escapeHtml(cat)}', '${escapeHtml(u)}')">Désactiver</button>
-        <button class="feed-btn danger" onclick="rm('${escapeHtml(cat)}', '${escapeHtml(u)}')">× Suppr</button>
+        <button class="feed-btn" data-cat="${escapeHtml(cat)}" onclick="mv(this.dataset.cat, this.closest('.feed-item').dataset.url, 'up')"   ${i===0?'disabled':''}>↑</button>
+        <button class="feed-btn" data-cat="${escapeHtml(cat)}" onclick="mv(this.dataset.cat, this.closest('.feed-item').dataset.url, 'down')" ${i===urls.length-1?'disabled':''}>↓</button>
+        <span class="feed-url" title="${escapeHtml(u)}" onclick="window.open(this.closest('.feed-item').dataset.url,'_blank','noopener')">${escapeHtml(shortUrl(u))}</span>
+        <button class="feed-btn"        data-cat="${escapeHtml(cat)}" onclick="tg(this.dataset.cat, this.closest('.feed-item').dataset.url)">Désactiver</button>
+        <button class="feed-btn danger" data-cat="${escapeHtml(cat)}" onclick="rm(this.dataset.cat, this.closest('.feed-item').dataset.url)">× Suppr</button>
       </div>`).join('');
     div.innerHTML = `<h3>${escapeHtml(cat)} <span style="color:#666;font-size:11px;">(${urls.length})</span></h3>${items}
-      <form class="add-form" onsubmit="return addFeed('${escapeHtml(cat)}', this)">
+      <form class="add-form" data-cat="${escapeHtml(cat)}" onsubmit="return addFeed(this.dataset.cat, this)">
         <input placeholder="https://nouveau-flux.example.com/rss.xml" required>
         <button class="feed-btn" type="submit">+ Ajouter</button>
       </form>`;
@@ -1414,8 +1422,8 @@ def build_preferences_page(paths: dict) -> str:
 
 # ─── STATIC SITE GENERATOR ────────────────────────────────────────────────────
 
-def generate_static_site(config: dict, full: bool = False) -> str:
-    paths = _resolve_paths(config)
+def generate_static_site(config: dict, full: bool = False, *, root: Path = None) -> str:
+    paths = _resolve_paths(config, root=root)
     paths["site"].mkdir(parents=True, exist_ok=True)
 
     all_days  = get_available_days(paths)
@@ -1453,24 +1461,32 @@ def _sync_icecast_to_atlas_config(config: dict, paths: dict):
         pass
 
 
-def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
-               debug: bool = False):
+def create_app(config: dict, *, root: Path = None):
     """
-    Point d'entrée du serveur Flask.
-    Toujours appelé avec le dict config complet issu de config.yaml.
+    Build the Flask application without starting services or writing configuration.
+    config is supplied by the caller; root fixes all configuration lookups.
     """
     from flask import Flask, abort, request, jsonify, send_from_directory
 
-    paths = _resolve_paths(config)
-    # Sync icecast config → atlas_config.json pour que le player web la lise
-    _sync_icecast_to_atlas_config(config, paths)
-    app   = Flask(__name__)
-    # ProxyFix : fait confiance aux headers X-Forwarded-* du reverse proxy
-    # pour que request.is_secure, request.scheme, etc. reflètent le HTTPS
-    # externe (sinon Flask voit toujours HTTP parce qu'il tourne en HTTP).
-    from werkzeug.middleware.proxy_fix import ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
+    # Explicit root removes fallbacks to the real checkout in tests/deployments.
+    from modules.web.config_security import update_yaml, simple_update, confined_file, public_feeds
+    from modules.web.admin_security import install_admin_security
+    if root is None:
+        root = Path.cwd()
+    root = Path(root).resolve()
+    paths = _resolve_paths(config, root=root)
+    for key, setting, default in (
+        ('articles', 'articles_dir', 'data/articles'), ('reports', 'reports_dir', 'data/reports'),
+        ('editions', 'editions_dir', 'data/editions'), ('site', 'site_dir', 'site'),
+        ('data', 'data_dir', 'data')):
+        paths[key] = (root / config.get('paths', {}).get(setting, default)).resolve()
+    paths['root'] = root
+    paths['config_file'] = confined_file(root / 'config', 'config.yaml')
+    paths['feeds_file'] = confined_file(root / 'config', 'feeds.yaml')
+    # Factory has no disk writes; startup sync stays in run_server.
+    app = Flask(__name__, static_folder=None)
+    install_admin_security(app)
+    app.extensions["atlas_paths"] = paths
     # ── Proxy stream Icecast → HTTPS (mixed-content fix) ──────────────
     # Quand le site est servi en HTTPS (reverse proxy), le browser refuse
     # de charger le stream HTTP (mixed content). Cette route Flask sert
@@ -1488,11 +1504,11 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             req = _requests.get(icecast_url, stream=True, timeout=30)
             return _Resp(
                 req.iter_content(chunk_size=4096),
-                content_type=req.headers.get("Content-Type", "audio/mpeg"),
+                content_type="audio/mpeg",
                 status=req.status_code,
             )
         except Exception as e:
-            return f"Stream indisponible: {e}", 502
+            return "Stream indisponible", 502
 
     @app.route("/")
     def homepage():
@@ -1521,26 +1537,18 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
     @app.route("/config/save", methods=["POST"])
     def config_save():
         try:
-            data    = request.get_json()
-            cfg     = load_atlas_config(paths)
-            allowed = ["ollama_model","fetch_timeout","edition_timeout",
-                       "max_articles_feed","live_window_hours"]
-            for k in allowed:
-                if k in data:
-                    cfg[k] = data[k]
-            save_atlas_config(paths, cfg)
+            simple_update(paths, request.get_json(), load_atlas_config, save_atlas_config)
             return jsonify({"status": "ok"})
-        except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+        except ValueError:
+            return jsonify(status="error", msg="Configuration invalide"), 400
+        except Exception:
+            return jsonify(status="error", msg="Écriture impossible"), 500
 
     @app.route("/config/yaml")
     def config_yaml_page():
         # Recharge config depuis le disque pour afficher les valeurs actuelles
-        from modules.core.config import load_config as _load_cfg
-        import pathlib as _pl
-        cfg_path = _pl.Path(__file__).resolve().parent.parent.parent / "config" / "config.yaml"
-        if not cfg_path.exists():
-            cfg_path = _pl.Path("config/config.yaml")
+        from modules.web.config_security import read_config as _load_cfg
+        cfg_path = paths["config_file"]
         try:
             live_config = _load_cfg(str(cfg_path))
         except Exception:
@@ -1555,68 +1563,45 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         Rebuild aussi le site statique avec la nouvelle config (langue, nom, etc.)
         """
         try:
-            flag = paths["data"] / ".reload_config"
+            flag = confined_file(paths["data"], ".reload_config")
+            flag.parent.mkdir(parents=True, exist_ok=True)
             flag.touch()
             # Recharge la config depuis le disque et rebuild le site
-            from modules.core.config import load_config as _load_cfg
-            import pathlib as _pl
-            cfg_path = _pl.Path(__file__).resolve().parent.parent.parent / "config" / "config.yaml"
-            if not cfg_path.exists():
-                cfg_path = _pl.Path("config/config.yaml")
+            from modules.web.config_security import read_config as _load_cfg
+            cfg_path = paths["config_file"]
             try:
                 new_cfg  = _load_cfg(str(cfg_path))
-                new_paths = _resolve_paths(new_cfg)
-                generate_static_site(new_cfg, full=True)
+                generate_static_site(new_cfg, full=True, root=root)
             except Exception as e:
                 pass  # Le rebuild est best-effort
             return jsonify({"status": "ok", "msg": "Rechargement config + rebuild site demandés"})
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/config/yaml/save", methods=["POST"])
     def config_yaml_save():
-        import yaml as _yaml
         try:
-            data     = request.get_json()
-            section  = data.get("section")
-            key      = data.get("key")
-            value    = data.get("value")
-            # Chemin absolu : remonte depuis modules/web/ → racine du projet
-            cfg_path = Path(__file__).resolve().parent.parent.parent / "config" / "config.yaml"
-            if not cfg_path.exists():
-                # Fallback sur le CWD (local)
-                cfg_path = Path("config/config.yaml")
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                yml = _yaml.safe_load(f)
-            # Navigation dans le dict imbriqué
-            if section and key:
-                if section not in yml:
-                    yml[section] = {}
-                yml[section][key] = value
-            elif section:
-                yml[section] = value
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                _yaml.dump(yml, f, allow_unicode=True,
-                           default_flow_style=False, sort_keys=False)
-            return jsonify({"status": "ok"})
-        except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            data = request.get_json()
+            if not isinstance(data, dict) or set(data) != {'section', 'key', 'value'}:
+                return jsonify(status="error", msg="Champ unique requis"), 400
+            update_yaml(paths["config_file"], data['section'], data['key'], data['value'])
+            return jsonify(status="ok")
+        except ValueError:
+            return jsonify(status="error", msg="Configuration invalide"), 400
+        except Exception:
+            return jsonify(status="error", msg="Écriture impossible"), 500
 
     # ─── GESTION DES FLUX RSS ────────────────────────────────────────────────
     # GET  /config/feeds          → liste les flux depuis config/feeds.yaml
     # POST /config/feeds/add      → ajoute un flux (body: category, url)
     # POST /config/feeds/remove   → retire un flux (body: category, url)
-    # GET  /config/feeds/reset    → recharge depuis le disque (force)
+    # POST /config/feeds/reset    → recharge depuis le disque (force)
 
     @app.route("/config/feeds", methods=["GET"])
     def feeds_list():
         try:
             from modules.core.feeds_loader import load_feeds
-            from pathlib import Path as _P
-            feeds_path = _P("config/feeds.yaml")
-            if not feeds_path.exists():
-                # Fallback : remonter depuis modules/web/ → racine
-                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+            feeds_path = paths["feeds_file"]
             feeds = load_feeds(feeds_path)
             # Aussi compter les désactivés (commentés) pour affichage
             with open(feeds_path, "r", encoding="utf-8") as f:
@@ -1628,16 +1613,15 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             )
             return jsonify({
                 "status": "ok",
-                "feeds": feeds,
+                "feeds": public_feeds(feeds),
                 "stats": {
                     "categories": len(feeds),
                     "active": n_active,
                     "disabled": n_disabled,
                 },
-                "path": str(feeds_path),
             })
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/config/feeds/add", methods=["POST"])
     def feeds_add():
@@ -1651,11 +1635,8 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             if not url.startswith(("http://", "https://")):
                 return jsonify({"status": "error",
                                 "msg": "URL doit commencer par http(s)://"}), 400
-            from pathlib import Path as _P
             from modules.core.feeds_loader import load_feeds, save_feeds, add_feed
-            feeds_path = _P("config/feeds.yaml")
-            if not feeds_path.exists():
-                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds_path = paths["feeds_file"]
             feeds = load_feeds(feeds_path)
             if not add_feed(feeds, category, url):
                 return jsonify({"status": "error",
@@ -1668,7 +1649,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                             "msg": f"Flux ajouté à {category}",
                             "category": category, "url": url})
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/config/feeds/remove", methods=["POST"])
     def feeds_remove():
@@ -1679,11 +1660,8 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             if not category or not url:
                 return jsonify({"status": "error",
                                 "msg": "category et url requis"}), 400
-            from pathlib import Path as _P
             from modules.core.feeds_loader import load_feeds, save_feeds, remove_feed
-            feeds_path = _P("config/feeds.yaml")
-            if not feeds_path.exists():
-                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds_path = paths["feeds_file"]
             feeds = load_feeds(feeds_path)
             if not remove_feed(feeds, category, url):
                 return jsonify({"status": "error",
@@ -1695,7 +1673,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                             "msg": f"Flux retiré de {category}",
                             "category": category, "url": url})
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/config/feeds/reset", methods=["POST"])
     def feeds_reset():
@@ -1715,13 +1693,10 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             if direction not in ("up", "down"):
                 return jsonify({"status": "error",
                                 "msg": "direction doit être 'up' ou 'down'"}), 400
-            from pathlib import Path as _P
             from modules.core.feeds_loader import (
                 load_feeds, save_feeds, move_feed
             )
-            feeds_path = _P("config/feeds.yaml")
-            if not feeds_path.exists():
-                feeds_path = Path(__file__).resolve().parent.parent.parent / "config" / "feeds.yaml"
+            feeds_path = paths["feeds_file"]
             feeds = load_feeds(feeds_path)
             if not move_feed(feeds, category, url, direction):
                 return jsonify({"status": "error",
@@ -1731,7 +1706,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             invalidate_feeds_cache()
             return jsonify({"status": "ok", "direction": direction})
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/config/feeds/toggle", methods=["POST"])
     def feeds_toggle():
@@ -1745,13 +1720,10 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             if not category or not url:
                 return jsonify({"status": "error",
                                 "msg": "category et url requis"}), 400
-            from pathlib import Path as _P
             from modules.core.feeds_loader import (
                 load_feeds, save_feeds, add_feed, remove_feed
             )
-            feeds_path = _P("config/feeds.yaml")
-            if not feeds_path.exists():
-                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds_path = paths["feeds_file"]
             feeds = load_feeds(feeds_path)
             if url in feeds.get(category, []):
                 # Active → désactiver
@@ -1781,7 +1753,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                 return jsonify({"status": "error",
                                 "msg": "URL pas trouvée (ni active ni désactivée)"}), 404
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/config/feeds/category", methods=["POST"])
     def feeds_add_category():
@@ -1791,13 +1763,10 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             category = (data.get("category") or "").strip()
             if not category:
                 return jsonify({"status": "error", "msg": "category requise"}), 400
-            from pathlib import Path as _P
             from modules.core.feeds_loader import (
                 load_feeds, save_feeds, add_category
             )
-            feeds_path = _P("config/feeds.yaml")
-            if not feeds_path.exists():
-                feeds_path = Path(__file__).resolve().parent.parent.parent / "config/feeds.yaml"
+            feeds_path = paths["feeds_file"]
             feeds = load_feeds(feeds_path)
             if not add_category(feeds, category):
                 return jsonify({"status": "error",
@@ -1805,7 +1774,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             save_feeds(feeds_path, feeds)
             return jsonify({"status": "ok", "category": category})
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():
@@ -1821,10 +1790,11 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
     @app.route("/api/preferences", methods=["GET"])
     def api_get_preferences():
         from modules.core.preferences import load_prefs
-        prefs = load_prefs(paths["data"] / "preferences.json")
+        prefs = load_prefs(confined_file(paths["data"], "preferences.json"))
         return jsonify({
             "status": "ok",
-            "preferences": prefs,
+            "preferences": {'hidden_categories': prefs.get('hidden_categories', []),
+                            'updated_at': prefs.get('updated_at')},
         })
 
     @app.route("/api/preferences/toggle", methods=["POST"])
@@ -1838,8 +1808,9 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             from modules.core.preferences import (
                 load_prefs, save_prefs, toggle_category
             )
-            prefs_path = paths["data"] / "preferences.json"
-            prefs = load_prefs(prefs_path)
+            prefs_path = confined_file(paths["data"], "preferences.json")
+            from copy import deepcopy
+            prefs = deepcopy(load_prefs(prefs_path))
             new_state = toggle_category(prefs, category)
             save_prefs(prefs_path, prefs)
             return jsonify({
@@ -1848,12 +1819,12 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                 "hidden": new_state,
             })
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/api/preferences/reset", methods=["POST"])
     def api_reset_preferences():
         from modules.core.preferences import save_prefs, DEFAULT_PREFS
-        save_prefs(paths["data"] / "preferences.json", dict(DEFAULT_PREFS))
+        save_prefs(confined_file(paths["data"], "preferences.json"), dict(DEFAULT_PREFS))
         return jsonify({"status": "ok", "msg": "préférences réinitialisées"})
 
     # ──────────────────────────────────────────────────────────────────
@@ -1870,7 +1841,8 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
     import uuid as _uuid
     from datetime import datetime as _dt
 
-    _flash_jobs: dict = {}  # job_id → {status, progress, mp3_path, error, started_at}
+    _flash_jobs: dict = {}  # bounded to 32 jobs; one active generation
+    _flash_guard = threading.Lock()
 
     @app.route("/api/subscription/status", methods=["GET"])
     def api_subscription_status():
@@ -1895,7 +1867,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             if not device_id:
                 return jsonify({"status": "error", "msg": "device_id requis"}), 400
 
-            subs_path = _Path(paths.get("root", ".")) / "data" / "subscriptions.json"
+            subs_path = confined_file(root / "data", "subscriptions.json")
             subs = {}
             if subs_path.exists():
                 try:
@@ -1924,7 +1896,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                 "source": "nova-atlas",
             })
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/api/articles", methods=["GET"])
     def api_articles():
@@ -1942,6 +1914,12 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             from datetime import datetime as _dt
             day = request.args.get("date") or _dt.now().strftime("%Y%m%d")
             category = request.args.get("category")
+            try:
+                datetime.strptime(day, '%Y%m%d')
+                if not re.fullmatch(r'[0-9]{8}', day):
+                    raise ValueError
+            except ValueError:
+                return jsonify(status='error', msg='Date invalide'), 400
             try:
                 limit = int(request.args.get("limit", "200"))
             except ValueError:
@@ -1965,7 +1943,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                 "articles": articles,
             })
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/api/flash", methods=["POST"])
     def api_create_flash():
@@ -1978,6 +1956,10 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
             if category not in CATEGORY_ICONS:
                 return jsonify({"status": "error", "msg": f"category inconnue: {category}"}), 400
 
+            if not _flash_guard.acquire(blocking=False):
+                return jsonify(status='error', msg='Génération déjà en cours'), 429
+            if len(_flash_jobs) >= 32:
+                _flash_jobs.pop(next(iter(_flash_jobs)))
             job_id = _uuid.uuid4().hex[:12]
             _flash_jobs[job_id] = {
                 "status": "running",
@@ -1995,7 +1977,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                     )
                     import yaml
                     # 1. Charge la config globale
-                    cfg = yaml.safe_load((paths["root"] / "config" / "config.yaml").read_text())
+                    cfg = yaml.safe_load(paths["config_file"].read_text())
 
                     # 2. Récupère les articles de la catégorie depuis minuit
                     _flash_jobs[job_id]["progress"] = 10
@@ -2074,12 +2056,19 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
                     _flash_jobs[job_id]["mp3_path"] = str(out_path)
                 except Exception as e:
                     _flash_jobs[job_id]["status"] = "error"
-                    _flash_jobs[job_id]["error"] = str(e)
+                    _flash_jobs[job_id]["error"] = "Échec de génération"
+                finally:
+                    _flash_guard.release()
 
-            threading.Thread(target=_run_flash, daemon=True, name=f"FlashJob_{job_id}").start()
+            try:
+                threading.Thread(target=_run_flash, daemon=True, name=f"FlashJob_{job_id}").start()
+            except Exception:
+                _flash_guard.release()
+                _flash_jobs[job_id]['status'] = 'error'
+                raise
             return jsonify({"status": "ok", "job_id": job_id, "category": category})
         except Exception as e:
-            return jsonify({"status": "error", "msg": str(e)}), 500
+            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
 
     @app.route("/api/flash/status/<job_id>", methods=["GET"])
     def api_flash_status(job_id):
@@ -2089,7 +2078,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         return jsonify({
             "status": job["status"],
             "progress": job.get("progress", 0),
-            "mp3_path": job.get("mp3_path"),
+            "mp3_path": (f"/audio/flash_{job_id}.mp3" if job.get("status") == "done" else None),
             "error": job.get("error"),
             "articles_count": job.get("articles_count", 0),
             "category": job.get("category"),
@@ -2101,7 +2090,11 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
         if not job or job.get("status") != "done" or not job.get("mp3_path"):
             return jsonify({"status": "error", "msg": "mp3 non disponible"}), 404
         from flask import send_file
-        return send_file(job["mp3_path"], mimetype="audio/mpeg", as_attachment=False)
+        audio_root = (root / config.get('paths', {}).get('audio_queue', 'audio_queue')).resolve()
+        audio_path = Path(job['mp3_path']).resolve()
+        if not audio_path.is_relative_to(audio_root) or not audio_path.is_file():
+            abort(404)
+        return send_file(audio_path, mimetype="audio/mpeg", as_attachment=False)
 
     @app.route("/preferences", methods=["GET"])
     def preferences_page():
@@ -2109,7 +2102,7 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
 
     @app.route("/editions/<path:filename>")
     def serve_edition(filename):
-        if filename.endswith(".html"):
+        if re.fullmatch(r"[0-9]{8}_(matin|midi|soir)\.html", filename):
             parts = filename[:-5].split("_")
             if len(parts) == 2:
                 html = render_edition_page(parts[0], parts[1], paths)
@@ -2119,23 +2112,34 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
 
     @app.route("/<path:filename>")
     def serve_page(filename):
-        if filename.endswith("_report.html"):
+        if re.fullmatch(r"[0-9]{8}_report\.html", filename):
             html = render_report_page(filename[:8], paths)
             if html:
                 return html
+            abort(404)
+        # Generated HTML is rendered through audited routes, never served from arbitrary files.
+        if not re.fullmatch(r"[A-Za-z0-9_-]+\.(css|png|jpg|jpeg|webp|ico|woff2)", filename):
+            abort(404)
+        target = (paths['site'] / filename).resolve()
+        if not target.is_relative_to(paths['site']):
             abort(404)
         try:
             return send_from_directory(str(paths["site"]), filename)
         except Exception:
             abort(404)
 
-    print(f"\n✅ {paths['brand_name']} → http://localhost:{port}/\n")
-    # Werkzeug (serveur HTTP Flask) log chaque requête. En mode --debug on
-    # les veut, en mode normal c'est du bruit. On le coupe sauf si debug=True.
-    if not debug:
-        import logging
-        logging.getLogger('werkzeug').setLevel(logging.ERROR)
-    app.run(host=host, port=port, debug=debug, use_reloader=False)
+    return app
+
+
+def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
+               debug: bool = False):
+    app = create_app(config)
+    _sync_icecast_to_atlas_config(config, app.extensions['atlas_paths'])
+    # Access logs can include credential-bearing query strings; do not enable them.
+    import logging
+    logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
+    # The interactive debugger must never expose configuration or execution access.
+    app.run(host=host, port=port, debug=False, use_reloader=False)
 
 # ─── TEMPLATES HTML ───────────────────────────────────────────────────────────
 # (identiques à la version originale — seules les références aux chemins ont
@@ -2556,7 +2560,7 @@ document.addEventListener('DOMContentLoaded', function(){
     // Rechargement complet pour config (redirect) et live (CSS spécifique)
     if(!href || href.startsWith('http') || href.startsWith('#')
        || href.startsWith('mailto') || a.target === '_blank'
-       || href.startsWith('/config')
+       || href.startsWith('/config') || href.startsWith('/admin') || href.startsWith('/preferences')
        || href === '/live' || href === '/live.html') return;
     e.preventDefault();
     fetch(href)
@@ -4023,7 +4027,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-row">
           <div><div class="cfg-row-label">Mot de passe source</div></div>
-          <input type="text" id="ic-password" value="{{ ic.get('password','hackme') }}">
+          <input type="password" id="ic-password" value="" placeholder="Inchangé si vide" autocomplete="new-password">
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-icecast">✓ Sauvegardé</span>
