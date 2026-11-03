@@ -16,16 +16,16 @@ Couverture :
   - LLM guillemets : strip
   - LLM '[Timeout]' : fallback sur l'original
 """
-import sys
+import pytest
 from unittest.mock import patch, MagicMock
-from pathlib import Path
-
-# Mock modules.core.llm_client AVANT l'import de atlas_fetch pour eviter
-# l'init Ollama reelle.
-sys.modules['modules.core.llm_client'] = MagicMock()
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from modules.fetch.atlas_fetch import ArticleFetcher
+
+
+@pytest.fixture(autouse=True)
+def target_language():
+    # Scope the replacement to each test; never replace a global module.
+    with patch("modules.core.llm_client.get_language", return_value="francais"):
+        yield
 
 
 class TestAlwaysTranslate:

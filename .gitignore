@@ -73,3 +73,12 @@ docker-compose.override.yml
 .vscode/
 .idea/
 data/subscriptions.json
+
+# Baseline environments and private environment variables
+.venv*/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.coverage
+htmlcov/
