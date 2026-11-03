@@ -23,10 +23,17 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-import requests
+from modules.http import external as source_http
 from bs4 import BeautifulSoup
+from lxml import etree
 
 from modules.core.llm_client import init_ollama, ollama_call, get_language, get_fetch_timeout
+
+
+def _rss_xml_parser(**kwargs):
+    # XML/DTD entities are another potential outbound path outside the HTTP client.
+    kwargs.update(resolve_entities=False, load_dtd=False, no_network=True, huge_tree=False)
+    return etree.XMLParser(**kwargs)
 
 # ─── SOURCES RSS (chargées depuis config/feeds.yaml) ───────────────────────
 # Avant : dict Python hardcodé (90+ lignes).
@@ -349,11 +356,10 @@ class ArticleFetcher:
     # ── RSS fetch ─────────────────────────────────────────────────────────────
 
     def _fetch_rss(self, url: str) -> list:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; AtlasNews/2.0)"}
         try:
-            r = requests.get(url, headers=headers, timeout=FETCH_TIMEOUT_HTTP)
+            r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP)
             r.raise_for_status()
-            soup  = BeautifulSoup(r.content, "xml")
+            soup  = BeautifulSoup(r.content, "xml", parser=_rss_xml_parser)
             items = []
             for item in soup.find_all("item")[:self.max_per_feed]:
                 title_tag = item.find("title")
@@ -366,16 +372,15 @@ class ArticleFetcher:
                     items.append({"title": title, "link": link, "pub_date": pub})
             return items
         except Exception as e:
-            self.log.debug(f"RSS fail [{url[:60]}]: {e}")
+            self.log.debug("RSS retrieval failed (%s)", type(e).__name__)
             return []
 
     # ── Article content ───────────────────────────────────────────────────────
 
     @staticmethod
     def _fetch_content(url: str) -> str:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         try:
-            r = requests.get(url, headers=headers, timeout=FETCH_TIMEOUT_HTTP)
+            r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP)
             r.raise_for_status()
             soup = BeautifulSoup(r.text, "html.parser")
             for tag in soup(["script","style","nav","header","footer",

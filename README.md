@@ -7,7 +7,8 @@
 > [initialisation et connexion](docs/SECRETS_AND_ADMIN.md).
 > Les descriptions ci-dessous restent historiques et ne garantissent pas la
 > fiabilité ni la sécurité du déploiement. Les routes d'administration doivent
-> rester sur un réseau maîtrisé ; SSRF et audit XSS complet restent à traiter.
+> rester sur un réseau maîtrisé ; l’audit XSS complet reste à traiter.
+> Sprint 01B centralise la [protection HTTP/SSRF](docs/HTTP_SECURITY.md) des sources.
 >
 > [Vision V2](docs/VISION_V2.md) · [Architecture](docs/ARCHITECTURE_V2.md) ·
 > [Roadmap V2](docs/ROADMAP_V2.md) · [Audit P0](docs/AUDIT_P0.md) ·

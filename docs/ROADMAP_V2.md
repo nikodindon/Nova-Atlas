@@ -30,5 +30,6 @@ Avant exposition : propriétaire révoque la clé OpenRouter de la PR publique #
 renouvelle les accès concernés et vérifie leur usage. La révocation n'est pas
 réalisée par ce sprint. Ne pas réécrire l'historique ici.
 
-Sprint 01A : implémentation proposée sur feature/v2-admin-security, revue requise.
-Le Sprint 01B (SSRF approfondi) ne commence qu'après validation de cette PR.
+Sprint 01A livré par la PR #3, fusionnée dans dev avant le Sprint 01B.
+Sprint 01B : protection HTTP/SSRF proposée dans une PR dédiée, revue requise ;
+les autres correctifs P0 restent dans des PR distinctes. Voir HTTP_SECURITY.md.

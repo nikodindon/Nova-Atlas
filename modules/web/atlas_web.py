@@ -1492,21 +1492,34 @@ def create_app(config: dict, *, root: Path = None):
     # de charger le stream HTTP (mixed content). Cette route Flask sert
     # de proxy : le browser charge /stream/nova (même origine HTTPS) et
     # Flask stream le contenu depuis Icecast en interne.
-    import requests as _requests
+    from modules.http.icecast import open_stream
     from flask import Response as _Resp
     @app.route("/stream/<path:mount>")
     def stream_proxy(mount: str):
         cfg  = load_atlas_config(paths)
         host  = cfg.get("icecast_host",  "localhost")
         port  = cfg.get("icecast_port",  8000)
-        icecast_url = f"http://{host}:{port}/{mount.lstrip('/')}"
+        allowed_mounts = {cfg.get('icecast_mount', '/nova'),
+                          config.get('icecast', {}).get('android_mount', '/nova-android')}
         try:
-            req = _requests.get(icecast_url, stream=True, timeout=30)
-            return _Resp(
-                req.iter_content(chunk_size=4096),
-                content_type="audio/mpeg",
-                status=req.status_code,
-            )
+            req, upstream_session = open_stream(host, port, '/' + mount, allowed_mounts)
+            closed = False
+            def close_upstream():
+                nonlocal closed
+                if not closed:
+                    closed = True
+                    try:
+                        req.close()
+                    finally:
+                        upstream_session.close()
+            def audio_chunks():
+                try:
+                    yield from req.iter_content(chunk_size=4096)
+                finally:
+                    close_upstream()
+            result = _Resp(audio_chunks(), content_type="audio/mpeg", status=req.status_code)
+            result.call_on_close(close_upstream)  # Also close HEAD/unstarted iterators.
+            return result
         except Exception as e:
             return "Stream indisponible", 502
 
@@ -1635,6 +1648,11 @@ def create_app(config: dict, *, root: Path = None):
             if not url.startswith(("http://", "https://")):
                 return jsonify({"status": "error",
                                 "msg": "URL doit commencer par http(s)://"}), 400
+            from modules.http.external import parse_url, BlockedURL
+            try:
+                parse_url(url)  # No DNS/network here; collection revalidates and pins the destination.
+            except BlockedURL:
+                return jsonify(status="error", msg="URL externe interdite ou invalide"), 400
             from modules.core.feeds_loader import load_feeds, save_feeds, add_feed
             feeds_path = paths["feeds_file"]
             feeds = load_feeds(feeds_path)
