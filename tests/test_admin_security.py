@@ -330,7 +330,7 @@ def test_feed_crud_and_simple_config_remain_usable(client, app):
     assert post(client, '/config/feeds/add', json={'category': 'tech', 'url': 'https://example.invalid/new'}, headers=headers).status_code == 200
     assert 'https://example.invalid/new' in get(client, '/config/feeds').json['feeds']['tech']
     assert post(client, '/config/feeds/remove', json={'category': 'tech', 'url': 'https://example.invalid/new'}, headers=headers).status_code == 200
-    assert post(client, '/config/save', json={'fetch_timeout': 120}, headers=headers).status_code == 200
+    assert post(client, '/config/save', json={'fetch_timeout': 120, 'csrf_token': csrf(client)}, headers=headers).status_code == 200
     assert json.loads((app.extensions['atlas_paths']['data'] / 'atlas_config.json').read_text())['fetch_timeout'] == 120
 
 

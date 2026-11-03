@@ -138,6 +138,9 @@ def update_yaml(path, section, key, value):
 
 
 def simple_update(paths, body, loader, saver):
+    # The form helper adds this hidden field before legacy FormData serialization.
+    # Auth/CSRF have already been checked by the request hook.
+    body = {key: value for key, value in body.items() if key != 'csrf_token'}
     specs = {'fetch_timeout': (1, 3600), 'edition_timeout': (1, 7200),
              'max_articles_feed': (1, 100), 'live_window_hours': (1, 168)}
     if not body or set(body) - (set(specs) | {'ollama_model'}):

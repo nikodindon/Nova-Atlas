@@ -3,7 +3,7 @@
 Socle : dev@a1db974f955904df65b1cd661828449180970b81, PR #2 vérifiée fusionnée
 avant synchronisation et création de feature/v2-admin-security.
 
-- Suite pytest complète : **286 réussis, 0 échec, 0 skip**, 11.84 s.
+- Suite pytest complète : **286 réussis, 0 échec, 0 skip**, 11.85 s.
 - Les 190 tests de baseline sont conservés, 96 cas de sécurité ajoutés.
 - `python -m compileall -q main.py modules tests` : succès.
 - `git diff --check` : succès.
