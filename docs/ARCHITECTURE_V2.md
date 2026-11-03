@@ -48,3 +48,11 @@ CSRF navigateur, validation et limites de débit avant exposition publique.
 
 Migration par adaptateurs et tranches verticales, export/import et rollback testés.
 Aucune donnée réelle n'est migrée dans le Sprint 00.
+
+## Livraison incrémentale Sprint 01B
+
+Les URL non fiables RSS/articles passent maintenant par `modules.http.external.get` :
+DNS validé intégralement et IP fixée à la socket, redirects et ressources bornés.
+Ce même point d'entrée devra servir aux futurs tests/découverte Source Manager.
+Le proxy Icecast utilise une politique interne distincte à origine/mounts configurés.
+Les clients LLM de confiance restent séparés. Voir [HTTP_SECURITY.md](HTTP_SECURITY.md).

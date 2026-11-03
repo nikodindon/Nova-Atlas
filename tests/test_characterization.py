@@ -20,7 +20,7 @@ def fetcher():
 @pytest.mark.parametrize('name,count', [('rss.xml', 1), ('atom.xml', 0)])
 def test_legacy_feed_parser(fetcher, monkeypatch, name, count):
     response = Mock(content=(FIXTURES / name).read_bytes())
-    monkeypatch.setattr('modules.fetch.atlas_fetch.requests.get', Mock(return_value=response))
+    monkeypatch.setattr('modules.fetch.atlas_fetch.source_http.get', Mock(return_value=response))
     result = fetcher._fetch_rss('https://example.invalid/feed')
     assert len(result) == count  # Atom deliberately characterizes current limitation.
     if result:

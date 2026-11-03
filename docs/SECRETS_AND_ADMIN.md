@@ -105,7 +105,7 @@ Les routes statiques Flask implicites sont désactivées.
 |---|---|---|
 | GET/HEAD | /, /archives, /index.html, /live, /live.html | Consultation publique |
 | GET/HEAD | /editions/<filename>, /<filename> | Éditions matin/midi/soir et rapports datés ; assets racine limités ; confinement des chemins/symlinks |
-| GET/HEAD | /stream/<mount> | Lecture radio publique, proxy existant ; SSRF approfondi reste 01B |
+| GET/HEAD | /stream/<mount> | Lecture radio publique, proxy existant ; Politique interne dédiée (voir HTTP_SECURITY.md) |
 | GET/HEAD | /api/articles | Contrat Android conservé ; date YYYYMMDD valide requise |
 | GET/HEAD | /api/subscription/status | Statut existant par device_id conservé ; ce paramètre ne constitue pas une identité sécurisée |
 | GET/HEAD | /api/preferences | Lecture publique des seuls hidden_categories et updated_at, nécessaire au filtre existant |
@@ -136,7 +136,7 @@ locale de confiance et ne sont plus modifiables via la route YAML.
 Éditions de configuration limitées aux champs de l'interface, un champ typé par
 requête ; remplacement de section entière interdit. Nombres bornés, provider/voix/
 URL/hôte/mount validés ; identifiants et credentials d'URL refusés dans les nouvelles
-URL de backend. Pas de validation de destinations réseau complète avant 01B.
+URL de backend. La validation des destinations RSS/articles est centralisée depuis 01B (voir HTTP_SECURITY.md).
 Le champ Icecast est vide et de type password ; vide ou masque signifie « garder
 le secret actuel ». Les autres clés de secrets et les URL contenant credentials
 ne sont jamais rendues ; les URL de backend masquées laissées vides sont conservées.
@@ -146,8 +146,9 @@ avec verrou de processus sur la mise à jour YAML pour les sauvegardes parallèl
 Les préférences et flux conservaient déjà une écriture atomique.
 
 Les URL RSS historiques contenant userinfo ou un paramètre de type token/api_key
-sont masquées dans la réponse admin et se gèrent localement ; leur collecte n'est
-pas modifiée. L'ajout de nouvelles URL contenant ces credentials par le web est refusé.
+sont masquées dans la réponse admin et se gèrent localement. Depuis 01B, le client
+externe refuse les URL avec userinfo ; les paramètres explicitement présents
+dans les URL restent transmis à leur origine, sans propagation de headers sensibles. L'ajout de nouvelles URL contenant ces credentials par le web est refusé.
 Les messages d'erreur ne renvoient pas les exceptions brutes ; les logs de parsing
 des flux ne reproduisent plus les lignes malformées.
 
@@ -159,9 +160,9 @@ site/ ne sont plus servis ; seuls rapports/éditions rendus et assets autorisés
 
 ## Risques résiduels et incident historique
 
-01B doit traiter SSRF de bout en bout (DNS, IPv4/IPv6, réseaux privés, redirections,
-rebinding, extraction et proxy), puis les autres PR corrigeront scheduler/verrou/
-dates/reprises/audio. Les templates historiques et leur eval/innerHTML demandent
+Le Sprint 01B protège les connexions RSS/articles et limite le proxy Icecast :
+voir [HTTP_SECURITY.md](HTTP_SECURITY.md), notamment les limites et refus conservateurs.
+Les autres PR corrigeront scheduler/verrou/dates/reprises/audio. Les templates historiques et leur eval/innerHTML demandent
 encore un audit XSS/CSP complet : CSRF n'est pas une défense contre un script déjà
 exécuté dans la même origine. Le rendu des valeurs du formulaire YAML et les
 littéraux JavaScript du gestionnaire de flux sont durcis ici, sans refonte globale.

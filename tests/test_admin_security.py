@@ -396,7 +396,9 @@ def test_yaml_parallel_field_updates_preserve_other_fields(app):
 def test_public_stream_contract_with_mock(client, monkeypatch):
     response = Mock(status_code=200, headers={'Content-Type': 'audio/mpeg'})
     response.iter_content.return_value = iter([b'synthetic-mp3'])
-    monkeypatch.setattr('requests.get', Mock(return_value=response))
+    session = Mock()
+    session.get.return_value = response
+    monkeypatch.setattr('requests.Session', Mock(return_value=session))
     actual = get(client, '/stream/nova')
     assert actual.status_code == 200 and actual.data == b'synthetic-mp3'
 
@@ -426,3 +428,23 @@ def test_setup_creates_private_file_without_printing_credentials(tmp_path, monke
 def test_api_auth_errors_do_not_redirect_even_for_html_accept(client):
     assert get(client, '/config/feeds', headers={'Accept': 'text/html'}).status_code == 401
     assert get(client, '/api/flash/status/abc', headers={'Accept': 'text/html'}).status_code == 401
+
+
+@pytest.mark.parametrize('url', ['http://127.0.0.1/rss', 'http://172.17.0.1/rss', 'http://100.64.0.1/rss', 'http://news.example:8080/rss'])
+def test_admin_cannot_add_forbidden_source_url(client, url):
+    login(client)
+    assert post(client, '/config/feeds/add', json={'category': 'tech', 'url': url},
+                headers={'X-CSRF-Token': csrf(client)}).status_code == 400
+
+
+def test_icecast_head_closes_upstream_without_consuming_audio(client, monkeypatch):
+    session = Mock()
+    response = Mock(status_code=200)
+    session.get.return_value = response
+    monkeypatch.setattr('requests.Session', Mock(return_value=session))
+    actual = client.head('/stream/nova', base_url='https://localhost')
+    assert actual.status_code == 200
+    actual.close()
+    response.iter_content.assert_not_called()
+    response.close.assert_called_once()
+    session.close.assert_called_once()

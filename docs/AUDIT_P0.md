@@ -54,3 +54,23 @@ identifient les correctifs malgré le déplacement des lignes.
 Limite explicite : sessions/limites en mémoire dans un seul processus web. Pas de
 protection multi-workers tant qu'un stockage partagé n'est pas implémenté.
 Voir SECRETS_AND_ADMIN.md pour configuration, inventaire complet et incompatibilités.
+
+## Mise à jour Sprint 01B
+
+Socle : dev@3ccbb8d après fusion autorisée de la PR #3 ; aucune fusion automatique
+de la PR SSRF. Le plan local non suivi est conservé.
+
+| Surface | Statut 01B | Preuve / non-régression |
+|---|---|---|
+| SSRF flux RSS et extraction d'articles | Corrigé dans le client externe commun | modules/http/external.py : validation URL/IP, refus de tout RRset mixte, socket sur IP validée ; tests DNS rebinding et socket simulée |
+| Redirections externes | Bornées et revalidées | Chaque saut repasse URL/DNS/pinning ; 5 max, boucles et downgrade refusés |
+| TLS, taille, compression et délais | Bornés | Vérification CA/hostname/SNI, watchdog total, limites headers/corps/gzip ; parseur HTTP réel exercé sur socket fictive |
+| XML comme voie réseau secondaire | Neutralisé | DTD, entités et réseau XML explicitement désactivés ; resolver de test prouve l'absence de chargement |
+| Proxy Icecast | Politique interne distincte | Origine configurée, mounts exacts, aucun redirect/proxy ambiant ; tests d'origines internes et du contrat Flask |
+| Auth admin/CSRF | Conservés | Suite Sprint 01A maintenue, ajout des refus d'URL littérales interdites à l'ajout de flux |
+| Sources privées futures | Refusées par défaut | Pas d'exception globale ; proposition d'exception par source/origine/IP documentée, non implémentée |
+
+La disponibilité réseau des flux n'est pas vérifiée ; compatibilité statique des
+120 entrées et fixtures uniquement. Voir HTTP_SECURITY.md pour budgets, refus
+conservateurs IPv6/ports, DNS libc non annulable, confiance envers le routage hôte
+et configuration des services internes. XSS/CSP et autres P0 restent ouverts.
