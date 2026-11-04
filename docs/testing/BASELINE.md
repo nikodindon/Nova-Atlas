@@ -119,7 +119,7 @@ Edge TTS, Icecast, modèle ou source RSS réel démarré.
 
 Socle dev@f70ff2c : 866 tests. Quatre reproductions en échec avant correction :
 services manquants, tag latest, credentials d'exemple et port hôte wildcard.
-Suite locale finale Python 3.12 : **906 réussis, 0 échec, 0 ignoré** en 30,44 s,
+Suite locale finale Python 3.12 : **907 réussis, 0 échec, 0 ignoré** en 29,63 s,
 dont Chromium conservé et processus News synthétique avec SIGTERM au démarrage.
 Compose est résolu avec un env temporaire explicite, sans daemon et sans .env privé.
 Les tests de précontrôles ne lisent que leurs secrets synthétiques temporaires.

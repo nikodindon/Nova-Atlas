@@ -247,6 +247,9 @@ un test de santé métier. Une dépendance unhealthy ne relance pas magiquement 
 services : `unless-stopped` traite la sortie du processus, pas l'état health seul.
 Consulter les journaux/états fonctionnels en complément. Logs Docker bornés 10 Mio ×3 ;
 les nova.log persistants nécessitent une politique de rotation/archivage opérateur.
+Icecast utilise un répertoire de travail privé `/tmp/icecast` (0700) et ses logs
+accès/erreur vont sur stderr (`-`), capturés et bornés par Docker. Les noms de logs
+sont relatifs à logdir dans Icecast : `/dev/null` ne désactive pas accesslog.
 
 Tini PID1 transmet SIGTERM au superviseur existant, sans wrapper shell bloquant.
 Les handlers sont installés avant les enfants ; une demande pendant leur démarrage

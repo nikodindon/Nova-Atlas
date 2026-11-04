@@ -98,7 +98,7 @@ def test_icecast_secrets_match_streamers_and_two_mounts(deployment):
     assert tree.findtext('authentication/source-password')==config['icecast']['password']
     assert len(tree.findtext('authentication/admin-password'))==64
     assert {m.findtext('mount-name') for m in tree.findall('mount')}=={'/nova','/nova-android'}
-    assert tree.findtext('logging/accesslog')=='/dev/null'
+    assert tree.findtext('logging/accesslog')=='-'
     assert tree.findtext('paths/logdir')=='/tmp/icecast'
     assert 'chmod 700 /tmp/icecast' in (ROOT/'deploy/icecast-entrypoint.sh').read_text()
 

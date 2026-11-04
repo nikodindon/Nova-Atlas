@@ -46,7 +46,7 @@ def initialize(root,username,password,*,llm_url='',provider='llama-server',model
         element(xml,'hostname','icecast')
         socket=ET.SubElement(xml,'listen-socket');element(socket,'port',8000);element(socket,'bind-address','0.0.0.0')
         paths=ET.SubElement(xml,'paths');element(paths,'basedir','/usr/share/icecast');element(paths,'logdir','/tmp/icecast');element(paths,'webroot','/usr/share/icecast/web');element(paths,'adminroot','/usr/share/icecast/admin')
-        logging=ET.SubElement(xml,'logging');element(logging,'accesslog','/dev/null');element(logging,'errorlog','-');element(logging,'loglevel',2)
+        logging=ET.SubElement(xml,'logging');element(logging,'accesslog','-');element(logging,'errorlog','-');element(logging,'loglevel',2)
         for name in ('/nova','/nova-android'):
             mount=ET.SubElement(xml,'mount',{'type':'normal'});element(mount,'mount-name',name);element(mount,'public',0)
         private_write(root/'secrets/icecast.xml',ET.tostring(xml,encoding='unicode')+'\n')
