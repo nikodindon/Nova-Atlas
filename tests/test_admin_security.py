@@ -196,7 +196,7 @@ def test_admin_pages_redact_and_inject_csrf(client, path):
     for forbidden in ('synthetic-icecast-credential', 'synthetic-llm-credential', 'synthetic-url-credential', 'synthetic-query'):
         assert forbidden not in response.text
     assert 'meta name="csrf-token"' in response.text
-    assert 'X-CSRF-Token' in response.text
+    assert '/assets/csrf.js' in response.text
     assert '/admin/logout' in response.text
     assert response.headers['Cache-Control'] == 'no-store'
 
@@ -290,7 +290,7 @@ def test_new_routes_default_to_private(app, client):
 def test_all_registered_routes_classified(app):
     public = {'/', '/archives', '/index.html', '/live', '/live.html', '/stream/<path:mount>',
               '/api/preferences', '/api/articles', '/api/subscription/status',
-              '/editions/<path:filename>', '/<path:filename>', '/admin/login'}
+              '/editions/<path:filename>', '/<path:filename>', '/admin/login', '/assets/<name>'}
     private = set(PRIVATE_GET + PRIVATE_POST)
     private.discard('/api/flash/status/abc')
     private.discard('/audio/flash_abc.mp3')

@@ -49,29 +49,8 @@ a{color:#6ea8fe}</style></head><body><h1>Nova Atlas</h1><h2>Administration</h2>
 <label>Mot de passe <input type="password" name="password" autocomplete="current-password" required maxlength="1024"></label>
 <button>Se connecter</button></form><p><a href="/">Retour aux actualités</a></p></body></html>'''
 
-# Runs before existing inline scripts, including those on the feeds page.
-BROWSER_CSRF = '''<script>
-if (!window.atlasSecureFetch) {
-  window.atlasSecureFetch = true;
-  const originalFetch = window.fetch;
-  window.fetch = function(input, options) {
-    const req = new Request(input, options);
-    if (new URL(req.url).origin === location.origin && !['GET','HEAD','OPTIONS'].includes(req.method)) {
-      const token = document.querySelector('meta[name="csrf-token"]');
-      if (token) req.headers.set('X-CSRF-Token', token.content);
-    }
-    return originalFetch(req);
-  };
-  document.addEventListener('submit', function(e) {
-    const form = e.target;
-    if (form.method.toUpperCase() !== 'GET' && new URL(form.action).origin === location.origin) {
-      let field = form.querySelector('[name="csrf_token"]');
-      if (!field) { field = document.createElement('input'); field.type='hidden'; field.name='csrf_token'; form.appendChild(field); }
-      field.value = document.querySelector('meta[name="csrf-token"]').content;
-    }
-  }, true);
-}
-</script>'''
+# Loaded before page initializers; tokens remain confined to private views.
+BROWSER_CSRF = '<script src="/assets/csrf.js"></script>'
 
 
 def install_admin_security(app):
@@ -122,7 +101,7 @@ def install_admin_security(app):
         # Explicit public endpoints. Any newly added endpoint is privileged by default.
         public = {'homepage', 'index', 'live', 'api_articles',
                   'api_subscription_status', 'api_get_preferences', 'stream_proxy',
-                  'serve_edition', 'serve_page', 'admin_login'}
+                  'serve_edition', 'serve_page', 'admin_login', 'web_asset'}
         if request.endpoint is None:
             return None
         if (request.endpoint not in public or request.endpoint == 'admin_login') and (
@@ -225,7 +204,7 @@ def install_admin_security(app):
         if request.path.startswith(('/admin', '/config', '/preferences', '/api/flash', '/audio/flash_')) or authenticated():
             response.headers['Cache-Control'] = 'no-store'
             response.vary.add('Cookie')
-        if response.mimetype == 'text/html' and authenticated():
+        if response.mimetype == 'text/html' and authenticated() and request.path.startswith(('/config', '/preferences')):
             token = csrf()  # URL-safe server-generated token only.
             html = response.get_data(as_text=True)
             injection = '<meta name="csrf-token" content="' + token + '">' + BROWSER_CSRF

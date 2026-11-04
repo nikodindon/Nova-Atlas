@@ -31,3 +31,9 @@ typing_extensions==4.16.0
 urllib3==2.8.0
 Werkzeug==3.1.9
 yarl==1.25.1
+
+# Sanitisation HTML et navigateur de test local
+nh3==0.3.7
+playwright==1.64.1
+greenlet==3.5.6
+pyee==14.0.0

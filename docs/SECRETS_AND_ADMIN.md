@@ -67,9 +67,11 @@ Cette protection globale peut aussi provoquer un refus temporaire pour l'admin
 légitime sous attaque : filtrage/rate limit au proxy reste utile.
 
 Le serveur exige `X-CSRF-Token` ou le champ de formulaire `csrf_token` pour **toutes**
-les mutations privées par cookie, y compris déconnexion. Le HTML authentifié
-injecte un jeton et un helper exécuté avant les scripts existants : il enrichit les
-fetch de même origine et les formulaires. Le login possède son propre champ caché ;
+les mutations privées par cookie, y compris déconnexion. Le HTML privé authentifié
+injecte un jeton ; le helper statique enrichit les fetch de même origine et les
+formulaires. Depuis une page publique sans token, il demande `/admin/csrf` seulement
+au moment d’une action privilégiée. Aucun token ou formulaire admin dans le HTML
+public, même authentifié. Le login possède son propre champ caché ;
 le jeton est renouvelé à la connexion. Aucun jeton n'est envoyé à un hôte externe.
 Pour un futur client API : établir la session par le formulaire, obtenir le jeton
 via `GET /admin/csrf` authentifié, envoyer cookie et en-tête sur chaque mutation.
@@ -181,3 +183,7 @@ non chargées par l'actuel loader YAML.
 Références : [Flask — sécurité](https://flask.palletsprojects.com/en/stable/web-security/),
 [Werkzeug — scrypt](https://werkzeug.palletsprojects.com/en/stable/utils/#werkzeug.security.generate_password_hash),
 [Flask — proxy](https://flask.palletsprojects.com/en/stable/deploying/proxy_fix/).
+
+Sprint 01G : scripts statiques et CSP sans unsafe-eval ; HSTS optionnel
+`ATLAS_HSTS_MAX_AGE=0` par défaut. Voir WEB_SECURITY.md avant configuration du proxy
+ou service direct des exports. Authentification et contrôles réseau restent distincts.
