@@ -71,3 +71,13 @@ avec un bail par processus/thread et une attente bornée sans préemption. Le ca
 peut répondre sans ce verrou ; il est revérifié après attente. La capacité des
 futures API cloud sera gérée séparément par l'adaptateur/LiteLLM, jamais par le
 verrou global d'un modèle local. Aucun backend cloud ajouté. Voir LLM_LOCKING.md.
+
+## Livraison incrémentale Sprint 01E
+
+Les JSON quotidiens et le format historique seen restent lisibles. Un journal
+versionné `article_processing.json` sépare découverte, tentative, échec temporaire,
+succès et échec terminal. Checkpoint du résumé avant publication, écritures
+atomiques et verrou de collecte Linux rendent la reprise idempotente après
+checkpoint. Sept dates civiles pour la déduplication, horloge injectable et
+backoff sans attente bloquante ; aucun nouveau service. Les transactions et
+la normalisation UTC globale restent au sprint SQL. Voir ARTICLE_INTEGRITY.md.

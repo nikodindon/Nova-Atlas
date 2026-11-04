@@ -24,6 +24,14 @@ class BlockedURL(FetchError):
     pass
 
 
+class HTTPStatusError(FetchError):
+    """Structured status without URL, response body or credentials."""
+    def __init__(self, status_code, retry_after=None):
+        super().__init__('http_status')
+        self.status_code = status_code
+        self.retry_after = retry_after[:128] if isinstance(retry_after, str) else None
+
+
 @dataclass(frozen=True)
 class Limits:
     total_timeout: float = 30
@@ -72,7 +80,7 @@ class Response:
 
     def raise_for_status(self):
         if not 200 <= self.status_code < 300:
-            raise FetchError('http_status')
+            raise HTTPStatusError(self.status_code, self.headers.get('retry-after'))
 
 
 # Extra special ranges avoid ipaddress classification differences across Python releases.
@@ -346,7 +354,7 @@ class ExternalHTTPClient:
                             raise BlockedURL('https_downgrade')
                         continue
                     if not 200 <= response.status < 300:
-                        raise FetchError('http_status')
+                        raise HTTPStatusError(response.status, headers.get('retry-after'))
                     content, headers = _read_body(response, self.limits, deadline)
                     return Response(content, response.status, headers, target.url)
                 finally:

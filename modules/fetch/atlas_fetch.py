@@ -7,19 +7,21 @@ Stockage incrémental dans data/articles/YYYYMMDD_articles.json
 
 Refactorisé depuis atlas_fetch.py (pblart/nova-media) :
   - Enveloppé dans la classe ArticleFetcher(config)
-  - Toute la logique interne (RSS_SOURCES, round-robin, verrou seen_hashes,
-    retry_pending_summaries, etc.) est conservée à l'identique
+  - Round-robin et formats JSON publics conservés
+  - Journal de reprise et écritures atomiques : voir docs/ARTICLE_INTEGRITY.md
   - Les chemins viennent de config.paths.*
   - Ollama passe par modules.core.llm_client
 """
 
 import hashlib
-import json
 import logging
-import os
 import re
 import time
-from datetime import datetime
+import math
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
+from modules.fetch.article_state import (atomic_json, backup, read_json, calendar_day,
+    valid_article, collection_lock, StorageError, ArticleAttemptError)
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -260,7 +262,8 @@ class ArticleFetcher:
     Équivalent de run_fetch_cycle() mais encapsulé pour Nova-Atlas.
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, *, clock=None):
+        self._clock = clock or datetime.now
         self._config = config   # conservé pour reload à chaud
         self._apply_config(config)
         init_ollama(config)
@@ -278,9 +281,14 @@ class ArticleFetcher:
         # 0 = pas de cap par catégorie. Active via config: rss.max_per_category: 8
         self.max_per_category = int(rss_cfg.get("max_per_category", 0))
 
-        # retry_summaries : False par défaut — désactivé pour garder un flux continu
+        # Réparation optionnelle des anciennes entrées publiées sans résumé.
+        # Les reprises des nouveaux articles sont indépendantes de ce drapeau.
         fetch_cfg = config.get("fetch", {})
         self.retry_summaries = fetch_cfg.get("retry_summaries", False)
+        self.max_attempts = max(1, min(20, int(fetch_cfg.get('max_attempts', 3))))
+        self.retry_base = max(1, min(86400, int(fetch_cfg.get('retry_base_seconds', 1800))))
+        self.retry_cap = max(self.retry_base, min(604800, int(fetch_cfg.get('retry_max_seconds', 21600))))
+        self.state_file = self.seen_file.with_name('article_processing.json')
 
     def reload_config(self, config: dict):
         """Recharge la config à chaud sans redémarrer le processus."""
@@ -296,25 +304,32 @@ class ArticleFetcher:
 
     # ── Seen hashes ───────────────────────────────────────────────────────────
 
-    def _load_seen(self) -> set:
-        if not self.seen_file.exists():
-            return set()
-        with open(self.seen_file, encoding="utf-8") as f:
-            data = json.load(f)
-        today_int = int(datetime.now().strftime("%Y%m%d"))
-        return {h for h, d in data.items() if today_int - int(d) <= 7}
+    def _now(self):
+        return getattr(self, '_clock', datetime.now)()
 
-    def _save_seen(self, seen: set):
-        today = datetime.now().strftime("%Y%m%d")
-        existing = {}
-        if self.seen_file.exists():
-            with open(self.seen_file, encoding="utf-8") as f:
-                existing = json.load(f)
+    def _recent(self, value):
+        try:
+            return 0 <= (self._now().date() - calendar_day(value)).days < 7
+        except (ValueError, TypeError):
+            return False
+
+    def _load_seen(self):
+        return {h for h, day in read_json(self.seen_file, dict).items() if self._recent(day)}
+
+    def _save_seen(self, seen):
+        old = read_json(self.seen_file, dict)
+        for day in old.values():
+            try:
+                anomalous = calendar_day(day) > self._now().date()
+            except (ValueError, TypeError):
+                anomalous = True
+            if anomalous:
+                backup(self.seen_file)
+                break
+        existing = {h: day for h, day in old.items() if self._recent(day)}
         for h in seen:
-            if h not in existing:
-                existing[h] = today
-        with open(self.seen_file, "w", encoding="utf-8") as f:
-            json.dump(existing, f, ensure_ascii=False)
+            existing.setdefault(h, self._now().strftime('%Y%m%d'))
+        atomic_json(self.seen_file, existing)
 
     @staticmethod
     def _hash(url: str) -> str:
@@ -322,36 +337,17 @@ class ArticleFetcher:
 
     # ── Fichier articles du jour ───────────────────────────────────────────────
 
-    def _today_file(self) -> Path:
-        return self.data_dir / f"{datetime.now().strftime('%Y%m%d')}_articles.json"
+    def _today_file(self):
+        day = getattr(self, '_active_day', None) or self._now().strftime('%Y%m%d')
+        return self.data_dir / f'{day}_articles.json'
 
-    def _load_today(self) -> list:
-        f = self._today_file()
-        if not f.exists():
-            return []
-        try:
-            with open(f, encoding="utf-8") as fp:
-                return json.load(fp)
-        except json.JSONDecodeError:
-            import shutil
-            shutil.copy(f, str(f) + ".corrupted")
-            self.log.warning(f"JSON corrompu — sauvegardé : {f}.corrupted")
-            return []
+    def _load_today(self):
+        return read_json(self._today_file(), list)
 
-    def _save_today(self, articles: list):
+    def _save_today(self, articles):
         target = self._today_file()
-        tmp    = Path(str(target) + ".tmp")
-        with open(tmp, "w", encoding="utf-8") as fp:
-            json.dump(articles, fp, ensure_ascii=False, indent=2)
-        for attempt in range(5):
-            try:
-                os.replace(tmp, target)
-                return
-            except PermissionError:
-                time.sleep(0.3 * (attempt + 1))
-        import shutil
-        shutil.copy2(tmp, target)
-        tmp.unlink(missing_ok=True)
+        read_json(target, list)
+        atomic_json(target, articles)
 
     # ── RSS fetch ─────────────────────────────────────────────────────────────
 
@@ -378,7 +374,7 @@ class ArticleFetcher:
     # ── Article content ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _fetch_content(url: str) -> str:
+    def _fetch_content(url: str, *, raise_errors=False) -> str:
         try:
             r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP)
             r.raise_for_status()
@@ -397,6 +393,8 @@ class ArticleFetcher:
                      if len(p.get_text(strip=True)) > 50]
             return "\n".join(paras)[:MAX_ARTICLE_CHARS]
         except Exception:
+            if raise_errors:
+                raise
             return ""
 
     # ── Résumé Ollama ─────────────────────────────────────────────────────────
@@ -429,7 +427,7 @@ class ArticleFetcher:
         output = ollama_call(prompt, timeout=get_fetch_timeout(),
                              caller="fetch", cache_key=key)
         if not output:
-            self.log.warning(f"Ollama vide/timeout : {title[:60]}")
+            self.log.warning("LLM summary empty or timed out")
             return output
         return _clean_summary(output)
 
@@ -570,112 +568,19 @@ class ArticleFetcher:
             # a ete faite dans une autre langue que la cible.
             if self._is_wrong_language(cleaned, lang):
                 self.log.warning(
-                    f"Traduction vers la mauvaise langue (cible={lang}), "
-                    f"fallback sur l'original : {title[:60]}"
+                    "Title translation language mismatch; original retained"
                 )
                 return title
             return cleaned
         return title  # fallback sur l'original si echec
 
-    def _retry_pending(self, articles: list) -> tuple:
-        """
-        Re-résume les articles sans résumé (Ollama était occupé au cycle précédent).
-        Désactivé par défaut (fetch.retry_summaries: false dans config.yaml)
-        pour garantir un flux continu sans bloquer sur les timeouts.
-        """
-        if not self.retry_summaries:
-            pending_count = sum(
-                1 for a in articles
-                if not a.get("summary") or a["summary"].startswith("[Timeout]")
-            )
-            if pending_count:
-                self.log.debug(
-                    f"[RETRY] {pending_count} articles sans résumé ignorés "
-                    f"(retry_summaries désactivé)"
-                )
-            return articles, 0
-
-        pending = [a for a in articles
-                   if not a.get("summary") or a["summary"].startswith("[Timeout]")]
-        if not pending:
-            return articles, 0
-        self.log.info(f"Re-résumé de {len(pending)} articles en attente...")
-        count = 0
-        for a in pending:
-            content = self._fetch_content(a.get("link", ""))
-            summary = self._summarize(a["title"], content, a.get("category", "monde"))
-            if summary and not summary.startswith("["):
-                a["summary"] = summary
-                count += 1
-        if count:
-            self.log.info(f"Re-résumé : {count}/{len(pending)} récupérés")
-        return articles, count
-
-    # ── Traitement d'un article ───────────────────────────────────────────────
-
-    def _process_item(self, item: dict, category: str,
-                      seen: set, existing_hashes: set,
-                      articles: list) -> bool:
-        h = self._hash(item["link"])
-        if h in seen or h in existing_hashes:
-            return False
-
-        title   = item["title"].strip()
-        content = self._fetch_content(item["link"])
-        try:
-            domain = urlparse(item["link"]).netloc.replace("www.", "")
-        except Exception:
-            domain = "source inconnue"
-
-        if not content.strip():
-            if len(title) < MIN_TITLE_LEN:
-                self.log.debug(f"  Skip (titre court + pas de contenu): {title[:50]}")
-                seen.add(h)
-                existing_hashes.add(h)
-                return False
-            # Contenu inaccessible (paywall, anti-scraping, lien mort…) → on ignore
-            # Le titre seul sans résumé ne sert ni aux éditions, ni à la radio,
-            # ni au fil live. Marquer comme vu pour ne pas retenter.
-            self.log.debug(
-                f"  [{category[:4].upper()}] Ignoré (contenu inaccessible): {title[:65]}"
-            )
-            seen.add(h)
-            existing_hashes.add(h)
-            return False
-        else:
-            self.log.info(f"  [{category[:4].upper()}] {title[:65]}…")
-            summary = self._summarize(title, content, category)
-            # Nettoie le résumé des artefacts markdown (filet de sécurité
-            # au cas où le LLM en mettrait encore malgré le prompt).
-            # Sans ça, le site affiche "**bold**" et la radio dit "astérisque".
-            from modules.utils.helpers import clean_for_tts
-            summary = clean_for_tts(summary)
-            # Traduction du titre dans la langue cible.
-            # On ne traduit QUE si le titre contient des caracteres non-latins
-            # (= pas lisible par un francophone). Force=True ignore l'heuristique.
-            translated_title = self._translate_title(title, force=False)
-            article = {
-                "hash":          h,
-                "timestamp":     datetime.now().isoformat(),
-                "category":      category,
-                "title":         translated_title,
-                "title_original": title if translated_title != title else "",
-                "link":          item["link"],
-                "source":        domain,
-                "pub_date":      item.get("pub_date", ""),
-                "summary":       summary,
-            }
-
-        articles.append(article)
-        existing_hashes.add(h)
-        seen.add(h)
-        self._save_today(articles)
-        time.sleep(0.3 if content.strip() else 0.1)
-        return True
-
     # ── Nettoyage du JSON du jour ─────────────────────────────────────────────
 
     def cleanup(self, dry_run: bool = False) -> int:
+        with collection_lock(self.seen_file.with_name('article-integrity.lock')):
+            return self._cleanup(dry_run)
+
+    def _cleanup(self, dry_run: bool = False) -> int:
         """
         Supprime du JSON du jour toutes les entrées inutilisables :
           - summary vide ou None
@@ -685,8 +590,8 @@ class ArticleFetcher:
         dry_run=True : affiche ce qui serait supprimé sans écrire.
         Retourne le nombre d'articles supprimés.
 
-        Note : les hashes restent dans seen_hashes — on ne retente pas
-        les articles sans contenu, ils resteront inaccessibles.
+        Une sauvegarde précède la suppression explicite. Les reprises automatiques
+        sont indépendantes de cette commande de nettoyage manuel.
         """
         articles = self._load_today()
         if not articles:
@@ -713,16 +618,8 @@ class ArticleFetcher:
         self.log.info(
             f"[CLEANUP] {len(bad)} articles à supprimer sur {len(articles)} :"
         )
-        for a in bad[:10]:
-            s = (a.get("summary") or "")[:50] or "(vide)"
-            self.log.info(
-                f"  - [{a.get('category','?')}] "
-                f"{a.get('title','')[:55]}  →  {s}"
-            )
-        if len(bad) > 10:
-            self.log.info(f"  ... et {len(bad) - 10} autres")
-
         if not dry_run:
+            backup(self._today_file())
             self._save_today(good)
             self.log.info(
                 f"[CLEANUP] ✅ {len(bad)} supprimés → {len(good)} articles conservés."
@@ -732,92 +629,238 @@ class ArticleFetcher:
 
         return len(bad)
 
-    # ── Point d'entrée principal ──────────────────────────────────────────────
+    # ── Journal de reprise et traitement ──────────────────────────────────────
 
-    def run(self) -> int:
-        """
-        Cycle de collecte en round-robin par catégorie.
-        Retourne le nombre de nouveaux articles ajoutés.
-        Équivalent direct de run_fetch_cycle() dans atlas_fetch.py.
-        """
-        self.log.info("═" * 50)
-        self.log.info("Début cycle de collecte (round-robin)")
-        self.log.info("═" * 50)
+    def _load_state(self):
+        state = read_json(self.state_file, dict)
+        if not self.state_file.exists():
+            return {'version': 1, 'records': {}}
+        if state.get('version') != 1 or not isinstance(state.get('records'), dict) or len(state['records']) > 10000:
+            backup(self.state_file)
+            raise StorageError('invalid_processing_store')
+        allowed = {'discovered', 'processing', 'retryable', 'succeeded', 'failed', 'ignored'}
+        for h, rec in state['records'].items():
+            if (not isinstance(rec, dict) or not isinstance(rec.get('status'), str)
+                    or rec['status'] not in allowed
+                    or type(rec.get('attempts')) is not int or not 0 <= rec['attempts'] <= 20
+                    or not isinstance(rec.get('item'), dict)
+                    or not all(isinstance(rec['item'].get(k, ''), str) for k in ('link', 'title', 'pub_date'))
+                    or not rec['item'].get('link') or not rec['item'].get('title')
+                    or self._hash(rec['item']['link']) != h
+                    or not isinstance(rec.get('category'), str)
+                    or not isinstance(rec.get('updated_at'), (int, float))
+                    or not isinstance(rec.get('next_attempt_at'), (int, float))
+                    or not isinstance(rec.get('discovered_at', rec.get('updated_at')), (int, float))
+                    or not all(math.isfinite(rec.get(k, rec.get('updated_at', 0)))
+                               for k in ('updated_at', 'next_attempt_at', 'discovered_at'))):
+                backup(self.state_file)
+                raise StorageError('invalid_processing_record')
+            if 'prepared' in rec:
+                if (not valid_article(rec['prepared']) or rec['prepared'].get('hash') != h
+                        or self._hash(rec['prepared']['link']) != h):
+                    backup(self.state_file)
+                    raise StorageError('invalid_prepared_article')
+                try:
+                    if not isinstance(rec.get('target_day'), str):
+                        raise ValueError('invalid_day_type')
+                    calendar_day(rec['target_day'])
+                except (ValueError, TypeError):
+                    backup(self.state_file)
+                    raise StorageError('invalid_prepared_day') from None
+        return state
 
-        seen            = self._load_seen()
-        articles        = self._load_today()
-        existing_hashes = {a["hash"] for a in articles}
-        new_count       = 0
+    def _save_state(self):
+        atomic_json(self.state_file, self._state)
 
-        # Phase 0 — Retry résumés en attente
-        articles, retried = self._retry_pending(articles)
-        if retried:
-            self._save_today(articles)
-            self.log.info(f"Phase 0 : {retried} résumés récupérés")
+    def _record(self, item, category):
+        if (not isinstance(category, str) or len(category) > 200
+                or any(not isinstance(item.get(k, ''), str) or len(item.get(k, '')) > limit
+                       for k, limit in (('link', 4096), ('title', 4096), ('pub_date', 1024)))
+                or not item.get('title', '').strip() or not item.get('link', '').strip()):
+            self.log.warning('Invalid or oversized article metadata; discovery rejected')
+            return None
+        h = self._hash(item['link'])
+        records = self._state['records']
+        if h not in records:
+            if len(records) >= 10000:
+                self.log.warning('Article tracking capacity reached; discovery deferred')
+                return None
+            records[h] = {'status': 'discovered', 'attempts': 0,
+                          'item': {k: item.get(k, '') for k in ('title', 'link', 'pub_date')},
+                          'category': category, 'discovered_at': self._now().timestamp(),
+                          'updated_at': self._now().timestamp(),
+                          'next_attempt_at': 0}
+            self._save_state()
+        return records[h]
 
-        # Phase 1 — Collecte RSS
-        # On recharge les flux depuis feeds.yaml (cached via mtime). Si le
-        # fichier a été modifié via /config/feeds ou /config/restart, la
-        # cache est invalidée (voir reload_config()).
-        rss_sources = _load_rss_sources()
-        self.log.info("Collecte des flux RSS...")
-        queues: dict = {}
-        for category, feeds in rss_sources.items():
-            pending = []
-            for feed_url in feeds:
-                items = self._fetch_rss(feed_url)
-                for item in items:
-                    h = self._hash(item["link"])
-                    if h not in seen and h not in existing_hashes:
-                        pending.append((item, category))
-            if pending:
-                queues[category] = pending
-                self.log.info(f"  {category:15} : {len(pending)} nouveaux")
+    def _failure(self, rec, exc):
+        status = getattr(exc, 'status_code', None)
+        permanent = isinstance(exc, source_http.BlockedURL) or (
+            status is not None and 400 <= status < 500 and status not in (408, 425, 429))
+        rec['status'] = 'ignored' if isinstance(exc, source_http.BlockedURL) else (
+            'failed' if permanent or rec['attempts'] >= self.max_attempts else 'retryable')
+        delay = min(self.retry_cap, self.retry_base * 2 ** (rec['attempts'] - 1))
+        retry_after = getattr(exc, 'retry_after', None)
+        if retry_after and status in (429, 503):
+            try:
+                delay = max(delay, int(retry_after) if retry_after.strip().isdigit() else
+                            parsedate_to_datetime(retry_after).timestamp() - self._now().timestamp())
+                if delay > 604800:
+                    rec['status'] = 'failed'
+            except (ValueError, TypeError, OverflowError):
+                pass
+        reason = ('http_' + str(status)) if status else (
+            str(exc) if isinstance(exc, ArticleAttemptError) else type(exc).__name__)
+        rec.update(reason=reason,
+                   updated_at=self._now().timestamp(), next_attempt_at=self._now().timestamp() + delay)
+        self._save_state()
+        self.log.warning('Article attempt %d/%d: %s (%s)', rec['attempts'],
+                         self.max_attempts, rec['status'], rec['reason'])
 
-        # Log explicite des catégories sans nouvel article (pour qu'on sache
-        # qu'elles existent et qu'elles sont juste calmes dans la fenêtre).
-        all_cats = list(rss_sources.keys())
-        empty_cats = [c for c in all_cats if c not in queues]
-        if empty_cats:
-            self.log.info(f"  (calmes: {', '.join(empty_cats)})")
+    def _commit_prepared(self, h, rec, seen, existing_hashes, articles):
+        target = self.data_dir / (rec['target_day'] + '_articles.json')
+        stored = articles if target == self._today_file() else read_json(target, list)
+        already = any(valid_article(a) and self._hash(a['link']) == h for a in stored)
+        if not already:
+            updated = list(stored)
+            match = next((i for i, a in enumerate(updated) if isinstance(a.get('link'), str) and self._hash(a['link']) == h), None)
+            if match is None:
+                updated.append(rec['prepared'])
+            else:
+                updated[match] = {**updated[match], **rec['prepared']}
+                updated[match].pop('no_content', None)
+                backup(target)
+            if target == self._today_file():
+                self._save_today(updated)
+                articles[:] = updated
+            else:
+                backup(target)
+                atomic_json(target, updated)
+        self._committed_count = getattr(self, '_committed_count', 0) + 1
+        rec.update(status='succeeded', updated_at=self._now().timestamp(), next_attempt_at=0)
+        rec.pop('prepared', None)
+        self._save_state()
+        seen.add(h)
+        existing_hashes.add(h)
+        time.sleep(0.3)  # Preserve the existing pacing after a publication.
+        return True  # Reconciled publications also request a public site rebuild.
 
-        total_pending = sum(len(v) for v in queues.values())
+    def _process_item(self, item, category, seen, existing_hashes, articles):
+        h = self._hash(item['link'])
+        if not hasattr(self, '_state'):
+            self._state = self._load_state()
+        rec = self._record(item, category)
+        if rec is None or rec['status'] in ('succeeded', 'failed', 'ignored'):
+            return False
+        if 'prepared' in rec:
+            return self._commit_prepared(h, rec, seen, existing_hashes, articles)
+        if h in existing_hashes:
+            return False
+        if rec['next_attempt_at'] > self._now().timestamp():
+            return False
+        if rec['attempts'] >= self.max_attempts:
+            rec.update(status='failed', reason='attempt_limit')
+            self._save_state()
+            return False
+        rec.update(status='processing', attempts=rec['attempts'] + 1,
+                   updated_at=self._now().timestamp(),
+                   next_attempt_at=self._now().timestamp() + min(
+                       self.retry_cap, self.retry_base * 2 ** rec['attempts']))
+        self._save_state()
+        try:
+            content = self._fetch_content(item['link'], raise_errors=True)
+            if not content.strip():
+                raise ArticleAttemptError('empty_extraction')
+            from modules.utils.helpers import clean_for_tts
+            summary = clean_for_tts(self._summarize(item['title'], content, category) or '')
+            if not summary.strip() or summary.lstrip().startswith('[') or len(summary) > 16000:
+                raise ArticleAttemptError('invalid_summary')
+            try:
+                title = self._translate_title(item['title'], force=False) or item['title']
+            except Exception:
+                title = item['title']
+            article = {'hash': h, 'timestamp': self._now().isoformat(), 'category': category,
+                       'title': title, 'title_original': item['title'] if title != item['title'] else '',
+                       'link': item['link'], 'source': urlparse(item['link']).netloc.replace('www.', ''),
+                       'pub_date': item.get('pub_date', ''), 'summary': summary}
+            if not valid_article(article):
+                raise ArticleAttemptError('invalid_article')
+        except Exception as exc:
+            self._failure(rec, exc)
+            return False
+        rec.update(prepared=article, target_day=self._today_file().name[:8])
+        self._save_state()
+        return self._commit_prepared(h, rec, seen, existing_hashes, articles)
 
-        # Cap par catégorie (rss.max_per_category). On garantit le même
-        # quota à chaque catégorie pour préserver la diversité, plutôt
-        # qu'un cap global qui favorise les premières catégories remplies.
-        max_per_cat = self.max_per_category
-        if max_per_cat:
-            for cat in queues:
-                if len(queues[cat]) > max_per_cat:
-                    queues[cat] = queues[cat][:max_per_cat]
-            total_pending = sum(len(v) for v in queues.values())
-            self.log.info(f"Cap par catégorie : {max_per_cat} articles/cat (total: {total_pending})")
-
-        self.log.info(f"Total à traiter : {total_pending} articles")
-
-        if not total_pending:
-            self.log.info("Aucun nouvel article — cycle terminé")
-            self._save_seen(seen)
+    def run(self):
+        acquired = False
+        try:
+            with collection_lock(self.seen_file.with_name('article-integrity.lock')):
+                acquired = True
+                self._committed_count = 0
+                self._active_day = self._now().strftime('%Y%m%d')
+                try:
+                    return self._run_cycle()
+                finally:
+                    self._active_day = None
+        except BlockingIOError:
+            self.log.warning('Collection already active; cycle skipped')
             return 0
+        except (StorageError, OSError):
+            self.log.error('Collection paused: article storage unavailable; originals preserved')
+            return self._committed_count if acquired else 0
 
-        # Phase 2 — Round-robin
-        cat_keys = list(queues.keys())
+    def _run_cycle(self):
+        seen = self._load_seen()
+        articles = self._load_today()
+        self._state = self._load_state()
+        now = self._now()
+        existing_hashes = set()
+        for age in range(7):
+            day = (now.date() - timedelta(days=age)).strftime('%Y%m%d')
+            for article in read_json(self.data_dir / (day + '_articles.json'), list):
+                if valid_article(article):
+                    existing_hashes.add(self._hash(article['link']))
+        for h, rec in list(self._state['records'].items()):
+            age = now.timestamp() - rec['updated_at']
+            if rec['status'] == 'succeeded' and age >= 7 * 86400:
+                del self._state['records'][h]
+            elif (rec['status'] in ('discovered', 'retryable', 'processing')
+                  and now.timestamp() - rec.get('discovered_at', rec['updated_at']) > 30 * 86400
+                  and 'prepared' not in rec):
+                rec.update(status='failed', reason='retention_expired')
+        self._save_state()
+        for category, feeds in _load_rss_sources().items():
+            for feed_url in feeds:
+                for item in self._fetch_rss(feed_url):
+                    if self._hash(item['link']) not in existing_hashes:
+                        self._record(item, category)
+        if self.retry_summaries:
+            for item in articles:
+                if not valid_article(item) and item.get('link') and item.get('title'):
+                    self._record(item, item.get('category', 'general'))
+        queues = {}
+        for h, rec in self._state['records'].items():
+            if h in existing_hashes and 'prepared' not in rec:
+                if rec['status'] not in ('succeeded', 'failed', 'ignored'):
+                    rec.update(status='succeeded', updated_at=now.timestamp())
+                seen.add(h)
+                continue
+            if rec['status'] in ('discovered', 'processing', 'retryable') and (
+                    'prepared' in rec or rec['next_attempt_at'] <= now.timestamp()):
+                queue = queues.setdefault(rec['category'], [])
+                if not self.max_per_category or len(queue) < self.max_per_category:
+                    queue.append((rec['item'], rec['category']))
+        self._save_state()
+        count = 0
         while any(queues.values()):
-            for cat in cat_keys:
-                if not queues.get(cat):
-                    continue
-                item, category = queues[cat].pop(0)
-                added = self._process_item(item, category, seen, existing_hashes, articles)
-                if added:
-                    new_count += 1
-
+            for queue in queues.values():
+                if queue:
+                    item, category = queue.pop(0)
+                    count += bool(self._process_item(item, category, seen, existing_hashes, articles))
         self._save_seen(seen)
-        self.log.info(
-            f"Cycle terminé : {new_count} nouveaux articles "
-            f"({len(articles)} total aujourd'hui)"
-        )
-        return new_count
+        self.log.info('Article cycle completed: %d publications or reconciliations', count)
+        return count
 
     @staticmethod
     def _cap_queues(queues: dict, cap: int) -> dict:
