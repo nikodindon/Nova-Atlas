@@ -11,4 +11,6 @@ for key in source-password admin-password relay-password; do
 done
 if grep -qE '<!DOCTYPE|<!ENTITY' "$config"; then fail; fi
 xmllint --nonet --noout "$config" >/dev/null 2>&1 || fail
+mkdir -p /tmp/icecast
+chmod 700 /tmp/icecast
 exec icecast -c "$config"

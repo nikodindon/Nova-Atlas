@@ -99,6 +99,8 @@ def test_icecast_secrets_match_streamers_and_two_mounts(deployment):
     assert len(tree.findtext('authentication/admin-password'))==64
     assert {m.findtext('mount-name') for m in tree.findall('mount')}=={'/nova','/nova-android'}
     assert tree.findtext('logging/accesslog')=='/dev/null'
+    assert tree.findtext('paths/logdir')=='/tmp/icecast'
+    assert 'chmod 700 /tmp/icecast' in (ROOT/'deploy/icecast-entrypoint.sh').read_text()
 
 
 def test_configuration_ui_cannot_store_managed_credentials(deployment):
@@ -229,3 +231,14 @@ main.main()
 def test_remote_mounts_rejected(monkeypatch,fstype):
     monkeypatch.setattr(Path,'read_text',lambda *a,**kw:f'1 0 0:1 / / rw - {fstype} remote rw')
     with pytest.raises(runtime.DeploymentError):runtime.require_local_filesystem('/app/data')
+
+
+def test_smoke_diagnostics_redact_generated_credentials(monkeypatch,capsys):
+    from deploy import smoke
+    monkeypatch.setattr(smoke,'_REDACTIONS',['synthetic-session-value','scrypt:synthetic-hash'])
+    smoke.diagnostic('failure synthetic-session-value scrypt:synthetic-hash '+ 'a'*64)
+    output=capsys.readouterr().out
+    assert 'synthetic-session-value' not in output
+    assert 'synthetic-hash' not in output
+    assert 'a'*64 not in output
+    assert 'failure' in output and output.count('[redacted]')==3
