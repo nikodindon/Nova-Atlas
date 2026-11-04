@@ -1,0 +1,88 @@
+# Opt in together with docker-compose.yml. Historical profiles remain unchanged.
+services:
+  web:
+    networks: [backend, egress, llm_clients]
+    secrets: [admin_username, admin_password_hash, session_secret, icecast_source_password, litellm_master_key]
+  news:
+    networks: [backend, egress, llm_clients]
+    secrets: [litellm_master_key]
+  radio:
+    networks: [backend, egress, llm_clients]
+    secrets: [icecast_source_password, litellm_master_key]
+  litellm:
+    image: ${ATLAS_LITELLM_IMAGE:-nova-atlas-litellm:1.108.0-03}
+    build: {context: ., dockerfile: deploy/Dockerfile.litellm}
+    profiles: [gateway]
+    user: "${ATLAS_UID:-10001}:${ATLAS_GID:-10001}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: ${ATLAS_STOP_GRACE:-45m}
+    tmpfs: [/tmp:rw,noexec,nosuid,size=256m,mode=1777]
+    networks: [llm_clients, llm_transport]
+    environment: {ATLAS_GATEWAY_ROLE: proxy}
+    secrets: [litellm_master_key, llm_egress_key]
+    volumes:
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/config
+        target: /app/config
+        read_only: true
+        bind: {create_host_path: false}
+    depends_on:
+      llm-egress: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -m, deploy.gateway, health]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 4
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+  llm-egress:
+    image: ${ATLAS_IMAGE:-nova-atlas:02-foundation}
+    build: {context: ., dockerfile: Dockerfile}
+    profiles: [gateway]
+    user: "${ATLAS_UID:-10001}:${ATLAS_GID:-10001}"
+    entrypoint: [/usr/bin/tini, --, python, -m, deploy.gateway]
+    command: [relay]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: ${ATLAS_STOP_GRACE:-45m}
+    tmpfs: [/tmp:rw,noexec,nosuid,size=128m,mode=1777]
+    networks: [llm_transport, egress]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment: {ATLAS_GATEWAY_ROLE: relay}
+    secrets: [llm_egress_key, openrouter_key, ollama_cloud_key]
+    volumes:
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/config
+        target: /app/config
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/data
+        target: /app/data
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, python, -m, deploy.gateway, health]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+networks:
+  llm_clients: {internal: true}
+  llm_transport: {internal: true}
+secrets:
+  litellm_master_key:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/litellm_master_key
+  llm_egress_key:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/llm_egress_key
+  openrouter_key:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/openrouter_key
+  ollama_cloud_key:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/ollama_cloud_key

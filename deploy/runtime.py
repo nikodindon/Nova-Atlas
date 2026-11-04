@@ -72,11 +72,16 @@ def load_container_config(path):
     if not isinstance(llm.get('cache',{}),dict):raise DeploymentError('LLM cache must be a mapping')
     if llm.get('lock_dir','data')!='data' or llm.get('lock_resource','local-llm')!='local-llm' or llm.get('cache',{}).get('dir','data/llm_cache')!='data/llm_cache':
         raise DeploymentError('Shared LLM resource identity required')
-    if llm.get('provider') not in ('llama-server','ollama'):
+    if llm.get('provider') not in ('llama-server','ollama','litellm'):
         raise DeploymentError('Existing trusted LLM backend required')
     endpoint=llm.get('base_url','')
     if (endpoint and not trusted_url(endpoint)) or (role!='web' and (not endpoint or not llm.get('model'))):
         raise DeploymentError('Explicit trusted LLM URL required for workers')
+    if llm['provider']=='litellm':
+        if endpoint!='http://litellm:4000':raise DeploymentError('Managed internal gateway URL required')
+        if len(read_secret('litellm_master_key'))<48:raise DeploymentError('Gateway credential required')
+        from modules.core.llm_gateway import load_policy
+        load_policy(ROOT/'config/llm_routes.yaml')
     if llm['provider']=='ollama':
         if not endpoint:raise DeploymentError('Explicit trusted Ollama URL required')
         os.environ['OLLAMA_HOST']=endpoint

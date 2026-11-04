@@ -56,3 +56,9 @@ Sprint 02 proposé sur feature/v2-docker-foundation ; voir DOCKER_DEPLOYMENT.md.
 Aucun déploiement/migration réel ni fusion automatique. La santé métier, les lots
 longs, les sauvegardes et le réseau hôte restent à vérifier dans une installation
 autorisée avant exposition ; PostgreSQL/LiteLLM restent aux étapes suivantes.
+
+Sprint 03 : passerelle LiteLLM opt-in, cinq alias, backend historique conservé,
+cloud désactivé par défaut, relais de capacité local/cloud et cache par modèle.
+Tests hors ligne et smoke complet avec fournisseur simulé ; détails LLM_GATEWAY.md.
+Les quotas financiers persistants, équité distribuée et jobs durables restent à
+livrer avec l'architecture de stockage ; aucune base ajoutée par ce sprint.

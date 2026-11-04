@@ -55,6 +55,7 @@ class OllamaClient:
     def __init__(self, config: dict):
         llm_cfg = config.get("llm", {})
 
+        self._gateway = None
         self.provider = llm_cfg.get("provider", "ollama")
         self.model    = llm_cfg.get("model", "mistral:7b")
         self.base_url = llm_cfg.get("base_url", "http://localhost:8080")
@@ -81,7 +82,7 @@ class OllamaClient:
         # dans la config, ou si on a un import error sur llm_cache.
         self._cache = None
         cache_cfg = llm_cfg.get("cache", {})
-        if cache_cfg.get("enabled", True):
+        if self.provider != "litellm" and cache_cfg.get("enabled", True):
             try:
                 from modules.core.llm_cache import LLMCache
                 cache_dir = cache_cfg.get("dir") or (data_dir / "llm_cache")
@@ -95,7 +96,11 @@ class OllamaClient:
 
         import logging
         self.log = logging.getLogger("nova.ollama")
-        self.log.info('LLM backend=%s', self.provider if self.provider in LOCAL_EXCLUSIVE_PROVIDERS else 'unsupported')
+        self.log.info('LLM backend=%s', self.provider if self.provider in LOCAL_EXCLUSIVE_PROVIDERS or self.provider=='litellm' else 'unsupported')
+
+        if self.provider == 'litellm':
+            from modules.core.llm_gateway import GatewayClient
+            self._gateway = GatewayClient(config)
 
         # Auto-détection du modèle via /v1/models (llama-server).
         # Si le modèle configuré n'est pas dans la liste, on prend
@@ -242,7 +247,7 @@ class OllamaClient:
              caller:  str = "atlas",
              cache_key: str = None,
              use_cache: bool = True,
-             cancel_event=None) -> str:
+             cancel_event=None, operation=None) -> str:
         """
         Appel LLM thread-safe avec verrou fichier.
         Dispatch vers _call_ollama_cli() ou _call_llama_server() selon provider.
@@ -256,6 +261,14 @@ class OllamaClient:
         caller = safe_caller(caller)
         if cancel_event is not None and cancel_event.is_set():
             return ''
+        if self.provider == 'litellm':
+            from modules.core.llm_gateway import GatewayError
+            try:
+                return self._gateway.call(prompt, caller, self.timeout_fetch if timeout is None else timeout,
+                    operation=operation, cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event, model=model)
+            except GatewayError as exc:
+                self.log.warning('Gateway request failed kind=%s', exc.kind)
+                return ''
         if self.provider not in LOCAL_EXCLUSIVE_PROVIDERS:
             self.log.error('Backend non supporté ; génération refusée')
             return ''
@@ -454,10 +467,10 @@ def ollama_call(prompt: str,
                 caller:      str = "atlas",
                 cache_key:   str = None,
                 use_cache:   bool = True,
-                cancel_event=None) -> str:
+                cancel_event=None, operation=None) -> str:
     """Raccourci global."""
     return get_client().call(prompt, model=model, timeout=timeout, caller=caller,
-                             cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event)
+                             cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event, operation=operation)
 
 
 def get_language() -> str:

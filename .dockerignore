@@ -8,6 +8,8 @@
 !deploy/
 !deploy/__init__.py
 !deploy/runtime.py
+!deploy/gateway.py
+!deploy/Dockerfile.litellm
 !deploy/entrypoint.py
 !deploy/healthcheck.py
 !deploy/ollama_client.py
