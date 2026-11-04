@@ -36,8 +36,8 @@ son retour `(ok, nombre_de_mots, message)` et distingue ensuite la longueur.
 Options facultatives de `config/bulletins.yaml` :
 
 ```yaml
-length_policy: strict           # strict : refuse hors cible ± tolérance
-# length_policy: warn           # conserve tout le texte, signale l'écart
+length_policy: warn             # défaut : conserve tout le texte, signale l'écart
+# length_policy: strict         # option : refuse hors cible ± tolérance
 flash_length_policy: warn       # conserve le parcours flash historique
 flash_target_words: 750
 flash_tolerance_words: 100
@@ -48,9 +48,12 @@ tts_retry_max_backoff: 4
 ```
 
 La cible et la tolérance des bulletins restent `target_words` et `tolerance_words`.
-Le défaut strict est conservateur : un bulletin hors fenêtre est refusé avant
-TTS, plutôt que tronqué. Le mode explicite `warn` accepte l'écart sans retirer le
-moindre passage. Les limites structurelles restent applicables dans les deux cas.
+Le défaut `warn` préserve la compatibilité éditoriale historique : les sorties
+LLM de 600 à 900 mots documentées dans `config/bulletins.yaml` restent publiables
+si tous les contrôles structurels et audio réussissent, malgré la cible de 1 500
+mots et sa tolérance de 250. Un écart de longueur est journalisé sans tronquer le
+texte, y compris pour un script trop long. L'option explicite `strict` refuse un
+bulletin hors cible ± tolérance avant tout appel TTS. Les limites structurelles restent applicables dans les deux cas.
 Les flashs Flask utilisent le profil `flash`, sans changer leur prompt, leurs
 endpoints ni la durée éditoriale cible. Leur défaut `warn` conserve les scripts
 utilisables malgré un écart de longueur. L'ancienne troncature automatique disparaît.

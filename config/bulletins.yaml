@@ -34,6 +34,10 @@ first_slot_hour: 7
 # 1500 mots est plus realiste pour ce modele.
 target_words: 1500
 tolerance_words: 250
+# La longueur est éditoriale : préserver les sorties historiques de 600-900 mots.
+# warn conserve tout le script et signale l'écart ; strict refuse hors cible ± tolérance.
+# Les contrôles de structure, segments TTS et MP3 restent toujours bloquants.
+length_policy: warn
 
 # Nombre minimum d'articles dans la fenêtre 30 min pour générer.
 # En dessous, on skip (la radio continue la playlist musicale).

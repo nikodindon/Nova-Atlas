@@ -131,6 +131,7 @@ def test_incompatible_segment_formats_refused(gen, monkeypatch):
 
 
 def test_strict_length_rejects_but_warn_preserves_entire_script(gen):
+    gen.bulletins_cfg['length_policy'] = 'strict'
     script = SCRIPT + ' Toutes les informations de fin restent présentes.'
     assert gen.build([{}], script=script) is None
     gen.bulletins_cfg['length_policy'] = 'warn'
@@ -382,3 +383,32 @@ def test_probe_duration_cannot_hide_missing_decoded_audio(tmp_path, monkeypatch)
     run.side_effect = [next(good_probe), SimpleNamespace(returncode=0, stdout='out_time_us=100000\n')]
     with pytest.raises(ai.AudioIntegrityError, match='duration'):
         ai.inspect_audio(path)
+
+
+@pytest.mark.parametrize('words', [600, 900])
+@pytest.mark.parametrize('policy', [None, 'warn', 'strict'])
+def test_historical_short_bulletins_warn_by_default(gen, policy, words):
+    gen.bulletins_cfg.update(target_words=1500, tolerance_words=250)
+    gen.bulletins_cfg.pop('length_policy', None)
+    if policy is not None:
+        gen.bulletins_cfg['length_policy'] = policy
+    script = '[VOIX1] ' + 'actualité ' * (words - 2) + '[VOIX2] Monde. [VOIX1] Fin.'
+    result = gen.build([{}], script=script)
+    if policy == 'strict':
+        assert result is None
+        bg.synthesize_segment.assert_not_called()
+    else:
+        assert result is not None and ai.validated_publication(result)
+        spoken = [call.args[0] for call in bg.synthesize_segment.call_args_list]
+        assert sum(len(text.split()) for text in spoken) == words
+        assert spoken[-1] == 'Fin.'
+
+
+def test_warn_default_preserves_overlong_bulletin_without_truncation(gen):
+    gen.bulletins_cfg.update(target_words=1500, tolerance_words=250)
+    gen.bulletins_cfg.pop('length_policy', None)
+    script = '[VOIX1] ' + 'actualité ' * 2998 + '[VOIX2] Monde. [VOIX1] Conclusion.'
+    result = gen.build([{}], script=script)
+    assert result is not None and ai.validated_publication(result)
+    assert sum(len(call.args[0].split()) for call in bg.synthesize_segment.call_args_list) == 3000
+    assert bg.synthesize_segment.call_args_list[-1].args[0] == 'Conclusion.'

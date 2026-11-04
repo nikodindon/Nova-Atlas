@@ -79,6 +79,7 @@ def load_bulletins_config(paths: dict) -> dict:
             "first_slot_hour": 7,
             "target_words": 1500,
             "tolerance_words": 200,
+            "length_policy": "warn",
             "min_articles": 3,
             "window_minutes": 30,
             "voices": {
@@ -831,7 +832,7 @@ class BulletinGenerator:
                 raise AudioIntegrityError('invalid_profile')
             target = cfg.get('flash_target_words', 750) if profile == 'flash' else cfg.get('target_words', 1500)
             tolerance = cfg.get('flash_tolerance_words', 100) if profile == 'flash' else cfg.get('tolerance_words', 200)
-            policy = cfg.get('flash_length_policy', 'warn') if profile == 'flash' else cfg.get('length_policy', 'strict')
+            policy = cfg.get('flash_length_policy', 'warn') if profile == 'flash' else cfg.get('length_policy', 'warn')
             if policy not in ('strict', 'warn'):
                 raise AudioIntegrityError('invalid_length_policy')
             ok, count, _ = validate_bulletin(script, target, tolerance)
