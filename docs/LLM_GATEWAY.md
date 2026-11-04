@@ -154,7 +154,9 @@ Un seul propriétaire des retries : client Nova ; LiteLLM router/SDK configurés
 zéro et fallbacks désactivés. 401/402/403/404 sont distingués et non réessayés sur
 la même destination ; 429/5xx/timeout/réseau/réponse invalide ont un nombre borné.
 Backoff exponentiel borné avec jitter ; Retry-After secondes ou date HTTP respecté
-sans raccourcissement, même avant fallback. S'il dépasse le budget restant, refus.
+sans raccourcissement, même avant fallback. Le relais conserve aussi un embargo
+fournisseur en mémoire pour éviter un contact anticipé si un intermédiaire perd
+le header ; comme les compteurs RPM, cet embargo est perdu au restart. S'il dépasse le budget restant, refus.
 Contexte trop grand et capacités incompatibles sont distingués. Une erreur finale
 lève GatewayError typée dans l'adaptateur ; call/ollama_call gardent le retour
 historique chaîne vide. Aucun message fournisseur brut transmis aux consommateurs.
@@ -173,7 +175,9 @@ Les clés sont exclusivement fichiers locaux 0400 ; parent 0700. Seule la clé
 interne LiteLLM est montée dans les apps. LiteLLM lit master_key et llm_egress_key ;
 seul le relais monte les clés cloud. Aucune clé navigateur, export ou YAML.
 Master key = credential administrateur upstream : réserver aux processus de
-confiance, ne pas la distribuer aux téléphones/utilisateurs. UI désactivée, aucun
+confiance, ne pas la distribuer aux téléphones/utilisateurs. Un hook d’authentification LiteLLM compare la clé en temps constant et limite les
+requêtes aux routes Chat Completions, aux alias déclarés et à leurs paramètres
+contrôlés : refus 401/403, sans lookup de clé virtuelle en DB. UI désactivée, aucun
 port hôte ; aucune gestion de clés virtuelles, équipes, comptes, budgets DB ou
 journal de dépenses SQL. Aucun DATABASE_URL, PostgreSQL ou Redis ajouté.
 
@@ -198,7 +202,8 @@ Ancien cache inchangé et non migré. Nouveau sous-répertoire gateway-v1 : JSON
 atomique unique par prompt complet, alias, déploiement/modèle/configuration,
 langue, version de prompt et tâche. Le hash du prompt fournit la signature de
 contenu ; le cache_key historique active le cache mais ne remplace pas ce hash.
-Le résultat note le déploiement effectif. Un fallback valide peut être réutilisé
+Le résultat note le déploiement et le modèle effectifs. Une substitution de modèle
+non déclarée dans la réponse est servie sans être mise en cache. Un fallback valide peut être réutilisé
 sans régénérer le principal ; une modification des paramètres change l'identité.
 TTL existant appliqué, écritures atomiques et verrou par clé, échecs non cachés.
 Pas de suppression d'anciens résumés/articles. Cache contient du texte éditorial :

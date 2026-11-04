@@ -131,3 +131,21 @@ projet jetable Web/Icecast uniquement : exécutables, santé, singleton/ressourc
 partagée, audio sinusoïdal et reçu, permissions, persistance et arrêt. Les probes
 News/Radio remplacent leur entrypoint ; aucun moteur RSS, TTS ou LLM réel lancé.
 Voir DOCKER_DEPLOYMENT.md pour la procédure, les limites et les conditions du FS.
+
+## Sprint 03 — passerelle LLM optionnelle
+
+Socle dev@ca1f64c : 907 tests. Trois reproductions en échec avant correction :
+adaptateur d'alias absent, Compose sans passerelle optionnelle et cache sans
+identité de modèle. **978 réussis, 0 échec, 0 ignoré** en 30,44 s sous Python 3.12,
+soit 71 cas ajoutés, Chromium conservé. Aucune connexion fournisseur réelle.
+Les tests couvrent erreurs 401/402/403/404/429/5xx, Retry-After, deadlines,
+annulation, capacités/fallback autorisé, secrets, concurrence/cache et Compose.
+Syntaxes Python/JS, contrôle CSRF et git diff --check réussis.
+
+Le smoke Compose historique reste exécuté. Un job CI distinct construit le dérivé
+LiteLLM officiel puis lance seulement proxy, relais et fournisseur HTTP synthétique
+sur un projet jetable. Les probes applicatives remplacent l'entrypoint News :
+aucun scheduler, RSS, LLM, Edge TTS, Icecast ou streamer réel n'est démarré par ce
+nouveau job. Vérifications de bout en bout : cinq alias/langue, auth, absence de
+secrets dans les logs, santé, SIGTERM/restart ; scénarios 429/500 et comptage des
+appels ajoutés pour vérifier l'unique niveau de retry. Voir LLM_GATEWAY.md.
