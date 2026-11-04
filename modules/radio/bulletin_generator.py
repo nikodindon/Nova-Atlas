@@ -24,6 +24,9 @@ Le script LLM est conçu pour :
 """
 
 import json
+import time
+import uuid
+from dataclasses import dataclass
 import logging
 import random
 import re
@@ -39,6 +42,23 @@ import yaml
 from modules.core.llm_client import ollama_call
 from modules.utils.helpers import clean_for_tts
 
+from modules.radio.audio_integrity import (
+    AudioInfo, AudioIntegrityError, inspect_audio, compatible_duration, publish_audio,
+)
+
+
+@dataclass
+class Segment:
+    index: int
+    voice_tag: str
+    text: str
+    voice: str
+    path: Path
+    state: str = 'pending'
+    attempts: int = 0
+    info: AudioInfo | None = None
+
+
 logger = logging.getLogger("nova.bulletin")
 
 # Tags de voix dans le script LLM
@@ -53,12 +73,13 @@ def load_bulletins_config(paths: dict) -> dict:
     """Charge config/bulletins.yaml avec fallback sur défauts."""
     bulletins_path = paths["root"] / "config" / "bulletins.yaml"
     if not bulletins_path.exists():
-        logger.warning(f"bulletins.yaml introuvable ({bulletins_path}) → défauts")
+        logger.warning("bulletins.yaml absent; defaults selected")
         return {
             "post_hours": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
             "first_slot_hour": 7,
             "target_words": 1500,
             "tolerance_words": 200,
+            "length_policy": "warn",
             "min_articles": 3,
             "window_minutes": 30,
             "voices": {
@@ -423,28 +444,27 @@ Script :"""
 #  Split du script en segments (selon les balises [VOIX1]/[VOIX2])
 # ─────────────────────────────────────────────────────────────────────────────
 
-def split_script_by_voice(script: str) -> List[Tuple[str, str]]:
-    """
-    Split le script en segments selon les balises [VOIX1] et [VOIX2].
-
-    Retourne une liste de (voice_tag, text).
-    Ex: [("[VOIX1]", "Bonjour..."), ("[VOIX2]", "Dans un autre registre..."), ...]
-    """
-    # Pattern qui match [VOIX1] ou [VOIX2] ou [VOIX3] ou [VOIX_BREAKING]
-    pattern = r"\[VOIX[123]\]|\[VOIX_BREAKING\]"
-    parts = re.split(f"({pattern})", script)
-
-    segments = []
-    current_voice = "[VOIX1]"  # défaut
+def split_script_by_voice(script):
+    """Strict structure, preserving initial text's historical VOIX1 default."""
+    if not isinstance(script, str) or not script.strip() or len(script) > 128000:
+        raise AudioIntegrityError('invalid_script')
+    parts = re.split(r'(\[[^\]]*\])', script)
+    segments, current, awaiting = [], '[VOIX1]', False
     for part in parts:
-        if not part or part.isspace():
+        if not part.strip():
             continue
-        if re.match(pattern, part):
-            current_voice = part
+        if part.startswith('[') and part.endswith(']'):
+            if part not in VOICE_TAGS or awaiting:
+                raise AudioIntegrityError('invalid_or_empty_voice_segment')
+            current, awaiting = part, True
         else:
             text = part.strip()
-            if text:
-                segments.append((current_voice, text))
+            if '[' in text or ']' in text or not any(c.isalnum() for c in text):
+                raise AudioIntegrityError('malformed_spoken_text')
+            segments.append((current, text))
+            awaiting = False
+    if awaiting or not segments or len(segments) > 256:
+        raise AudioIntegrityError('empty_or_excessive_segments')
     return segments
 
 
@@ -466,7 +486,7 @@ def generate_bulletin_script(articles: List[dict], config: dict,
         from modules.core.llm_client import init_ollama as _init_ollama
         _init_ollama(config)
     except Exception as e:
-        logger.debug(f"init_ollama deja fait ou echoue: {e}")
+        logger.debug("LLM initialization unavailable")
     prompt = build_bulletin_prompt(articles, config, intros, transitions, outros)
     try:
         # Timeout long car génération ~1500 mots
@@ -485,135 +505,137 @@ def generate_bulletin_script(articles: List[dict], config: dict,
             out = "[VOIX1] " + out
         return out
     except Exception as e:
-        logger.error(f"Erreur génération bulletin LLM : {e}")
+        logger.error("Bulletin LLM generation failed")
         return None
 
 
-def validate_bulletin(script: str, target: int, tolerance: int) -> Tuple[bool, int, str]:
-    """
-    Valide qu'un script est utilisable.
-    Retourne (ok, word_count, message).
-    """
-    if not script:
-        return False, 0, "script vide"
-    # Compte les mots (sans les balises)
-    text_only = re.sub(r"\[VOIX[123]\]", "", script)
-    word_count = len(text_only.split())
-    min_words = target - tolerance
-    max_words = target + tolerance
-    if word_count < min_words:
-        return False, word_count, f"trop court ({word_count} < {min_words})"
-    if word_count > max_words:
-        return False, word_count, f"trop long ({word_count} > {max_words})"
-    # Vérifie qu'il y a au moins 1 [VOIX1] et 1 [VOIX2]
-    if "[VOIX1]" not in script:
-        return False, word_count, "pas de [VOIX1]"
-    if "[VOIX2]" not in script:
-        return False, word_count, "pas de [VOIX2]"
-    return True, word_count, "ok"
+def validate_bulletin(script, target, tolerance):
+    try:
+        segments = split_script_by_voice(script)
+    except AudioIntegrityError:
+        return False, 0, 'structure invalide'
+    count = sum(len(text.split()) for _, text in segments)
+    if count < target - tolerance:
+        return False, count, 'trop court'
+    if count > target + tolerance:
+        return False, count, 'trop long'
+    return True, count, 'ok'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Génération TTS par segment
 # ─────────────────────────────────────────────────────────────────────────────
 
-def synthesize_segment(text: str, voice: str, output_path: Path) -> bool:
-    """
-    Synthétise un segment texte avec une voix edge-tts.
-    Retourne True si succès.
-    """
+def synthesize_segment(text, voice, output_path, *, timeout=90):
     import asyncio
     import edge_tts
     try:
-        async def _run():
+        async def run():
             communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(str(output_path))
-        asyncio.run(_run())
-        return output_path.exists() and output_path.stat().st_size > 0
-    except Exception as e:
-        logger.error(f"Erreur TTS ({voice}) : {e}")
+            await asyncio.wait_for(communicate.save(str(output_path)), timeout=timeout)
+        asyncio.run(run())
+        return output_path.is_file() and output_path.stat().st_size > 0
+    except Exception:
+        logger.warning('TTS attempt failed')
         return False
 
 
-def synthesize_all_segments(segments: List[Tuple[str, str]],
-                             voice_map: Dict[str, str],
-                             tmp_dir: Path) -> List[Path]:
-    """
-    Synthétise tous les segments avec leur voix assignée.
-    Retourne la liste des chemins mp3 dans l'ordre.
-    """
-    paths = []
-    for i, (voice_tag, text) in enumerate(segments):
-        voice = voice_map.get(voice_tag, voice_map.get("[VOIX1]"))
-        seg_path = tmp_dir / f"seg_{i:03d}_{voice_tag.strip('[]')}.mp3"
-        logger.debug(f"  Segment {i+1}/{len(segments)} [{voice_tag}] "
-                    f"({len(text.split())} mots, voix {voice})")
-        if not synthesize_segment(text, voice, seg_path):
-            logger.warning(f"  Segment {i} échoué, skip")
-            continue
-        paths.append(seg_path)
-    return paths
+def synthesize_all_segments(segments, voice_map, tmp_dir, *, attempts=3, timeout=90,
+                            backoff=1, max_backoff=4, manifest=None,
+                            synthesizer=None, inspector=None, wait=None):
+    """All mandatory segments or an exception; retry only the failing segment."""
+    synthesizer, inspector, wait = synthesizer or synthesize_segment, inspector or inspect_audio, wait or time.sleep
+    if not segments or not 1 <= attempts <= 5 or not 0 < timeout <= 300 or not 0 <= backoff <= max_backoff <= 30:
+        raise AudioIntegrityError('invalid_segment_policy')
+    records = [] if manifest is None else manifest
+    if records:
+        raise AudioIntegrityError('manifest_already_used')
+    for index, segment in enumerate(segments):
+        if not isinstance(segment, (tuple, list)) or len(segment) != 2:
+            raise AudioIntegrityError('malformed_segment')
+        tag, text = segment
+        if not isinstance(tag, str):
+            raise AudioIntegrityError('invalid_voice_tag')
+        voice = voice_map.get(tag)
+        if (tag not in VOICE_TAGS or not isinstance(text, str) or not text.strip()
+                or not any(c.isalnum() for c in text) or not isinstance(voice, str) or not voice.strip()):
+            raise AudioIntegrityError('invalid_segment_voice_or_text')
+        records.append(Segment(index, tag, text, voice, Path(tmp_dir) / f"seg_{index:03d}_{tag.strip('[]')}.mp3"))
+    for record in records:
+        for attempt in range(1, attempts + 1):
+            record.attempts, record.state = attempt, 'generating'
+            record.path.unlink(missing_ok=True)
+            try:
+                if not synthesizer(record.text, record.voice, record.path, timeout=timeout):
+                    raise AudioIntegrityError('tts_failed')
+                if record.path.is_symlink() or not record.path.is_file() or not record.path.stat().st_size:
+                    raise AudioIntegrityError('missing_segment_output')
+                record.info = inspector(record.path)
+                record.state = 'valid'
+                break
+            except Exception:
+                record.path.unlink(missing_ok=True)
+                record.state = 'failed'
+                logger.warning('TTS segment %d attempt %d/%d failed', record.index, attempt, attempts)
+                if attempt == attempts:
+                    raise AudioIntegrityError('mandatory_segment_failed') from None
+                wait(min(max_backoff, backoff * 2 ** (attempt - 1)))
+    return [record.path for record in records]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Concaténation des segments (ffmpeg)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def concatenate_segments(seg_paths: List[Path], output_path: Path) -> bool:
-    """Concatène les mp3 segments en un seul fichier via ffmpeg."""
+def concatenate_segments(seg_paths, output_path):
     if not seg_paths:
         return False
-    # Crée le fichier de liste pour ffmpeg
-    list_file = output_path.with_suffix(".txt")
-    with open(list_file, "w") as f:
-        for p in seg_paths:
-            f.write(f"file '{p.absolute()}'\n")
+    list_file = output_path.with_suffix('.txt')
+    success = False
     try:
-        cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-            "-i", str(list_file), "-c", "copy", str(output_path)
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode != 0:
-            logger.error(f"ffmpeg concat a échoué : {result.stderr[-300:]}")
-            return False
-        return output_path.exists()
+        with list_file.open('w', encoding='utf-8') as out:
+            for path in seg_paths:
+                # ffmpeg concat quoting, including apostrophes in the parent directory.
+                escaped = str(path.absolute()).replace("'", "'\\''")
+                out.write(f"file '{escaped}'\n")
+        result = subprocess.run(['ffmpeg', '-v', 'error', '-nostdin', '-y', '-f', 'concat',
+            '-safe', '0', '-protocol_whitelist', 'file,pipe', '-i', str(list_file), '-map', '0:a:0', '-c', 'copy', str(output_path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True, timeout=120)
+        success = result.returncode == 0 and output_path.is_file() and output_path.stat().st_size > 0
+        return success
+    except (OSError, subprocess.SubprocessError):
+        return False
     finally:
         list_file.unlink(missing_ok=True)
+        if not success:
+            output_path.unlink(missing_ok=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Mix voix + musique de fond
 # ─────────────────────────────────────────────────────────────────────────────
 
-def mix_voice_with_background(voice_path: Path, bg_dir: Path,
-                              volume: float, output_path: Path) -> bool:
-    """Mixe la voix avec une musique de fond aléatoire."""
-    if not bg_dir.exists():
-        shutil_move = shutil_move_fallback
-        shutil_move(voice_path, output_path)
-        return True
-    bg_files = list(bg_dir.glob("*.mp3"))
-    if not bg_files:
-        shutil_move_fallback(voice_path, output_path)
-        return True
-    bg = random.choice(bg_files)
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", str(voice_path),
-        "-stream_loop", "-1", "-i", str(bg),
-        "-filter_complex",
-        f"[0:a]volume=2.0[voice];[1:a]volume={volume}[bg];"
-        f"[voice][bg]amix=inputs=2:duration=shortest[mix]",
-        "-map", "[mix]", "-c:a", "libmp3lame", "-b:a", "128k",
-        str(output_path)
-    ]
+def mix_voice_with_background(voice_path, bg_dir, volume, output_path):
+    success = False
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        return result.returncode == 0 and output_path.exists()
-    except Exception as e:
-        logger.error(f"Mix a échoué : {e}")
+        bg_files = list(bg_dir.glob('*.mp3')) if bg_dir.exists() else []
+        if not bg_files:
+            shutil_move_fallback(voice_path, output_path)
+            success = output_path.is_file() and output_path.stat().st_size > 0
+            return success
+        bg = random.choice(bg_files)
+        result = subprocess.run(['ffmpeg', '-v', 'error', '-nostdin', '-y', '-protocol_whitelist', 'file,pipe', '-f', 'mp3', '-i', str(voice_path.resolve()),
+            '-stream_loop', '-1', '-protocol_whitelist', 'file,pipe', '-f', 'mp3', '-i', str(bg.resolve()), '-filter_complex',
+            f'[0:a]volume=2.0[voice];[1:a]volume={volume}[bg];[voice][bg]amix=inputs=2:duration=shortest[mix]',
+            '-map', '[mix]', '-c:a', 'libmp3lame', '-b:a', '128k', str(output_path)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True, timeout=120)
+        success = result.returncode == 0 and output_path.is_file() and output_path.stat().st_size > 0
+        return success
+    except (OSError, subprocess.SubprocessError):
         return False
+    finally:
+        if not success:
+            output_path.unlink(missing_ok=True)
 
 
 def shutil_move_fallback(src: Path, dst: Path):
@@ -706,7 +728,7 @@ def generate_flash_script(articles: List[dict], category: str, cat_label: str,
         from modules.core.llm_client import init_ollama as _init_ollama
         _init_ollama(config)
     except Exception as e:
-        logger.debug(f"init_ollama deja fait ou echoue: {e}")
+        logger.debug("LLM initialization unavailable")
     prompt = build_flash_prompt(articles, category, cat_label, intros, outros)
     try:
         # Timeout court pour un flash de 5 min
@@ -719,7 +741,7 @@ def generate_flash_script(articles: List[dict], category: str, cat_label: str,
             out = "[VOIX1] " + out
         return out
     except Exception as e:
-        logger.error(f"Erreur génération script flash LLM : {e}")
+        logger.error("Flash LLM generation failed")
         return None
 
 
@@ -778,8 +800,7 @@ class BulletinGenerator:
         self.queue_dir.mkdir(parents=True, exist_ok=True)
         self.tmp_dir.mkdir(parents=True, exist_ok=True)
         # Log des voix choisies pour ce bulletin (debug/audit)
-        logger.info(f"[bulletin] Voix choisies pour '{lang_key}' : "
-                    f"VOIX1={primary}, VOIX2={secondary}")
+        logger.info("Bulletin voices selected")
 
     def _lang_to_config_key(self, lang: str) -> str:
         """Convertit une langue LLM (francais, english) en cle config (fr, en)."""
@@ -797,91 +818,60 @@ class BulletinGenerator:
         }
         return aliases.get(lang, lang[:2])
 
-    def build(self, articles: List[dict], script: Optional[str] = None) -> Optional[Path]:
-        """
-        Génère un bulletin complet (collecte LLM + TTS + mix).
-        Retourne le chemin du mp3 final ou None.
-
-        Si `script` est fourni, on l'utilise tel quel (skippe l'appel LLM).
-        Utilisé par /api/flash pour injecter un script généré avec un
-        prompt spécialisé par catégorie.
-        """
+    def build(self, articles, script=None, *, profile='bulletin'):
+        """Return only a complete, validated, atomically published MP3."""
         cfg = self.bulletins_cfg
-
-        # Filtre : nombre minimum d'articles
-        if len(articles) < cfg.get("min_articles", 3):
-            logger.info(
-                f"⏭️ Bulletin skippé : {len(articles)} article(s) < "
-                f"{cfg.get('min_articles', 3)} minimum"
-            )
+        if len(articles) < cfg.get('min_articles', 3):
             return None
-
-        if script is None:
-            logger.info(f"📡 Génération bulletin 10min ({len(articles)} articles)")
-
-            # Charge les intros/transitions/outros depuis messages.yaml
-            intros, transitions, outros = self._load_messages()
-
-            # 1) Prompt LLM. Avant 2026-07-28 on passait self.config
-            # (= config.yaml global) ici, mais build_bulletin_prompt a
-            # besoin de target_words/structure/articles_in_bulletin qui
-            # sont dans bulletins.yaml (self.bulletins_cfg), pas dans
-            # config.yaml. Resultat : le prompt disait "9 articles" mais
-            # sans cible de mots ni structure, donc le LLM sortait 595
-            # mots au lieu de 2200. Maintenant on merge les deux.
-            # - bulletins_cfg : target_words, tolerance_words, structure, articles_in_bulletin
-            # - self.config : necessaire pour init_ollama() dans generate_bulletin_script
-            prompt_config = {**self.bulletins_cfg, **self.config}
-            script = generate_bulletin_script(articles, prompt_config, intros, transitions, outros)
-            if not script:
-                return None
-        else:
-            logger.info(f"📡 Génération bulletin 10min ({len(articles)} articles, script pré-généré)")
-
-        # 2) Valide le script (longueur, présence des balises)
-        target = cfg.get("target_words", 1500)
-        tolerance = cfg.get("tolerance_words", 200)
-        ok, word_count, msg = validate_bulletin(script, target, tolerance)
-        if not ok:
-            logger.warning(f"⚠️ Script {msg} (target: {target}±{tolerance})")
-            # On accepte quand même, on coupe au max
-            if word_count > target + tolerance:
-                script = self._truncate_script(script, target + tolerance)
-        logger.info(f"📝 Script généré : {word_count} mots, {len(script.splitlines())} lignes")
-
-        # 3) Split en segments
-        segments = split_script_by_voice(script)
-        logger.info(f"🎬 {len(segments)} segments (alternance voix)")
-        for i, (voice_tag, text) in enumerate(segments):
-            n_words = len(text.split())
-            logger.debug(f"  [{i+1}/{len(segments)}] {voice_tag} → {n_words} mots")
-
-        # 4) TTS de chaque segment
-        with tempfile.TemporaryDirectory(dir=str(self.tmp_dir)) as tmp:
-            tmp_dir = Path(tmp)
-            seg_paths = synthesize_all_segments(segments, self.voice_map, tmp_dir)
-            if not seg_paths:
-                logger.error("Aucun segment synthétisé avec succès")
-                return None
-
-            # 5) Concaténation
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            voice_path = tmp_dir / f"voice_{timestamp}.mp3"
-            if not concatenate_segments(seg_paths, voice_path):
-                logger.error("Concaténation des segments a échoué")
-                return None
-
-            # 6) Mix voix + musique
-            final_path = self.queue_dir / f"bulletin_{timestamp}.mp3"
-            if not mix_voice_with_background(
-                voice_path, self.bg_dir,
-                cfg.get("background_volume", 0.30), final_path
-            ):
-                logger.error("Mix voix + musique a échoué")
-                return None
-
-        logger.info(f"✅ Bulletin prêt : {final_path}")
-        return final_path
+        try:
+            if script is None:
+                intros, transitions, outros = self._load_messages()
+                script = generate_bulletin_script(articles, {**cfg, **self.config}, intros, transitions, outros)
+            segments = split_script_by_voice(script)
+            if profile not in ('bulletin', 'flash'):
+                raise AudioIntegrityError('invalid_profile')
+            target = cfg.get('flash_target_words', 750) if profile == 'flash' else cfg.get('target_words', 1500)
+            tolerance = cfg.get('flash_tolerance_words', 100) if profile == 'flash' else cfg.get('tolerance_words', 200)
+            policy = cfg.get('flash_length_policy', 'warn') if profile == 'flash' else cfg.get('length_policy', 'warn')
+            if policy not in ('strict', 'warn'):
+                raise AudioIntegrityError('invalid_length_policy')
+            ok, count, _ = validate_bulletin(script, target, tolerance)
+            if not ok:
+                logger.warning('Script outside editorial length bounds (%d words)', count)
+                if policy == 'strict':
+                    return None
+            generation = uuid.uuid4().hex
+            # Same filesystem as the public queue; private work is never globbed as a bulletin.
+            with tempfile.TemporaryDirectory(prefix='.bulletin-', dir=self.queue_dir) as tmp:
+                work = Path(tmp)
+                manifest = []
+                paths = synthesize_all_segments(segments, self.voice_map, work,
+                    attempts=int(cfg.get('tts_max_attempts', 3)), timeout=float(cfg.get('tts_timeout_seconds', 90)),
+                    backoff=float(cfg.get('tts_retry_backoff', 1)), max_backoff=float(cfg.get('tts_retry_max_backoff', 4)),
+                    manifest=manifest)
+                if len(paths) != len(segments) or any(s.state != 'valid' for s in manifest):
+                    raise AudioIntegrityError('incomplete_manifest')
+                formats = {(s.info.sample_rate, s.info.channels) for s in manifest
+                           if s.info.sample_rate is not None and s.info.channels is not None}
+                if len(formats) > 1:
+                    raise AudioIntegrityError('incompatible_segment_formats')
+                voice_path, staged = work / 'voice.mp3', work / 'final.mp3'
+                if not concatenate_segments(paths, voice_path):
+                    raise AudioIntegrityError('concat_failed')
+                voice_info = inspect_audio(voice_path)
+                if formats and voice_info.sample_rate is not None and (voice_info.sample_rate, voice_info.channels) not in formats:
+                    raise AudioIntegrityError('concat_format_changed')
+                compatible_duration(voice_info, sum(s.info.duration for s in manifest), segments=len(manifest))
+                if not mix_voice_with_background(voice_path, self.bg_dir, cfg.get('background_volume', .30), staged):
+                    raise AudioIntegrityError('mix_failed')
+                final_info = inspect_audio(staged)
+                compatible_duration(final_info, voice_info.duration)
+                target_path = self.queue_dir / f"bulletin_{datetime.now():%Y%m%d_%H%M%S}_{generation}.mp3"
+                return publish_audio(staged, target_path, final_info, len(manifest))
+        except Exception as exc:
+            reason = str(exc) if isinstance(exc, AudioIntegrityError) else type(exc).__name__
+            logger.error('Bulletin generation refused (%s)', reason)
+            return None
 
     def build_async(self, articles: List[dict], callback=None):
         """Lance la génération dans un thread."""
@@ -891,16 +881,6 @@ class BulletinGenerator:
                 callback(path)
         threading.Thread(target=_run, daemon=True).start()
 
-    def _truncate_script(self, script: str, max_words: int) -> str:
-        """Coupe le script à max_words mots (en gardant la dernière balise [VOIX1])."""
-        words = script.split()
-        if len(words) <= max_words:
-            return script
-        # Tronque en gardant l'outro
-        truncated = " ".join(words[:max_words])
-        if not truncated.rstrip().endswith("."):
-            truncated += "."
-        return truncated + " [VOIX1] C'est tout pour ce journal."
 
     def _load_messages(self) -> Tuple[List[str], List[str], List[str]]:
         """Charge intros/transitions/outros depuis config/messages.yaml."""
@@ -916,5 +896,5 @@ class BulletinGenerator:
             outros = [o for o in data.get("outros", []) if not str(o).startswith("#")]
             return intros, transitions, outros
         except Exception as e:
-            logger.warning(f"Erreur chargement messages.yaml : {e}")
+            logger.warning("Bulletin messages unavailable")
             return [], [], []

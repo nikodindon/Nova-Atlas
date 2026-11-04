@@ -264,8 +264,9 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
             log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap {max_articles})")
             path = builder.build(articles)
             if path:
-                streamer.enqueue_bulletin(path)
+                # Cache Android before the primary can consume/delete the MP3.
                 android_streamer.enqueue_bulletin(path)
+                streamer.enqueue_bulletin(path)
                 log.info(f"📥 Bulletin en file: {path.name}")
             else:
                 log.info("⏭️ Bulletin skippé (pas assez d'articles ou erreur)")

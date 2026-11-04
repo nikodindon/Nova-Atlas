@@ -262,10 +262,11 @@ class TestSplitScriptByVoice:
             "[VOIX1]", "[VOIX2]", "[VOIX3]", "[VOIX_BREAKING]", "[VOIX1]"
         ]
 
-    def test_empty_segments_ignored(self):
+    def test_empty_segments_refused(self):
         script = "[VOIX1]  [VOIX2] "
-        segments = split_script_by_voice(script)
-        assert len(segments) == 0  # rien de non-vide
+        from modules.radio.audio_integrity import AudioIntegrityError
+        with pytest.raises(AudioIntegrityError):
+            split_script_by_voice(script)
 
     def test_realistic_bulletin(self):
         """Un bulletin réaliste avec 5 segments."""
@@ -315,17 +316,17 @@ class TestValidateBulletin:
         assert ok is False
         assert "long" in msg
 
-    def test_missing_voix1(self):
+    def test_single_voix2_is_structurally_usable(self):
         script = "[VOIX2] " + " ".join(["x"] * 1500) + " fin."
         ok, n, msg = validate_bulletin(script, target=1500, tolerance=200)
-        assert ok is False
-        assert "VOIX1" in msg
+        assert ok is True
+        assert msg == "ok"
 
-    def test_missing_voix2(self):
+    def test_single_voix1_is_structurally_usable(self):
         script = "[VOIX1] " + " ".join(["x"] * 1500) + " fin."
         ok, n, msg = validate_bulletin(script, target=1500, tolerance=200)
-        assert ok is False
-        assert "VOIX2" in msg
+        assert ok is True
+        assert msg == "ok"
 
     def test_empty_script(self):
         ok, n, msg = validate_bulletin("", target=1500, tolerance=200)
@@ -346,37 +347,13 @@ class TestBulletinGeneratorBuild:
         assert result is None
         mock_llm.assert_not_called()
 
-    def test_pipeline_runs_with_mocks(self, bulletins_yaml):
-        """Pipeline complet : LLM mocké, TTS mocké, mix mocké."""
-        gen = BulletinGenerator({}, bulletins_yaml)
-        articles = [
-            {"title": f"News {i}", "summary": f"Resume {i}. " * 50,
-             "category": "tech", "source": "ex.com",
-             "timestamp": datetime.now().isoformat(),
-             "link": f"https://ex/{i}"}
-            for i in range(5)
-        ]
-        # Mock du LLM : produit un script balisé valide de ~1500 mots
-        mock_script = "[VOIX1] " + " ".join(["x"] * 700) + " " + \
-                      "[VOIX2] " + " ".join(["y"] * 700) + " " + \
-                      "[VOIX1] fin."
-        with patch("modules.radio.bulletin_generator.ollama_call",
-                   return_value=mock_script), \
-             patch("modules.radio.bulletin_generator.synthesize_segment",
-                   return_value=True), \
-             patch("modules.radio.bulletin_generator.concatenate_segments",
-                   return_value=True), \
-             patch("modules.radio.bulletin_generator.mix_voice_with_background",
-                   return_value=True), \
-             patch("pathlib.Path.mkdir"):  # ne pas créer de vrais dossiers
-            # Patch Path.exists pour que les segments paraissent exister
-            with patch("pathlib.Path.exists", return_value=True), \
-                 patch("pathlib.Path.stat") as mock_stat:
-                mock_stat.return_value = MagicMock(st_size=1000)
-                result = gen.build(articles)
-        # Le résultat peut être None si la chaîne de mocks n'est pas parfaite,
-        # mais on vérifie au moins que le LLM a été appelé
-        # (les mocks partiels sont délicats à orchestrer)
+    def test_pipeline_runs_with_mocks(self, tmp_path, monkeypatch):
+        # Real temporary files, never fake Path.stat/exists; assert actual publication.
+        from tests.test_radio_reproductions import pipeline, SCRIPT
+        from modules.radio.audio_integrity import validated_publication
+        gen = pipeline.__wrapped__(tmp_path, monkeypatch)
+        result = gen.build([{}], script=SCRIPT)
+        assert result is not None and validated_publication(result)
 
 
 # ─── synthesize_segment + concatenate_segments (smoke tests) ───────────────

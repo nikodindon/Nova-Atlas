@@ -81,3 +81,13 @@ atomiques et verrou de collecte Linux rendent la reprise idempotente après
 checkpoint. Sept dates civiles pour la déduplication, horloge injectable et
 backoff sans attente bloquante ; aucun nouveau service. Les transactions et
 la normalisation UTC globale restent au sprint SQL. Voir ARTICLE_INTEGRITY.md.
+
+## Livraison incrémentale Sprint 01F
+
+Le pipeline radio conserve Edge TTS et son mix FFmpeg. Un manifeste ordonné impose
+la réussite et le décodage de chaque segment obligatoire ; les retries restent
+locaux à la génération. MP3 et reçu d'intégrité sont publiés depuis une zone privée
+du même filesystem. Les admissions principale/Android et les flashs vérifient le
+reçu ; Android reçoit une copie atomique avant consommation principale. Aucun
+changement des mounts/API Android ni nouveau moteur. Les jobs durables et la
+reprise distribuée restent au sprint SQL. Voir RADIO_INTEGRITY.md.

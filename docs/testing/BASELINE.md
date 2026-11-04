@@ -76,3 +76,24 @@ Suite finale locale Python 3.12 : **736 réussis, 0 échec, 0 ignoré**. Exécut
 serveur Flask réel ni service audio. Syntaxe `compileall`, test JavaScript
 `node tests/test_csrf.cjs` et `git diff --check` réussis. Voir ARTICLE_INTEGRITY.md
 pour les cas de reprise et les limites ; les contrôles CI sont requis avant revue.
+
+## Sprint 01F — intégrité radio
+
+Socle `dev@2db598d` : 736 tests. Six reproductions exécutées avant correction :
+**6 échecs** (segment manquant au début/milieu/fin, structure invalide acceptée,
+mix visible avant validation, collision de noms à la seconde).
+
+Validation finale locale Python 3.12 : **808 réussis, 0 échec, 0 ignoré** en 18,58 s,
+soit 72 cas supplémentaires. Les caractérisations de segment sauté, de segments
+vides et d'obligation de deux voix vérifient désormais la politique corrigée.
+Le pipeline historique sans assertion vérifie une publication complète sur disque
+temporaire. Les tests de flash utilisent le client Flask et des jobs/générateurs
+simulés ; aucun serveur ou streamer démarré. Syntaxe compileall, contrôle JavaScript
+CSRF et git diff --check réussis.
+
+Essais complémentaires autorisés hors pytest : FFmpeg local produit trois segments
+sinusoïdaux de 0,4 seconde à 24 kHz mono, injectés comme synthétiseur. Build complet,
+probe/décodage et reçu réussis avec et sans fond musical ; MP3 final 1,312 seconde
+dans les deux cas. Fichiers dans un TemporaryDirectory sous /tmp, supprimés après
+l'essai. Aucun Edge TTS réseau, Icecast ou modèle LLM. La CI n'exige pas FFmpeg :
+les contrôles de codec/transport y sont simulés. Voir RADIO_INTEGRITY.md.

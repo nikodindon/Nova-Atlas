@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash
 import yaml
 
 from modules.web.atlas_web import create_app
+from modules.radio import bulletin_generator as bg
 
 
 @pytest.fixture(scope='module')
@@ -448,3 +449,39 @@ def test_icecast_head_closes_upstream_without_consuming_audio(client, monkeypatc
     response.iter_content.assert_not_called()
     response.close.assert_called_once()
     session.close.assert_called_once()
+
+
+@pytest.mark.parametrize('valid', [True, False])
+def test_flash_only_serves_complete_publication(client, app, monkeypatch, valid):
+    from tests.test_radio_integrity import publish
+    root = app.extensions['atlas_paths']['root']
+    path = publish(root / 'audio_queue')
+    if not valid:
+        from modules.radio.audio_integrity import receipt_path
+        receipt_path(path).unlink()
+    monkeypatch.setattr(bg, 'get_flash_articles', Mock(return_value=[{'title': 'Synthetic news'}]))
+    monkeypatch.setattr(bg, 'generate_flash_script', Mock(return_value='[VOIX1] Synthetic flash.'))
+    builder = Mock()
+    builder.build.return_value = path
+    monkeypatch.setattr(bg, 'BulletinGenerator', Mock(return_value=builder))
+    class Thread:
+        def __init__(self, target, *, name, **kw):
+            self.target, self.name = target, name
+        def start(self):
+            if self.name.startswith('FlashJob_'):
+                self.target()  # Run the mocked job only, never a heartbeat/service.
+        def join(self, **kw): pass
+    monkeypatch.setattr('threading.Thread', Thread)
+    assert login(client).status_code == 303
+    response = post(client, '/api/flash', json={'category': 'tech'}, headers={'X-CSRF-Token': csrf(client)})
+    assert response.status_code == 200
+    job = response.json['job_id']
+    status = get(client, '/api/flash/status/' + job).json
+    assert status['status'] == ('done' if valid else 'error')
+    assert builder.build.call_args.kwargs['profile'] == 'flash'
+    audio = get(client, '/audio/flash_' + job + '.mp3')
+    assert audio.status_code == (200 if valid else 404)
+    if valid:
+        assert audio.data == b'synthetic-valid-audio'
+        path.write_bytes(b'modified after job completion')
+        assert get(client, '/audio/flash_' + job + '.mp3').status_code == 404

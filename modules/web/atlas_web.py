@@ -2061,9 +2061,10 @@ def create_app(config: dict, *, root: Path = None):
                     # (pas de double appel LLM).
                     gen = BulletinGenerator(cfg, paths)
                     _flash_jobs[job_id]["progress"] = 60
-                    out_path = gen.build(articles, script=script)
+                    out_path = gen.build(articles, script=script, profile='flash')
                     _flash_jobs[job_id]["progress"] = 90
-                    if not out_path:
+                    from modules.radio.audio_integrity import validated_publication
+                    if not out_path or not validated_publication(out_path):
                         _flash_jobs[job_id]["status"] = "error"
                         _flash_jobs[job_id]["error"] = "Échec TTS/mix"
                         return
@@ -2110,7 +2111,8 @@ def create_app(config: dict, *, root: Path = None):
         from flask import send_file
         audio_root = (root / config.get('paths', {}).get('audio_queue', 'audio_queue')).resolve()
         audio_path = Path(job['mp3_path']).resolve()
-        if not audio_path.is_relative_to(audio_root) or not audio_path.is_file():
+        from modules.radio.audio_integrity import validated_publication
+        if not audio_path.is_relative_to(audio_root) or not validated_publication(audio_path):
             abort(404)
         return send_file(audio_path, mimetype="audio/mpeg", as_attachment=False)
 
