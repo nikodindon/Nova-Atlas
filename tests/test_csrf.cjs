@@ -18,8 +18,7 @@ const context = {
   }
 };
 vm.createContext(context);
-const source = fs.readFileSync(require('node:path').join(__dirname, '../modules/web/admin_security.py'), 'utf8');
-const script = source.match(/BROWSER_CSRF = '''<script>([\s\S]*?)<\/script>'''/)[1];
+const script = fs.readFileSync(require('node:path').join(__dirname, '../modules/web/assets/csrf.js'), 'utf8');
 vm.runInContext(script, context);
 context.window.fetch('/config/yaml/save', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
 assert.equal(requests[0].headers.get('X-CSRF-Token'), 'synthetic-csrf-token');

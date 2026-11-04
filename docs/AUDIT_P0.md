@@ -168,3 +168,25 @@ reçus ne sont pas une signature contre un écrivain local malveillant. Voir
 TTS réseau ni streamer/Icecast/LLM réel démarré. XSS/CSP et autres P0 hors périmètre
 restent ouverts ; révocation historique OpenRouter toujours à confirmer par son
 propriétaire, aucune révocation effectuée ici.
+
+## Mise à jour Sprint 01G
+
+Socle `dev@a631590`, PR #8 fusionnée sur demande explicite, deux CI réussies.
+Cinq reproductions échouaient avant correction : rendu actif de données d'article,
+URL JavaScript, HTML brut Markdown, eval et absence de CSP. Toutes sont corrigées.
+
+| Surface | Statut 01G | Preuve / non-régression |
+|---|---|---|
+| Templates sans autoescape et attributs de flux | Corrigé sur les renderers inventoriés | Environnement Jinja autoescape, breaking échappé, allowlist URL ; HTML/guillemets/Unicode testés |
+| Rapports/éditions Markdown bruts | Corrigé | nh3 HTML5 avec allowlist, pas de style/formulaire/script/namespace actif ; formatage légitime préservé |
+| Exécution des scripts du HTML reçu | Supprimée | JS statique, initialisation par composants, navigation publique par DOM contrôlé ; eval/Function absents |
+| Handlers inline et données interpolées dans du JS | Retirés | data-action + événements, DOM texte pour feeds/préférences ; tests navigateur admin et RSS |
+| CSP et en-têtes | Appliqués après vérification navigateur | Scripts self, aucun unsafe-eval/inline script, objets/frames interdits ; exception CSS documentée, HSTS opt-in |
+| Radio web et refresh | Préservés | Proxy existant de même origine, même Audio après navigation/history/refresh, filtres et thème testés |
+| Sessions/CSRF et confidentialité | Préservés et cloisonnés | Meta/logout privés seulement, acquisition à la demande depuis public, tests cookies/401/403 et absence de tokens publics |
+| Contrats Android / autres P0 | Inchangés | JSON public conservé, suites précédentes complètes ; aucun moteur/service réel lancé |
+
+Voir [WEB_SECURITY.md](WEB_SECURITY.md) pour inventaire détaillé, politique HTML/CSP,
+nginx/Tailscale, déploiement des exports et limites. Les styles inline historiques
+restent permis ; la compromission du serveur/assets et les anciens exports non
+régénérés ne sont pas couverts. Aucun secret historique reproduit ou révoqué ici.

@@ -52,19 +52,19 @@ def atomic_text(path, text):
             os.unlink(name)
 
 
-def safe_view(value, key=''):
+def safe_view(value, key='', *, escape_html=True):
     if SECRET_KEY.search(key):
         return ''
     if isinstance(value, dict):
-        return {k: safe_view(v, str(k)) for k, v in value.items()}
+        return {k: safe_view(v, str(k), escape_html=escape_html) for k, v in value.items()}
     if isinstance(value, list):
-        return [safe_view(v, key) for v in value]
+        return [safe_view(v, key, escape_html=escape_html) for v in value]
     if isinstance(value, str):
         if '://' in value:
             parsed = urlsplit(value)
             if parsed.username or parsed.password or parsed.query or parsed.fragment:
                 return ''  # Do not echo credential-bearing URLs or allow accidental clearing.
-        return html.escape(value, quote=True)
+        return html.escape(value, quote=True) if escape_html else value
     return value
 
 

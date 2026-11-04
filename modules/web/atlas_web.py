@@ -18,7 +18,8 @@ Différences vs version standalone pblart/nova-media :
 import json
 import os
 import re
-import markdown
+from markupsafe import Markup, escape
+from modules.web.web_security import safe_url, render_markdown
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Optional
@@ -439,58 +440,15 @@ def _resolve_paths(config: dict, root: Path = None) -> dict:
     }
 
 def _get_icecast_url(paths: dict) -> str:
+    """Use the existing same-origin stream proxy on HTTP and HTTPS.
+
+    The browser never needs Icecast credentials, a Host-derived URL or an
+    additional media origin in CSP. Internal Icecast policy stays unchanged.
     """
-    Construit l'URL du flux Icecast depuis atlas_config.json ou défaut.
-
-    Stratégie : on récupère host/port/mount depuis la config Icecast.
-    Si la valeur est 'localhost' (défaut pour le streamer qui écoute en local),
-    on essaie de remplacer par l'IP du client Flask (Host header) pour que
-    le player web fonctionne depuis n'importe quel device du LAN, pas
-    seulement depuis la machine qui héberge Flask.
-
-    Si la requête est en HTTPS (accès via reverse proxy HTTPS), on
-    utilise /stream/<mount> (proxy Flask) pour éviter le mixed content
-    (le navigateur refuse de charger du HTTP depuis une page HTTPS).
-
-    Le Host header est ce que le navigateur a tapé dans la barre d'URL :
-      - accès local     → 'localhost:5055' ou '127.0.0.1:5055'
-      - accès LAN       → '192.168.1.22:5055'
-      - accès via DNS   → 'radio.example.com'
-    On extrait juste le host (sans le port) et on l'utilise pour le flux.
-    """
-    cfg = load_atlas_config(paths)
-    host  = cfg.get("icecast_host",  "localhost")
-    port  = cfg.get("icecast_port",  8000)
-    mount = cfg.get("icecast_mount", "/nova")
-
-    # Si on est en HTTPS (reverse proxy), on passe par le proxy Flask
-    # pour éviter le mixed content. Le browser charge /stream/nova qui
-    # est servi par Flask (même origine HTTPS) et Flask proxifie Icecast.
-    # ProxyFix (en run_server) fait confiance au header X-Forwarded-Proto
-    # du reverse proxy, donc request.is_secure est fiable ici.
-    try:
-        from flask import request
-        if request and request.is_secure:
-            mount_clean = mount.lstrip("/")
-            return f"/stream/{mount_clean}"
-    except (ImportError, RuntimeError):
-        pass
-
-    # Auto-substitution si host == 'localhost' et qu'un Host header est dispo
-    if host in ("localhost", "127.0.0.1", "0.0.0.0"):
-        try:
-            from flask import request
-            if request and request.host:
-                # request.host = "192.168.1.22:5055" ou "radio.example.com"
-                # On prend juste le hostname (sans le port)
-                client_host = request.host.split(":")[0].strip()
-                if client_host and client_host not in ("", "localhost", "127.0.0.1"):
-                    host = client_host
-        except (ImportError, RuntimeError):
-            # Pas de contexte Flask (ex: génération hors-ligne du site) → on garde localhost
-            pass
-
-    return f"http://{host}:{port}{mount}"
+    # Same-origin proxy for HTTP and HTTPS: no Host interpolation or browser credentials.
+    from urllib.parse import quote
+    mount = str(load_atlas_config(paths).get('icecast_mount', '/nova')).lstrip('/')
+    return '/stream/' + quote(mount, safe='/')
 
 
 def _branding(paths: dict) -> dict:
@@ -658,9 +616,10 @@ def render_breaking_banner(paths: dict) -> str:
     for item in items:
         emoji = CATEGORY_ICONS.get(item["cat"], "🌐")
         badge = "🔥 " + str(item["count"]) + "  " if item["count"] >= 3 else "🔥 "
-        title = item["title"].replace('"','&quot;').replace('<','&lt;').replace('>','&gt;')
+        title = escape(item['title'])
+        link = escape(safe_url(item['link']))
         parts.append(
-            f'<a href="{item["link"]}" target="_blank" rel="noopener" class="bb-item">'
+            f'<a href="{link}" target="_blank" rel="noopener" class="bb-item">'
             f'{badge}{emoji} {title}'
             f'</a><span class="bb-sep"> &nbsp;·&nbsp; </span>'
         )
@@ -668,9 +627,9 @@ def render_breaking_banner(paths: dict) -> str:
     # Le label "BREAKING" vient des traductions stockées dans paths
     ui = paths.get("ui", {})
     breaking_label = ui.get("breaking", "BREAKING")
-    return (
+    return Markup(
         '<div class="breaking-banner">'
-        f'<span class="bb-label"><span class="live-dot"></span>{breaking_label}</span>'
+        f'<span class="bb-label"><span class="live-dot"></span>{escape(breaking_label)}</span>'
         '<div class="bb-track-wrap">'
         f'<div class="bb-track">{track}{track}</div>'
         '</div></div>'
@@ -679,7 +638,7 @@ def render_breaking_banner(paths: dict) -> str:
 # ─── RENDERERS ────────────────────────────────────────────────────────────────
 
 def render_report_page(day: str, paths: dict) -> str:
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     articles  = load_articles_for_day(day, paths)
     report_md = load_report(day, paths)
 
@@ -688,7 +647,7 @@ def render_report_page(day: str, paths: dict) -> str:
     if not report_md:
         report_md = f"# {format_date_fr(day)}\n\n*Rapport en cours de génération...*"
 
-    report_html = markdown.markdown(report_md, extensions=["extra"])
+    report_html = render_markdown(report_md)
 
     by_cat    = {}
     for a in articles:
@@ -725,9 +684,9 @@ def render_report_page(day: str, paths: dict) -> str:
 
     return Template(REPORT_TEMPLATE).render(
         **_branding(paths),
-        global_script=GLOBAL_SCRIPT,
+        global_script=Markup(GLOBAL_SCRIPT),
         icecast_url=_get_icecast_url(paths),
-        css=BASE_CSS,
+        css=Markup(BASE_CSS),
         breaking_banner=render_breaking_banner(paths),
         title=format_date_fr(day),
         date_fr=format_date_fr(day),
@@ -772,7 +731,7 @@ def get_editions_of_day(day: str, paths: dict) -> list:
     ]
 
 def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     md_text = load_edition(day, edition_name, paths)
     if not md_text:
         return ""
@@ -797,7 +756,7 @@ def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
                 continue
             body_lines.append(line)
 
-    body_html     = markdown.markdown("\n".join(body_lines).strip(), extensions=["extra"])
+    body_html     = render_markdown("\n".join(body_lines).strip())
     articles      = load_articles_for_day(day, paths)
     article_count = len([a for a in articles if not a.get("migrated")])
     editions_day  = get_editions_of_day(day, paths)
@@ -809,9 +768,9 @@ def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
 
     return Template(EDITION_TEMPLATE).render(
         **_branding(paths),
-        global_script=GLOBAL_SCRIPT,
+        global_script=Markup(GLOBAL_SCRIPT),
         icecast_url=_get_icecast_url(paths),
-        css=BASE_CSS,
+        css=Markup(BASE_CSS),
         breaking_banner=render_breaking_banner(paths),
         cat_icons=CATEGORY_ICONS,
         flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
@@ -834,7 +793,7 @@ def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
 
 
 def build_index(paths: dict) -> str:
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     all_days       = get_available_days(paths)
     today_str      = datetime.now().strftime("%Y%m%d")
     total_articles = 0
@@ -862,9 +821,9 @@ def build_index(paths: dict) -> str:
     today_file = f"{today_str}_report.html" if today_str in all_days else None
     return Template(INDEX_TEMPLATE).render(
         **_branding(paths),
-        global_script=GLOBAL_SCRIPT,
+        global_script=Markup(GLOBAL_SCRIPT),
         icecast_url=_get_icecast_url(paths),
-        css=BASE_CSS,
+        css=Markup(BASE_CSS),
         breaking_banner=render_breaking_banner(paths),
         cat_icons=CATEGORY_ICONS,
         flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
@@ -896,7 +855,7 @@ def build_homepage(paths: dict) -> str:
 
 def build_live_feed(paths: dict) -> str:
     """Fil en direct — articles des dernières N heures."""
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     cfg          = load_atlas_config(paths)
     window_hours = cfg.get("live_window_hours", 20)
     cutoff       = datetime.now() - timedelta(hours=window_hours)
@@ -961,9 +920,9 @@ def build_live_feed(paths: dict) -> str:
 
     return Template(LIVE_TEMPLATE).render(
         **_branding(paths),
-        global_script=GLOBAL_SCRIPT,
+        global_script=Markup(GLOBAL_SCRIPT),
         icecast_url=_get_icecast_url(paths),
-        css=BASE_CSS + LIVE_CSS_EXTRA,
+        css=Markup(BASE_CSS + LIVE_CSS_EXTRA),
         breaking_banner=render_breaking_banner(paths),
         cat_icons=CATEGORY_ICONS,
         flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
@@ -980,9 +939,9 @@ def build_live_feed(paths: dict) -> str:
 
 def build_config_yaml_page(paths: dict, config: dict) -> str:
     """Page de configuration complète depuis config.yaml."""
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     from modules.web.config_security import safe_view
-    config = safe_view(config)
+    config = safe_view(config, escape_html=False)
     svc    = config.get("service",  {})
     llm    = config.get("llm",   {})
     radio  = config.get("radio",    {})
@@ -1024,9 +983,9 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
         "ru":"Русский","ar":"العربية","ja":"日本語","zh":"中文",
     }
 
-    return Template(CONFIG_YAML_TEMPLATE).render(
+    return Template(CONFIG_YAML_TEMPLATE.replace("</body>", '<script defer src="/assets/config.js"></script></body>')).render(
         **_branding(paths),
-        global_script=GLOBAL_SCRIPT,
+        global_script=Markup(GLOBAL_SCRIPT),
         icecast_url=_get_icecast_url(paths),
         svc=svc, llm=llm, ollama=llm, radio=radio, rss=rss,
         web=web, posts=posts, ic=ic,
@@ -1041,14 +1000,14 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
 
 
 def build_config_page(paths: dict) -> str:
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     from modules.web.config_security import safe_view
-    cfg = safe_view(load_atlas_config(paths))
-    return Template(CONFIG_TEMPLATE).render(
+    cfg = safe_view(load_atlas_config(paths), escape_html=False)
+    return Template(CONFIG_TEMPLATE.replace("</body>", '<script defer src="/assets/simple-config.js"></script></body>')).render(
         **_branding(paths),
-        global_script=GLOBAL_SCRIPT,
+        global_script=Markup(GLOBAL_SCRIPT),
         icecast_url=_get_icecast_url(paths),
-        css=BASE_CSS,
+        css=Markup(BASE_CSS),
         cfg=cfg,
         cat_icons=CATEGORY_ICONS,
         flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
@@ -1061,7 +1020,7 @@ def build_config_page(paths: dict) -> str:
 
 # ─── PAGE GESTION DES FLUX RSS ────────────────────────────────────────────────
 
-FEEDS_PAGE_JS = r"""
+FEEDS_PAGE_JS = """
 <style>
   .feeds-grid { display: grid; gap: 14px; margin-top: 16px; }
   .feed-cat { background: #1a1d23; border: 1px solid #2a2e36; border-radius: 8px;
@@ -1111,109 +1070,13 @@ FEEDS_PAGE_JS = r"""
 
 <div class="toast" id="toast"></div>
 
-<script>
-const API = {
-  list:    () => fetch('/config/feeds').then(r => r.json()),
-  add:     (cat, url)   => fetch('/config/feeds/add',      {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
-  remove:  (cat, url)   => fetch('/config/feeds/remove',   {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
-  toggle:  (cat, url)   => fetch('/config/feeds/toggle',   {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url})}).then(r=>r.json()),
-  move:    (cat, url, dir) => fetch('/config/feeds/move',  {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat, url:url, direction:dir})}).then(r=>r.json()),
-  addCat:  (cat)        => fetch('/config/feeds/category', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat})}).then(r=>r.json()),
-};
 
-function toast(msg, isError) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show' + (isError ? ' error' : '');
-  setTimeout(() => t.className = 'toast', 2200);
-}
-
-function shortUrl(u) {
-  return u.replace(/^https?:\/\//, '').replace(/^www\./, '').slice(0, 60);
-}
-
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function render(cats) {
-  const c = document.getElementById('feeds-container');
-  c.innerHTML = '';
-  for (const [cat, urls] of Object.entries(cats)) {
-    const div = document.createElement('div');
-    div.className = 'feed-cat';
-    let items = urls.map((u, i) => `
-      <div class="feed-item" data-url="${escapeHtml(u)}">
-        <button class="feed-btn" data-cat="${escapeHtml(cat)}" onclick="mv(this.dataset.cat, this.closest('.feed-item').dataset.url, 'up')"   ${i===0?'disabled':''}>↑</button>
-        <button class="feed-btn" data-cat="${escapeHtml(cat)}" onclick="mv(this.dataset.cat, this.closest('.feed-item').dataset.url, 'down')" ${i===urls.length-1?'disabled':''}>↓</button>
-        <span class="feed-url" title="${escapeHtml(u)}" onclick="window.open(this.closest('.feed-item').dataset.url,'_blank','noopener')">${escapeHtml(shortUrl(u))}</span>
-        <button class="feed-btn"        data-cat="${escapeHtml(cat)}" onclick="tg(this.dataset.cat, this.closest('.feed-item').dataset.url)">Désactiver</button>
-        <button class="feed-btn danger" data-cat="${escapeHtml(cat)}" onclick="rm(this.dataset.cat, this.closest('.feed-item').dataset.url)">× Suppr</button>
-      </div>`).join('');
-    div.innerHTML = `<h3>${escapeHtml(cat)} <span style="color:#666;font-size:11px;">(${urls.length})</span></h3>${items}
-      <form class="add-form" data-cat="${escapeHtml(cat)}" onsubmit="return addFeed(this.dataset.cat, this)">
-        <input placeholder="https://nouveau-flux.example.com/rss.xml" required>
-        <button class="feed-btn" type="submit">+ Ajouter</button>
-      </form>`;
-    c.appendChild(div);
-  }
-}
-
-async function refresh() {
-  const r = await API.list();
-  if (r.status !== 'ok') { toast('Erreur de chargement', true); return; }
-  render(r.feeds);
-  document.getElementById('stat-cats').textContent     = r.stats.categories;
-  document.getElementById('stat-active').textContent   = r.stats.active;
-  document.getElementById('stat-disabled').textContent = r.stats.disabled;
-}
-
-async function addFeed(cat, form) {
-  const url = form.querySelector('input').value.trim();
-  if (!url) return false;
-  const r = await API.add(cat, url);
-  if (r.status === 'ok') { form.reset(); toast('Flux ajouté'); refresh(); }
-  else toast(r.msg || 'Erreur', true);
-  return false;  // prevent form submit
-}
-
-async function rm(cat, url) {
-  if (!confirm('Supprimer définitivement ce flux ?\n\n' + url)) return;
-  const r = await API.remove(cat, url);
-  if (r.status === 'ok') { toast('Flux supprimé'); refresh(); }
-  else toast(r.msg || 'Erreur', true);
-}
-
-async function tg(cat, url) {
-  const r = await API.toggle(cat, url);
-  if (r.status === 'ok') { toast('Flux désactivé'); refresh(); }
-  else toast(r.msg || 'Erreur', true);
-}
-
-async function mv(cat, url, dir) {
-  const r = await API.move(cat, url, dir);
-  if (r.status === 'ok') refresh();
-  else toast(r.msg || 'Erreur', true);
-}
-
-document.getElementById('new-cat-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const cat = document.getElementById('new-cat-name').value.trim();
-  if (!cat) return;
-  const r = await API.addCat(cat);
-  if (r.status === 'ok') { e.target.reset(); toast('Catégorie créée'); refresh(); }
-  else toast(r.msg || 'Erreur', true);
-});
-
-refresh();
-</script>
 """
 
 
 def build_feeds_page(paths: dict) -> str:
     """Page HTML de gestion des flux RSS (UI niveau 1)."""
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     return Template("""<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1245,7 +1108,7 @@ def build_feeds_page(paths: dict) -> str:
         global_script="",  # Pas besoin du global sur cette page
         icecast_url="",
         css="",
-        extra_js=FEEDS_PAGE_JS,
+        extra_js=Markup(FEEDS_PAGE_JS + '<script defer src="/assets/feeds.js"></script>'),
         cat_icons=CATEGORY_ICONS,
         flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
@@ -1254,7 +1117,7 @@ def build_feeds_page(paths: dict) -> str:
 
 # ─── PAGE PRÉFÉRENCES (filtre par catégorie) ─────────────────────────────────
 
-PREFS_PAGE_JS = r"""
+PREFS_PAGE_JS = """
 <style>
   .prefs-grid { display: grid; grid-template-columns: repeat(auto-fill,
               minmax(200px, 1fr)); gap: 10px; margin: 16px 0; }
@@ -1300,89 +1163,13 @@ PREFS_PAGE_JS = r"""
 
 <div class="toast" id="toast"></div>
 
-<script>
-const API = {
-  get:    () => fetch('/api/preferences').then(r => r.json()),
-  toggle: (cat) => fetch('/api/preferences/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({category:cat})}).then(r=>r.json()),
-  reset:  () => fetch('/api/preferences/reset',   {method:'POST'}).then(r=>r.json()),
-};
 
-let allCategories = [];
-let hiddenSet = new Set();
-
-function toast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show';
-  setTimeout(() => t.className = 'toast', 1800);
-}
-
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function render() {
-  const c = document.getElementById('prefs-container');
-  c.innerHTML = '';
-  for (const cat of allCategories) {
-    const isHidden = hiddenSet.has(cat);
-    const card = document.createElement('div');
-    card.className = 'pref-card' + (isHidden ? ' hidden' : '');
-    card.innerHTML = `
-      <label style="display:flex;align-items:center;cursor:pointer;">
-        <input type="checkbox" ${isHidden ? '' : 'checked'} data-cat="${escapeHtml(cat)}">
-        <span class="cat-name">${escapeHtml(cat.replace(/_/g, ' '))}</span>
-      </label>
-    `;
-    c.appendChild(card);
-  }
-  // Attach handlers
-  c.querySelectorAll('input').forEach(inp => {
-    inp.addEventListener('change', async (e) => {
-      const cat = e.target.dataset.cat;
-      const r = await API.toggle(cat);
-      if (r.status === 'ok') {
-        hiddenSet = new Set(allCategories.filter(c => !e.target.checked));
-        render();
-        updateCounts();
-        toast(r.hidden ? '✗ '+cat+' cachée' : '✓ '+cat+' affichée');
-      }
-    });
-  });
-  updateCounts();
-}
-
-function updateCounts() {
-  document.getElementById('visible-count').textContent =
-    allCategories.length - hiddenSet.size;
-  document.getElementById('total-count').textContent = allCategories.length;
-}
-
-async function refresh() {
-  const r = await API.get();
-  if (r.status !== 'ok') { toast('Erreur de chargement'); return; }
-  hiddenSet = new Set(r.preferences.hidden_categories || []);
-  // Récupérer la liste des catégories (depuis /config/feeds)
-  const feeds = await fetch('/config/feeds').then(r => r.json());
-  allCategories = Object.keys(feeds.feeds).sort();
-  render();
-}
-
-document.getElementById('reset-btn').addEventListener('click', async () => {
-  if (!confirm('Réinitialiser : toutes les catégories seront affichées ?')) return;
-  const r = await API.reset();
-  if (r.status === 'ok') { hiddenSet = new Set(); render(); toast('Réinitialisé'); }
-});
-
-refresh();
-</script>
 """
 
 
 def build_preferences_page(paths: dict) -> str:
     """Page HTML de préférences (filtre par catégorie, MVP single-user)."""
-    from jinja2 import Template
+    from modules.web.web_security import html_template as Template
     return Template("""<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1414,7 +1201,7 @@ def build_preferences_page(paths: dict) -> str:
         global_script="",
         icecast_url="",
         css="",
-        extra_js=PREFS_PAGE_JS,
+        extra_js=Markup(PREFS_PAGE_JS + '<script defer src="/assets/preferences.js"></script>'),
         cat_icons=CATEGORY_ICONS,
         flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
@@ -1426,6 +1213,8 @@ def generate_static_site(config: dict, full: bool = False, *, root: Path = None)
     paths = _resolve_paths(config, root=root)
     paths["site"].mkdir(parents=True, exist_ok=True)
 
+    import shutil
+    shutil.copytree(Path(__file__).with_name('assets'), paths['site'] / 'assets', dirs_exist_ok=True)
     all_days  = get_available_days(paths)
     today     = datetime.now().strftime("%Y%m%d")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
@@ -1485,8 +1274,17 @@ def create_app(config: dict, *, root: Path = None):
     paths['feeds_file'] = confined_file(root / 'config', 'feeds.yaml')
     # Factory has no disk writes; startup sync stays in run_server.
     app = Flask(__name__, static_folder=None)
+    from modules.web.web_security import install_web_security
+    install_web_security(app)
     install_admin_security(app)
     app.extensions["atlas_paths"] = paths
+    @app.get('/assets/<name>')
+    def web_asset(name):
+        allowed = {'web.js','flash.js','csrf.js','config.js','simple-config.js','feeds.js','preferences.js'}
+        if name not in allowed:
+            abort(404)
+        return send_from_directory(Path(__file__).with_name('assets'), name)
+
     # ── Proxy stream Icecast → HTTPS (mixed-content fix) ──────────────
     # Quand le site est servi en HTTPS (reverse proxy), le browser refuse
     # de charger le stream HTTP (mixed content). Cette route Flask sert
@@ -2166,7 +1964,9 @@ def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
 #  été supprimées du code Python, les templates HTML ne changent pas)
 
 BASE_CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap');
+[hidden]{display:none!important;}
+
+
 
 /* ── DARK MODE (défaut) ── */
 :root {
@@ -2475,309 +2275,7 @@ LIVE_CSS_EXTRA = """
 # ─── SCRIPT GLOBAL (player radio + theme + live refresh) ─────────────────────
 # Injecté dans chaque template juste avant </body>
 
-GLOBAL_SCRIPT = """
-<!-- Iframe audio persistante : survit aux navigations (montée dans localStorage) -->
-<iframe id="nova-radio-frame" src="about:blank"
-  style="display:none;width:0;height:0;border:0;" allow="autoplay"></iframe>
-
-<script>
-// ── Theme : appliqué immédiatement (avant rendu pour éviter le flash) ─────────
-(function(){
-  var t = localStorage.getItem('nova-theme');
-  if(t==='light') document.body.classList.add('light');
-  var btn = document.querySelector('.theme-btn');
-  if(btn) btn.textContent = t==='light' ? '☀️' : '🌙';
-})();
-
-function toggleTheme(){
-  var light = document.body.classList.toggle('light');
-  localStorage.setItem('nova-theme', light ? 'light' : 'dark');
-  var btn = document.querySelector('.theme-btn');
-  if(btn) btn.textContent = light ? '☀️' : '🌙';
-}
-
-// ── Player radio via iframe persistante ──────────────────────────────────────
-// L'astuce : on stocke l'URL dans localStorage et on met l'audio dans une
-// iframe dont le src pointe vers /radio-player (une route Flask légère).
-// L'iframe est masquée et ne se recharge pas quand on navigue.
-// Mais pour une vraie persistance cross-page SANS SPA, la meilleure solution
-// simple est : injecter l'audio dans le document parent et le garder en vie
-// en interceptant les clics de navigation pour faire des fetch() + pushState.
-// On utilise ici l'approche la plus robuste sans réécrire l'appli en SPA :
-// stocker l'état dans localStorage + reprendre l'audio si on revient sur la page.
-
-var _radioPlaying = localStorage.getItem('nova-radio-playing') === '1';
-var _radioUrl     = localStorage.getItem('nova-radio-url') || '';
-
-// Nœud audio global — créé une seule fois par onglet
-if(!window._novaAudio){
-  window._novaAudio = new Audio();
-  window._novaAudio.preload = 'none';
-  // Reconnexion automatique si le flux coupe
-  window._novaAudio.addEventListener('error', function(){
-    setTimeout(function(){
-      if(!window._novaAudio.paused && _radioUrl){
-        window._novaAudio.src = _radioUrl;
-        window._novaAudio.load();
-        window._novaAudio.play().catch(function(){});
-      }
-    }, 3000);
-  });
-}
-
-function _syncPlayerUI(){
-  var playing = !window._novaAudio.paused;
-  var btn   = document.getElementById('radio-btn');
-  var wave  = document.getElementById('radio-wave');
-  var label = document.getElementById('radio-label');
-  if(btn)   btn.textContent = playing ? '⏸' : '▶';
-  if(wave)  wave.classList.toggle('playing', playing);
-  if(label) label.textContent = playing ? 'EN DIRECT' : (document.body.dataset.radioLabel || '{{ ui.radio_live }}');
-}
-
-function radioToggle(streamUrl){
-  _radioUrl = streamUrl;
-  localStorage.setItem('nova-radio-url', streamUrl);
-  var audio = window._novaAudio;
-
-  if(audio.paused){
-    // Premier play ou reprise
-    if(audio.src !== streamUrl){
-      audio.src = streamUrl;
-    }
-    var p = audio.play();
-    if(p) p.then(function(){
-      localStorage.setItem('nova-radio-playing','1');
-      _syncPlayerUI();
-    }).catch(function(e){ console.warn('play blocked:', e); });
-  } else {
-    audio.pause();
-    localStorage.setItem('nova-radio-playing','0');
-    _syncPlayerUI();
-  }
-}
-
-// Sync UI au chargement (si la radio était en cours dans un autre onglet/page)
-document.addEventListener('DOMContentLoaded', function(){
-  window._novaAudio.addEventListener('play',  _syncPlayerUI);
-  window._novaAudio.addEventListener('pause', _syncPlayerUI);
-  _syncPlayerUI();
-
-  // Auto-reprise si l'utilisateur avait la radio allumée avant de naviguer
-  if(_radioPlaying && _radioUrl && window._novaAudio.paused){
-    window._novaAudio.src = _radioUrl;
-    window._novaAudio.play().catch(function(){});
-  }
-});
-
-// ── Interception des liens internes pour navigation sans rechargement ─────────
-// Cela permet à l'audio de survivre en changeant de section.
-document.addEventListener('DOMContentLoaded', function(){
-  document.addEventListener('click', function(e){
-    var a = e.target.closest('a');
-    if(!a) return;
-    var href = a.getAttribute('href');
-    // Rechargement complet pour config (redirect) et live (CSS spécifique)
-    if(!href || href.startsWith('http') || href.startsWith('#')
-       || href.startsWith('mailto') || a.target === '_blank'
-       || href.startsWith('/config') || href.startsWith('/admin') || href.startsWith('/preferences')
-       || href === '/live' || href === '/live.html') return;
-    e.preventDefault();
-    fetch(href)
-      .then(function(r){ return r.text(); })
-      .then(function(html){
-        var parser  = new DOMParser();
-        var newDoc  = parser.parseFromString(html, 'text/html');
-        // Remplace le contenu de la page
-        document.title = newDoc.title;
-        document.querySelector('.page') && (
-          document.querySelector('.page').innerHTML =
-          newDoc.querySelector('.page') ? newDoc.querySelector('.page').innerHTML : ''
-        );
-        // Remplace nav (pour les états actifs)
-        var newNav = newDoc.querySelector('.topbar-nav');
-        var curNav = document.querySelector('.topbar-nav');
-        if(newNav && curNav) curNav.innerHTML = newNav.innerHTML;
-        // Breaking banner
-        var newBb = newDoc.querySelector('.breaking-banner');
-        var curBb = document.querySelector('.breaking-banner');
-        if(newBb && curBb) curBb.outerHTML = newBb.outerHTML;
-        // Met à jour l'URL
-        history.pushState({}, document.title, href);
-        // Ré-initialise les scripts de la nouvelle page
-        var newScripts = newDoc.querySelectorAll('script:not([src])');
-        newScripts.forEach(function(s){
-          // On n'exécute que les scripts spécifiques à la page (pas GLOBAL_SCRIPT)
-          if(s.textContent.includes('filterCat') || s.textContent.includes('toggleSummary')){
-            try{ eval(s.textContent); }catch(e){}
-          }
-        });
-        // data-page pour le live refresh
-        var newBody = newDoc.body;
-        document.body.dataset.page = newBody.dataset.page || '';
-        // Ré-init live refresh si page live
-        if(document.body.dataset.page === 'live') _startLiveRefresh();
-        // Theme
-        if(localStorage.getItem('nova-theme')==='light') document.body.classList.add('light');
-        // Scroll top
-        window.scrollTo(0,0);
-      })
-      .catch(function(){ window.location.href = href; }); // fallback
-  });
-
-  // Bouton précédent/suivant du navigateur
-  window.addEventListener('popstate', function(){
-    window.location.reload();
-  });
-});
-
-// ── Live refresh sans coupure audio ──────────────────────────────────────────
-// Remplace le contenu de #live-grid toutes les 2 min, en préservant
-// l'état du filtre multi-sélection sous "Fil en direct".
-// L'IIFE multi-sélection est ré-attaché aux nouveaux boutons après le refresh.
-var _liveRefreshTimer = null;
-var _liveSelectedCategories = new Set();  // état partagé entre refresh et IIFE
-
-function _startLiveRefresh(){
-  if(_liveRefreshTimer) clearTimeout(_liveRefreshTimer);
-  _liveRefreshTimer = setTimeout(function _doRefresh(){
-    fetch(location.href)
-      .then(function(r){ return r.text(); })
-      .then(function(html){
-        var parser  = new DOMParser();
-        var newDoc  = parser.parseFromString(html, 'text/html');
-        var newGrid = newDoc.getElementById('live-grid');
-        var curGrid = document.getElementById('live-grid');
-        if(!newGrid || !curGrid) return;
-
-        // 1) Remplace le grid (nouveaux articles)
-        curGrid.innerHTML = newGrid.innerHTML;
-
-        // 2) Recharge la filter-bar avec les nouveaux boutons + counts
-        var newBar = newDoc.querySelector('.filter-bar');
-        var curBar = document.querySelector('.filter-bar');
-        if(newBar && curBar){
-          curBar.innerHTML = newBar.innerHTML;
-          // Remet les boutons "active" selon _liveSelectedCategories
-          curBar.querySelectorAll('.filter-btn').forEach(function(b){
-            var cat = b.dataset.cat;
-            if(cat === '__all'){
-              b.classList.toggle('active', _liveSelectedCategories.size === 0);
-              b.setAttribute('aria-pressed', _liveSelectedCategories.size === 0 ? 'true' : 'false');
-            } else {
-              var isSel = _liveSelectedCategories.has(cat);
-              b.classList.toggle('active', isSel);
-              b.setAttribute('aria-pressed', isSel ? 'true' : 'false');
-            }
-          });
-          // Ré-attache l'IIFE multi-sélection aux nouveaux boutons
-          _attachFilterBarHandler(curBar);
-        }
-
-        // 3) Réapplique le filtre multi-sélection
-        _applyLiveFilterFromState();
-
-        // 4) Met à jour le timestamp
-        var ts    = document.getElementById('live-updated');
-        var newTs = newDoc.getElementById('live-updated');
-        if(ts && newTs) ts.textContent = newTs.textContent;
-      })
-      .catch(function(){})
-      .finally(function(){ _liveRefreshTimer = setTimeout(_doRefresh, 120000); });
-  }, 120000);
-}
-
-// Filtre multi-sélection : applique _liveSelectedCategories au DOM
-function _applyLiveFilterFromState(){
-  var items = document.querySelectorAll('#live-grid [data-category]');
-  var showAll = _liveSelectedCategories.size === 0;
-  items.forEach(function(el){
-    var cat = el.dataset.category;
-    if(!cat){ el.style.display = ''; el.removeAttribute('aria-hidden'); return; }
-    if(showAll || _liveSelectedCategories.has(cat)){
-      el.style.display = '';
-      el.removeAttribute('aria-hidden');
-    } else {
-      el.style.display = 'none';
-      el.setAttribute('aria-hidden', 'true');
-    }
-  });
-}
-
-// Attache le handler multi-sélection à une filter-bar (initiale ou après refresh)
-function _attachFilterBarHandler(bar){
-  bar.addEventListener('click', function(e){
-    var btn = e.target.closest('.filter-btn');
-    if(!btn) return;
-    var cat = btn.dataset.cat;
-    if(cat === '__all'){
-      _liveSelectedCategories.clear();
-      bar.querySelectorAll('.filter-btn').forEach(function(b){
-        var isAll = b.dataset.cat === '__all';
-        b.classList.toggle('active', isAll);
-        b.setAttribute('aria-pressed', isAll ? 'true' : 'false');
-      });
-    } else {
-      if(_liveSelectedCategories.has(cat)){
-        _liveSelectedCategories.delete(cat);
-        btn.classList.remove('active');
-        btn.setAttribute('aria-pressed', 'false');
-      } else {
-        _liveSelectedCategories.add(cat);
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
-      }
-      var allBtn = bar.querySelector('[data-cat="__all"]');
-      if(allBtn){
-        var allActive = _liveSelectedCategories.size === 0;
-        allBtn.classList.toggle('active', allActive);
-        allBtn.setAttribute('aria-pressed', allActive ? 'true' : 'false');
-      }
-    }
-    _applyLiveFilterFromState();
-  });
-}
-
-document.addEventListener('DOMContentLoaded', function(){
-  if(document.body.dataset.page === 'live'){
-    _startLiveRefresh();
-    // Attache le handler multi-sélection à la filter-bar initiale
-    var bar = document.getElementById('filter-bar');
-    if(bar) _attachFilterBarHandler(bar);
-  }
-  _applyCategoryPreferences();
-});
-
-// ── Préférences : cacher les articles des catégories désactivées ────────────
-async function _applyCategoryPreferences(){
-  try {
-    var r = await fetch('/api/preferences');
-    if(r.status !== 200) return;
-    var data = await r.json();
-    var hidden = new Set((data.preferences && data.preferences.hidden_categories) || []);
-    if(hidden.size === 0) return;
-    // Cacher tous les éléments avec data-category
-    document.querySelectorAll('[data-category]').forEach(function(el){
-      if(hidden.has(el.dataset.category)){
-        el.style.display = 'none';
-        el.setAttribute('aria-hidden', 'true');
-      }
-    });
-    // Afficher un petit indicateur si des catégories sont cachées
-    var bar = document.getElementById('prefs-bar');
-    if(bar){
-      bar.textContent = hidden.size + ' catégorie(s) cachée(s) — ';
-      var a = document.createElement('a');
-      a.href = '/preferences';
-      a.style.color = '#6ea8fe';
-      a.textContent = 'Gérer';
-      bar.appendChild(a);
-      bar.style.display = 'block';
-    }
-  } catch(e) { /* noop */ }
-}
-</script>
-"""
+GLOBAL_SCRIPT = '<script src="/assets/csrf.js"></script><script defer src="/assets/web.js"></script><script defer src="/assets/flash.js"></script>'
 
 REPORT_TEMPLATE = """<!DOCTYPE html>
 <html lang="fr"><head>
@@ -2789,14 +2287,14 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
   <!-- Player radio + Theme switcher -->
   <div class="radio-player" id="radio-player">
     <button class="radio-btn" id="radio-btn" aria-label="Écouter la radio"
-            onclick="radioToggle('{{ icecast_url }}')">▶</button>
+            data-action="radio-toggle" data-stream="{{ icecast_url }}">▶</button>
     <div class="radio-wave" id="radio-wave">
       <span></span><span></span><span></span><span></span><span></span>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
   {{ flash_button_html }}
-  <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
+  <button class="theme-btn" data-action="theme" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
@@ -2844,7 +2342,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
         <div style="max-height:380px;overflow-y:auto">
         {% for a in recent_articles %}
         <div class="article-item" data-category="{{ a.category }}">
-          <a href="{{ a.link }}" target="_blank" rel="noopener">
+          <a href="{{ a.link|safe_url }}" target="_blank" rel="noopener">
             {{ a.title[:80] }}{% if a.title|length > 80 %}…{% endif %}
           </a>
           <div class="article-source">{{ a.source }} · {{ a.category }}</div>
@@ -2869,7 +2367,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
   </div>
   {% if all_articles %}
   <div class="sources-section">
-    <button class="sources-toggle" onclick="toggleSources(this)" aria-expanded="false">
+    <button class="sources-toggle" data-action="sources" aria-expanded="false">
       <i class="toggle-icon">▶</i> Sources consultées
       <span class="sources-count">{{ all_articles|length }} liens</span>
     </button>
@@ -2880,7 +2378,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
           <div class="source-domain">{{ a.source }}</div>
           <div class="source-cat" style="font-size:.65rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">{{ cat_labels.get(a.category,a.category) }}</div>
         </div>
-        <a href="{{ a.link }}" target="_blank" rel="noopener" class="source-title">{{ a.title }}</a>
+        <a href="{{ a.link|safe_url }}" target="_blank" rel="noopener" class="source-title">{{ a.title }}</a>
       </div>
       {% endif %}{% endfor %}
     </div>
@@ -2888,15 +2386,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
   {% endif %}
 </div>
 <footer><strong>{{ brand_name }}</strong> — {{ brand_tagline }}<br>Modèle : {{ model }} · © {{ year }}</footer>
-<script>
-function toggleSources(btn){
-  const list=document.getElementById('sources-list');
-  const open=list.classList.contains('open');
-  list.classList.toggle('open',!open);
-  btn.classList.toggle('open',!open);
-  btn.setAttribute('aria-expanded',String(!open));
-}
-</script>
+
 {{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
@@ -2911,14 +2401,14 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
   <!-- Player radio + Theme switcher -->
   <div class="radio-player" id="radio-player">
     <button class="radio-btn" id="radio-btn" aria-label="Écouter la radio"
-            onclick="radioToggle('{{ icecast_url }}')">▶</button>
+            data-action="radio-toggle" data-stream="{{ icecast_url }}">▶</button>
     <div class="radio-wave" id="radio-wave">
       <span></span><span></span><span></span><span></span><span></span>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
   {{ flash_button_html }}
-  <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
+  <button class="theme-btn" data-action="theme" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
@@ -2966,14 +2456,14 @@ EDITION_TEMPLATE = """<!DOCTYPE html>
   <!-- Player radio + Theme switcher -->
   <div class="radio-player" id="radio-player">
     <button class="radio-btn" id="radio-btn" aria-label="Écouter la radio"
-            onclick="radioToggle('{{ icecast_url }}')">▶</button>
+            data-action="radio-toggle" data-stream="{{ icecast_url }}">▶</button>
     <div class="radio-wave" id="radio-wave">
       <span></span><span></span><span></span><span></span><span></span>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
   {{ flash_button_html }}
-  <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
+  <button class="theme-btn" data-action="theme" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
@@ -3013,15 +2503,15 @@ EDITION_TEMPLATE = """<!DOCTYPE html>
 #  Flash button : bouton dans la topbar pour générer un bulletin à la demande
 # ─────────────────────────────────────────────────────────────────────────────
 
-FLASH_BUTTON_HTML = '''
+FLASH_BUTTON_HTML = """
 <div class="flash-wrap" id="flash-wrap">
-  <button class="flash-btn" id="flash-btn" onclick="flashToggle(event)" title="Générer un flash spécialisé par catégorie">
+  <button class="flash-btn" id="flash-btn" data-action="flash-toggle" title="Générer un flash spécialisé par catégorie">
     <span class="flash-icon">⚡</span>
     <span>Flash</span>
   </button>
   <div class="flash-dropdown" id="flash-dropdown">
     {% for cat in cats %}
-    <button class="flash-cat" data-cat="{{ cat }}" onclick="flashStart('{{ cat }}')">
+    <button class="flash-cat" data-cat="{{ cat }}" data-action="flash-start">
       <span class="flash-cat-icon">{{ cat_icons.get(cat,'') }}</span>
       <span class="flash-cat-label">{{ cat_labels.get(cat, cat) }}</span>
       <span class="flash-cat-count" id="flash-count-{{ cat }}"></span>
@@ -3039,232 +2529,21 @@ FLASH_BUTTON_HTML = '''
     <div class="flash-progress-msg" id="flash-progress-msg">Initialisation...</div>
   </div>
 </div>
-'''
+"""
 
-FLASH_BUTTON_JS = '''
-<script>
-// ============ FLASH FEATURE ============
-let flashPollInterval = null;
-let flashCurrentJobId = null;
-let flashWasRadioPlaying = false;  // mémorise si la radio live jouait avant le flash
-let flashStartTime = null;          // timestamp du début du flash (pour ETA)
-let flashLastProgress = 0;          // dernier progress vu (pour estimer vitesse)
-let flashLastPollTime = null;       // timestamp du dernier poll
+FLASH_BUTTON_JS = """
 
-// Estimation du temps restant (modèle par phases, pas d'extrapolation linéaire).
-// Chaque phase a un temps typique connu. L'ETA est calculée comme la somme
-// des temps restants typiques des phases en cours + à venir.
-const FLASH_PHASE_ESTIMATES = {
-  // progress: temps total typique écoulé depuis le début (en secondes)
-  0:   0,     // début
-  10:  2,     // collecte articles: 2s
-  20:  5,     // début LLM: 5s
-  30:  30,    // LLM en cours: 30s typiques (varie 10s-2min)
-  40:  60,    // LLM long: 60s
-  48:  90,    // fin LLM: 90s
-  50:  95,    // juste après LLM
-  60:  105,   // début TTS: 105s
-  70:  120,   // TTS en cours
-  80:  140,   // TTS presque fini
-  90:  155,   // mix audio: 155s
-  95:  160,   // mix presque fini
-  100: 165,   // terminé
-};
-
-function _flashEta() {
-  if (!flashStartTime || flashLastProgress >= 100) return null;
-  const now = Date.now();
-  const elapsed = (now - flashStartTime) / 1000;
-  if (elapsed < 1) return null;
-
-  // Interpolation linéaire entre 2 phases consécutives pour un ETA
-  // fluide (pas de saut entre 2 paliers).
-  const sortedPcts = Object.keys(FLASH_PHASE_ESTIMATES).map(Number).sort((a,b)=>a-b);
-  let lowerPct = 0, upperPct = 100;
-  let lowerT = 0, upperT = FLASH_PHASE_ESTIMATES[100];
-  for (let i = 0; i < sortedPcts.length; i++) {
-    if (sortedPcts[i] <= flashLastProgress) {
-      lowerPct = sortedPcts[i];
-      lowerT = FLASH_PHASE_ESTIMATES[lowerPct];
-    } else {
-      upperPct = sortedPcts[i];
-      upperT = FLASH_PHASE_ESTIMATES[upperPct];
-      break;
-    }
-  }
-  // Interpolation linéaire entre lowerPct et upperPct
-  let typicalTotal;
-  if (upperPct === lowerPct) {
-    typicalTotal = lowerT;
-  } else {
-    const t = (flashLastProgress - lowerPct) / (upperPct - lowerPct);
-    typicalTotal = lowerT + t * (upperT - lowerT);
-  }
-  const eta = typicalTotal - elapsed;
-  return eta > 0 ? Math.round(eta) : 0;
-}
-
-function flashToggle(e) {
-  e.stopPropagation();
-  const dd = document.getElementById('flash-dropdown');
-  const prog = document.getElementById('flash-progress');
-  // Si progress visible, ne pas ouvrir le dropdown
-  if (prog.classList.contains('open')) return;
-  dd.classList.toggle('open');
-}
-
-// Fermer le dropdown si on clique ailleurs
-document.addEventListener('click', function(e) {
-  const wrap = document.getElementById('flash-wrap');
-  if (wrap && !wrap.contains(e.target)) {
-    const dd = document.getElementById('flash-dropdown');
-    if (dd) dd.classList.remove('open');
-  }
-});
-
-async function flashStart(category) {
-  const dd = document.getElementById('flash-dropdown');
-  const prog = document.getElementById('flash-progress');
-  const btn = document.getElementById('flash-btn');
-  const fill = document.getElementById('flash-progress-fill');
-  const label = document.getElementById('flash-progress-label');
-  const msg = document.getElementById('flash-progress-msg');
-
-  dd.classList.remove('open');
-  prog.classList.add('open');
-  btn.disabled = true;
-  fill.style.width = '5%';
-  label.textContent = `Flash ${category}...`;
-  msg.textContent = 'Envoi de la demande...';
-  // Init timestamps pour l'ETA
-  flashStartTime = Date.now();
-  flashLastProgress = 5;
-  flashLastPollTime = Date.now();
-
-  // Mémorise l'état de la radio live (jouait-elle ?) pour la reprendre
-  // à la fin du flash
-  if (window._novaAudio) {
-    flashWasRadioPlaying = !window._novaAudio.paused;
-    if (flashWasRadioPlaying) {
-      window._novaAudio.pause();
-      msg.textContent = 'Envoi de la demande... (radio live mise en pause)';
-    }
-  }
-
-  try {
-    const r = await fetch('/api/flash', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({category: category})
-    });
-    const data = await r.json();
-    if (data.status !== 'ok') {
-      msg.textContent = 'Erreur: ' + (data.msg || 'inconnue');
-      btn.disabled = false;
-      // Reprend la radio si on l'avait mise en pause
-      if (flashWasRadioPlaying && window._novaAudio) {
-        window._novaAudio.play().catch(() => {});
-        flashWasRadioPlaying = false;
-      }
-      return;
-    }
-    flashCurrentJobId = data.job_id;
-    msg.textContent = 'Job ' + data.job_id;
-    // Polling toutes les 1.5s
-    flashPollInterval = setInterval(() => flashPoll(), 1500);
-  } catch (e) {
-    msg.textContent = 'Erreur réseau: ' + e.message;
-    btn.disabled = false;
-    // Reprend la radio si on l'avait mise en pause
-    if (flashWasRadioPlaying && window._novaAudio) {
-      window._novaAudio.play().catch(() => {});
-      flashWasRadioPlaying = false;
-    }
-  }
-}
-
-async function flashPoll() {
-  if (!flashCurrentJobId) return;
-  const fill = document.getElementById('flash-progress-fill');
-  const label = document.getElementById('flash-progress-label');
-  const msg = document.getElementById('flash-progress-msg');
-  const btn = document.getElementById('flash-btn');
-  const prog = document.getElementById('flash-progress');
-
-  try {
-    const r = await fetch('/api/flash/status/' + flashCurrentJobId);
-    const data = await r.json();
-    if (data.status === 'error') {
-      clearInterval(flashPollInterval);
-      fill.style.width = '100%';
-      fill.style.background = '#ef4444';
-      label.textContent = '❌ Erreur';
-      msg.textContent = data.error || 'Erreur inconnue';
-      // Reset timestamps
-      flashStartTime = null;
-      setTimeout(() => {
-        prog.classList.remove('open');
-        btn.disabled = false;
-        fill.style.background = '';
-      }, 3000);
-      return;
-    }
-    if (data.status === 'done') {
-      clearInterval(flashPollInterval);
-      fill.style.width = '100%';
-      label.textContent = '✅ Flash prêt !';
-      msg.textContent = `${data.articles_count} articles, lecture...`;
-      // Reset timestamps
-      flashStartTime = null;
-      flashLastProgress = 100;
-      // Jouer le mp3
-      const audio = new Audio('/audio/flash_' + flashCurrentJobId + '.mp3');
-      audio.play().catch(e => {
-        msg.textContent = 'Erreur lecture: ' + e.message;
-      });
-      audio.onended = () => {
-        msg.textContent = 'Terminé';
-        // Reprend la radio live si elle était en cours avant le flash
-        if (flashWasRadioPlaying && window._novaAudio) {
-          window._novaAudio.play().catch(() => {});
-          flashWasRadioPlaying = false;
-        }
-        setTimeout(() => {
-          prog.classList.remove('open');
-          btn.disabled = false;
-          fill.style.background = '';
-        }, 1500);
-      };
-      return;
-    }
-    // En cours : animation continue via CSS transition (1.4s)
-    // L'ETA est calculée par extrapolation linéaire de la vitesse observée
-    fill.style.width = Math.max(5, data.progress || 5) + '%';
-    flashLastProgress = data.progress || 5;
-    flashLastPollTime = Date.now();
-    const step = data.progress < 30 ? 'Collecte des articles' :
-                 data.progress < 50 ? 'Génération du script (LLM)' :
-                 data.progress < 90 ? 'Synthèse vocale (TTS)' :
-                 'Mixage audio';
-    const eta = _flashEta();
-    const etaStr = eta !== null ? ` (~${eta}s restantes)` : '';
-    msg.textContent = step + ' (' + data.progress + '%)' + etaStr;
-  } catch (e) {
-    msg.textContent = 'Erreur polling: ' + e.message;
-  }
-}
-</script>
-'''
+"""
 
 
 def render_flash_button_html(cat_icons: dict, cat_labels: dict) -> str:
     """Retourne le HTML du bouton Flash avec dropdown rempli."""
-    from jinja2 import Template
-    return Template(FLASH_BUTTON_HTML).render(
+    from modules.web.web_security import html_template as Template
+    return Markup(Template(FLASH_BUTTON_HTML).render(
         cats=list(cat_icons.keys()),
         cat_icons=cat_icons,
         cat_labels=cat_labels,
-    )
+    ))
 
 LIVE_TEMPLATE = """<!DOCTYPE html>
 <html lang="fr"><head>
@@ -3276,14 +2555,14 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
   <!-- Player radio + Theme switcher -->
   <div class="radio-player" id="radio-player">
     <button class="radio-btn" id="radio-btn" aria-label="Écouter la radio"
-            onclick="radioToggle('{{ icecast_url }}')">▶</button>
+            data-action="radio-toggle" data-stream="{{ icecast_url }}">▶</button>
     <div class="radio-wave" id="radio-wave">
       <span></span><span></span><span></span><span></span><span></span>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
   {{ flash_button_html }}
-  <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
+  <button class="theme-btn" data-action="theme" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
@@ -3327,7 +2606,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
       <!-- Bande couleur + icône + titre -->
       <div class="live-item-row" style="border-left:3px solid var(--cat-color-{{ cat }},var(--accent))">
         <span class="live-cat-icon">{{ cat_icons.get(cat,'🌐') }}</span>
-        <a href="{{ a.link }}" target="_blank" rel="noopener" class="live-item-title">{{ a.title }}</a>
+        <a href="{{ a.link|safe_url }}" target="_blank" rel="noopener" class="live-item-title">{{ a.title }}</a>
       </div>
 
       <!-- Source · heure -->
@@ -3342,7 +2621,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
       <div class="live-summary-wrap">
         <div class="live-summary-text" id="sum-{{ loop.index0 }}">{{ a.summary }}</div>
         <button class="live-summary-toggle"
-                onclick="toggleSummary(this,'sum-{{ loop.index0 }}')"
+                data-action="summary" data-summary="sum-{{ loop.index0 }}" data-more="{{ ui.read_more }}" data-less="{{ ui.reduce }}"
                 aria-expanded="false">
           <span class="tgl-icon">▶</span> <span class="tgl-label">{{ ui.read_more }}</span>
         </button>
@@ -3354,20 +2633,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
   </div>
 </div>
 <footer><strong>{{ brand_name }}</strong> — Fil en direct · © {{ year }}</footer>
-<script>
-// Le filtre multi-sélection sous "Fil en direct" est attaché par
-// _attachFilterBarHandler() au DOMContentLoaded (voir global script).
-// Le IIFE inline a été supprimé : il ne survivait pas au refresh
-// toutes les 2 min qui remplace innerHTML des boutons.
 
-function toggleSummary(btn, id) {
-  const el   = document.getElementById(id);
-  const open = el.classList.toggle('expanded');
-  btn.classList.toggle('open', open);
-  btn.setAttribute('aria-expanded', open);
-  btn.querySelector('.tgl-label').textContent = open ? '{{ ui.reduce }}' : '{{ ui.read_more }}';
-}
-</script>
 {{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
@@ -3398,14 +2664,14 @@ select:focus,input[type=number]:focus{outline:none;border-color:var(--accent);}
   <!-- Player radio + Theme switcher -->
   <div class="radio-player" id="radio-player">
     <button class="radio-btn" id="radio-btn" aria-label="Écouter la radio"
-            onclick="radioToggle('{{ icecast_url }}')">▶</button>
+            data-action="radio-toggle" data-stream="{{ icecast_url }}">▶</button>
     <div class="radio-wave" id="radio-wave">
       <span></span><span></span><span></span><span></span><span></span>
     </div>
     <span class="radio-label" id="radio-label">{{ ui.radio_live }}</span>
   </div>
   {{ flash_button_html }}
-  <button class="theme-btn" onclick="toggleTheme()" title="Changer le thème">🌙</button>
+  <button class="theme-btn" data-action="theme" title="Changer le thème">🌙</button>
   <div class="topbar-nav">
     <a href="/">{{ ui.nav_home }}</a>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
@@ -3483,19 +2749,7 @@ select:focus,input[type=number]:focus{outline:none;border-color:var(--accent);}
   </form>
 </div>
 <footer><strong>{{ brand_name }}</strong> — Configuration · © {{ year }}</footer>
-<script>
-document.getElementById('configForm').addEventListener('submit',async(e)=>{
-  e.preventDefault();
-  const data=Object.fromEntries(new FormData(e.target));
-  ['fetch_timeout','edition_timeout','max_articles_feed','live_window_hours'].forEach(k=>{if(data[k])data[k]=parseInt(data[k]);});
-  const r=await fetch('/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  if(r.ok){
-    document.getElementById('saveMsg').style.display='block';
-    setTimeout(()=>document.getElementById('saveMsg').style.display='none',4000);
-    document.querySelector('.current-tag').textContent=data.ollama_model;
-  }
-});
-</script>
+
 {{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
@@ -3507,8 +2761,8 @@ CONFIG_YAML_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ brand_name }} — Configuration</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+
 <style>
 /* ── Reset & base ── */
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -3647,7 +2901,7 @@ input:focus,select:focus,textarea:focus{
   border-color:var(--accent);
   box-shadow:0 0 0 3px rgba(232,97,42,.15);
 }
-select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238888a0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .75rem center;padding-right:2rem;}
+select{cursor:pointer;appearance:auto;background-image:none;background-repeat:no-repeat;background-position:right .75rem center;padding-right:2rem;}
 input[type=range]{width:100%;accent-color:var(--accent);}
 
 /* ── Boutons de sauvegarde ── */
@@ -3749,11 +3003,11 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 
 <!-- Topbar -->
 <header class="topbar">
-  <button class="topbar-logo-btn" onclick="window.location.href='/'">
+  <button class="topbar-logo-btn" data-action="home">
     <span class="topbar-logo">{{ logo_main }}<span>{{ logo_sub }}</span></span>
   </button>
   <div class="topbar-right">
-    <button class="topbar-back" onclick="window.location.href='/'">← Retour au site</button>
+    <button class="topbar-back" data-action="home">← Retour au site</button>
   </div>
 </header>
 
@@ -3763,28 +3017,28 @@ input[type=range]{width:100%;accent-color:var(--accent);}
   <nav class="cfg-sidebar">
     <div class="cfg-sidebar-title">Configuration</div>
     <div class="cfg-nav">
-      <button class="cfg-nav-btn active" onclick="showSection('service',this)">
+      <button class="cfg-nav-btn active" data-action="showSection" data-section="service">
         <span class="cfg-nav-icon">🏷</span> Identité du média
       </button>
-      <button class="cfg-nav-btn" onclick="showSection('ollama',this)">
+      <button class="cfg-nav-btn" data-action="showSection" data-section="ollama">
         <span class="cfg-nav-icon">🤖</span> Modèle Ollama
       </button>
-      <button class="cfg-nav-btn" onclick="showSection('rss',this)">
+      <button class="cfg-nav-btn" data-action="showSection" data-section="rss">
         <span class="cfg-nav-icon">📡</span> Collecte RSS
       </button>
-      <button class="cfg-nav-btn" onclick="showSection('radio',this)">
+      <button class="cfg-nav-btn" data-action="showSection" data-section="radio">
         <span class="cfg-nav-icon">📻</span> Radio & Audio
       </button>
-      <button class="cfg-nav-btn" onclick="showSection('voices',this)">
+      <button class="cfg-nav-btn" data-action="showSection" data-section="voices">
         <span class="cfg-nav-icon">🎙</span> Voix TTS
       </button>
-      <button class="cfg-nav-btn" onclick="showSection('web',this)">
+      <button class="cfg-nav-btn" data-action="showSection" data-section="web">
         <span class="cfg-nav-icon">🌐</span> Serveur web
       </button>
-      <button class="cfg-nav-btn" onclick="showSection('icecast',this)">
+      <button class="cfg-nav-btn" data-action="showSection" data-section="icecast">
         <span class="cfg-nav-icon">📺</span> Icecast
       </button>
-      <button class="cfg-nav-btn" onclick="showSection('system',this)">
+      <button class="cfg-nav-btn" data-action="showSection" data-section="system">
         <span class="cfg-nav-icon">⚙️</span> Système
       </button>
     </div>
@@ -3826,7 +3080,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-service">✓ Sauvegardé</span>
-          <button class="btn-save" onclick="saveService()">💾 Enregistrer</button>
+          <button class="btn-save" data-action="saveService">💾 Enregistrer</button>
         </div>
       </div>
     </section>
@@ -3888,16 +3142,10 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-ollama">✓ Sauvegardé</span>
-          <button class="btn-save" onclick="saveOllama()">💾 Enregistrer</button>
+          <button class="btn-save" data-action="saveOllama">💾 Enregistrer</button>
         </div>
       </div>
-      <script>
-        // Affiche/masque le champ base_url selon le provider
-        document.getElementById('llm-provider').addEventListener('change', function() {
-          document.getElementById('row-llm-baseurl').style.display =
-            this.value === 'llama-server' ? '' : 'none';
-        });
-      </script>
+
     </section>
 
     <!-- ────────────────── RSS ────────────────── -->
@@ -3922,7 +3170,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-rss">✓ Sauvegardé</span>
-          <button class="btn-save" onclick="saveRss()">💾 Enregistrer</button>
+          <button class="btn-save" data-action="saveRss">💾 Enregistrer</button>
         </div>
       </div>
     </section>
@@ -3941,7 +3189,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
           <div style="display:flex;align-items:center;gap:.75rem;">
             <input type="range" id="radio-bgvol" min="0" max="1" step="0.05"
                    value="{{ radio.get('background_volume',0.30) }}"
-                   oninput="document.getElementById('bgvol-val').textContent=parseFloat(this.value).toFixed(2)">
+                   >
             <span id="bgvol-val" style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--accent);min-width:2.5rem;">
               {{ '%.2f'|format(radio.get('background_volume',0.30)|float) }}
             </span>
@@ -3960,7 +3208,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-radio">✓ Sauvegardé</span>
-          <button class="btn-save" onclick="saveRadio()">💾 Enregistrer</button>
+          <button class="btn-save" data-action="saveRadio">💾 Enregistrer</button>
         </div>
       </div>
     </section>
@@ -3982,7 +3230,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         <div class="lang-block" data-lang="{{ lang_code }}">
           <div class="lang-header">
             <button class="lang-toggle {{ 'on' if lang_on else 'off' }}"
-                    onclick="toggleLang('{{ lang_code }}',this)">
+                    data-action="toggleLang" data-lang="{{ lang_code }}">
               {{ '● ON' if lang_on else '○ OFF' }}
             </button>
             <span class="lang-name">{{ lang_labels.get(lang_code,lang_code) }}</span>
@@ -3995,7 +3243,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
             {% set is_on = v in active_lang_voices %}
             <div class="voice-chip {{ 'on' if is_on else '' }}"
                  data-voice="{{ v }}" data-lang="{{ lang_code }}"
-                 onclick="toggleVoice(this)">
+                 data-action="toggleVoice">
               {{ v.split('-')[2] if v.split('-')|length > 2 else v }}
             </div>
             {% endfor %}
@@ -4005,7 +3253,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
         <span class="save-indicator" id="ind-voices" style="margin-right:.75rem;">✓ Sauvegardé</span>
-        <button class="btn-save" onclick="saveVoices()">💾 Enregistrer les voix</button>
+        <button class="btn-save" data-action="saveVoices">💾 Enregistrer les voix</button>
       </div>
     </section>
 
@@ -4022,7 +3270,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-web">✓ Sauvegardé</span>
-          <button class="btn-save" onclick="saveWeb()">💾 Enregistrer</button>
+          <button class="btn-save" data-action="saveWeb">💾 Enregistrer</button>
         </div>
       </div>
     </section>
@@ -4051,7 +3299,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-icecast">✓ Sauvegardé</span>
-          <button class="btn-save" onclick="saveIcecast()">💾 Enregistrer</button>
+          <button class="btn-save" data-action="saveIcecast">💾 Enregistrer</button>
         </div>
       </div>
     </section>
@@ -4068,7 +3316,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
           Nécessaire après modification du modèle Ollama, des flux RSS ou de la langue.
           La radio et le serveur web continuent de tourner.
         </div>
-        <button class="btn-save" id="btn-restart" onclick="restartEngine()">
+        <button class="btn-save" id="btn-restart" data-action="restartEngine">
           ↺ Redémarrer
         </button>
       </div>
@@ -4090,7 +3338,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         </div>
         <div class="cfg-save-bar">
           <span class="save-indicator" id="ind-posts">✓ Sauvegardé</span>
-          <button class="btn-save" onclick="savePosts()">💾 Enregistrer</button>
+          <button class="btn-save" data-action="savePosts">💾 Enregistrer</button>
         </div>
       </div>
     </section>
@@ -4101,130 +3349,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 <!-- Toast global -->
 <div class="save-toast" id="save-toast">✓ Sauvegardé dans config.yaml</div>
 
-<script>
-// ── Navigation sidebar ────────────────────────────────────────────────────────
-function showSection(id, link){
-  document.querySelectorAll('.cfg-section').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.cfg-nav-btn').forEach(a=>a.classList.remove('active'));
-  document.getElementById('sec-'+id).classList.add('active');
-  link.classList.add('active');
-  return false;
-}
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
-function showToast(indId){
-  var t = document.getElementById('save-toast');
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2500);
-  if(indId){
-    var ind = document.getElementById(indId);
-    if(ind){ ind.classList.add('show'); setTimeout(()=>ind.classList.remove('show'),3000); }
-  }
-}
-
-// ── Sauvegardes par section ───────────────────────────────────────────────────
-function post(data, ind){ 
-  return fetch('/config/yaml/save',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(data)
-  }).then(r=>r.json()).then(d=>{ if(d.status==='ok') showToast(ind); });
-}
-
-function saveService(){
-  Promise.all([
-    post({section:'service',key:'name',    value:document.getElementById('svc-name').value},'ind-service'),
-    post({section:'service',key:'tagline', value:document.getElementById('svc-tagline').value},'ind-service'),
-    post({section:'service',key:'default_language',value:document.getElementById('svc-lang').value},'ind-service'),
-  ]);
-}
-
-function saveOllama(){
-  Promise.all([
-    post({section:'llm',key:'provider',         value:document.getElementById('llm-provider').value},'ind-ollama'),
-    post({section:'llm',key:'model',             value:document.getElementById('ollama-model').value},'ind-ollama'),
-    post({section:'llm',key:'base_url',          value:document.getElementById('llm-baseurl').value},'ind-ollama'),
-    post({section:'llm',key:'timeout_fetch',     value:+document.getElementById('ollama-tfetch').value},'ind-ollama'),
-    post({section:'llm',key:'timeout_report',    value:+document.getElementById('ollama-treport').value},'ind-ollama'),
-    post({section:'llm',key:'timeout_edition',   value:+document.getElementById('ollama-tedition').value},'ind-ollama'),
-  ]);
-}
-
-function saveRss(){
-  Promise.all([
-    post({section:'rss',key:'max_articles_per_feed',value:+document.getElementById('rss-maxfeed').value},'ind-rss'),
-    post({section:'rss',key:'live_window_hours',     value:+document.getElementById('rss-window').value},'ind-rss'),
-  ]);
-}
-
-function saveRadio(){
-  Promise.all([
-    post({section:'radio',key:'background_volume',      value:+document.getElementById('radio-bgvol').value},'ind-radio'),
-    post({section:'radio',key:'bitrate',                value:document.getElementById('radio-bitrate').value},'ind-radio'),
-  ]);
-}
-
-function saveWeb(){
-  post({section:'web',key:'port',value:+document.getElementById('web-port').value},'ind-web');
-}
-
-function saveIcecast(){
-  Promise.all([
-    post({section:'icecast',key:'host',    value:document.getElementById('ic-host').value},'ind-icecast'),
-    post({section:'icecast',key:'port',    value:+document.getElementById('ic-port').value},'ind-icecast'),
-    post({section:'icecast',key:'mount',   value:document.getElementById('ic-mount').value},'ind-icecast'),
-    post({section:'icecast',key:'password',value:document.getElementById('ic-password').value},'ind-icecast'),
-  ]);
-}
-
-function savePosts(){
-  Promise.all([
-    post({section:'posts',key:'nb_posts_per_cycle',value:+document.getElementById('posts-nb').value},'ind-posts'),
-    post({section:'posts',key:'window_hours',       value:+document.getElementById('posts-window').value},'ind-posts'),
-  ]);
-}
-
-// ── Voix TTS ──────────────────────────────────────────────────────────────────
-function toggleLang(lang, btn){
-  var on = btn.classList.toggle('on');
-  btn.classList.toggle('off', !on);
-  btn.textContent = on ? '● ON' : '○ OFF';
-  var grid = document.getElementById('vg-'+lang);
-  if(grid) grid.classList.toggle('disabled', !on);
-  if(!on){
-    document.querySelectorAll('#vg-'+lang+' .voice-chip').forEach(c=>c.classList.remove('on'));
-  } else {
-    var first = document.querySelector('#vg-'+lang+' .voice-chip');
-    if(first && !document.querySelector('#vg-'+lang+' .voice-chip.on'))
-      first.classList.add('on');
-  }
-}
-
-function toggleVoice(chip){
-  chip.classList.toggle('on');
-}
-
-function saveVoices(){
-  var result = {};
-  document.querySelectorAll('.lang-block').forEach(function(block){
-    var lang = block.dataset.lang;
-    var on   = Array.from(block.querySelectorAll('.voice-chip.on')).map(c=>c.dataset.voice);
-    if(on.length) result[lang] = on;
-  });
-  post({section:'radio',key:'voices',value:result},'ind-voices');
-}
-
-// ── Redémarrage ───────────────────────────────────────────────────────────────
-function restartEngine(){
-  var btn = document.getElementById('btn-restart');
-  btn.textContent='⏳ En cours…'; btn.disabled=true;
-  fetch('/config/restart',{method:'POST'})
-    .then(r=>r.json())
-    .then(d=>{
-      btn.textContent = d.status==='ok' ? '✓ Redémarré' : '✗ Erreur';
-      setTimeout(()=>{ btn.textContent='↺ Redémarrer'; btn.disabled=false; },3000);
-    });
-}
-</script>
 
 {{ flash_button_js }}
 {{ global_script }}

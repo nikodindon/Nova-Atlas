@@ -8,3 +8,5 @@ jinja2
 markdown
 # Test deps (sprint 1+)
 pytest
+# HTML éditorial non fiable : sanitisation HTML5 côté serveur
+nh3==0.3.7

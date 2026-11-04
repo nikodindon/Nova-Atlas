@@ -91,3 +91,11 @@ du même filesystem. Les admissions principale/Android et les flashs vérifient 
 reçu ; Android reçoit une copie atomique avant consommation principale. Aucun
 changement des mounts/API Android ni nouveau moteur. Les jobs durables et la
 reprise distribuée restent au sprint SQL. Voir RADIO_INTEGRITY.md.
+
+## Livraison incrémentale Sprint 01G
+
+Flask conserve les templates avec autoescape ; les corps Markdown sont sanitisés
+par nh3 et les liens filtrés avant HTML. Des assets JS connus initialisent les
+composants sans interpréter le HTML reçu. Navigation publique et radio persistent,
+CSP self sans unsafe-eval ni scripts inline ; styles historiques inline conservés.
+Aucune API Android modifiée. Voir WEB_SECURITY.md pour audit et limites.

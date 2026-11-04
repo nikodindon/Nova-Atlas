@@ -97,3 +97,20 @@ probe/décodage et reçu réussis avec et sans fond musical ; MP3 final 1,312 se
 dans les deux cas. Fichiers dans un TemporaryDirectory sous /tmp, supprimés après
 l'essai. Aucun Edge TTS réseau, Icecast ou modèle LLM. La CI n'exige pas FFmpeg :
 les contrôles de codec/transport y sont simulés. Voir RADIO_INTEGRITY.md.
+
+## Sprint 01G — XSS et CSP
+
+Socle `dev@a631590` : 815 tests. Avant correction, cinq reproductions en échec :
+HTML de données RSS actif, URL JavaScript, HTML Markdown actif, eval et CSP absente.
+Après correction : **866 réussis, 0 échec, 0 ignoré** en 26,09 s sous Python 3.12.
+Les 51 cas supplémentaires comprennent cinq tests Chromium locaux ; aucune
+navigation vers un service réel. Les requêtes du navigateur sont interceptées et
+remplies par Flask.test_client, médias simulés, proxy fermé pour les autres URL.
+La fixture autorise uniquement le driver et le navigateur local ; les autres tests
+conservent les garde-fous réseau/processus. Voir WEB_SECURITY.md pour l'inventaire,
+les interactions vérifiées, l'exception CSS et les limites du transport simulé.
+
+Compilation Python, contrôle JavaScript CSRF, syntaxe de tous les assets JS et
+git diff --check réussis. La CI installe Chromium headless et ses bibliothèques,
+puis exécute ces mêmes tests pour les deux contrôles push/PR. Aucun serveur,
+Edge TTS, Icecast, modèle ou source RSS réel démarré.
