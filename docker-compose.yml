@@ -1,20 +1,217 @@
+name: nova-atlas
+
+x-runtime: &runtime
+  image: ${ATLAS_IMAGE:-nova-atlas:02-foundation}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  user: "${ATLAS_UID:-10001}:${ATLAS_GID:-10001}"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+  stop_signal: SIGTERM
+  stop_grace_period: ${ATLAS_STOP_GRACE:-45m}
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=128m,mode=1777
+    - /app/tmp:rw,noexec,nosuid,size=256m,mode=1777
+  networks: [backend, egress]
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  environment: &environment
+    ATLAS_CONTAINER: "1"
+    ATLAS_COOKIE_SECURE: ${ATLAS_COOKIE_SECURE:-1}
+    ATLAS_TRUSTED_PROXIES: ${ATLAS_TRUSTED_PROXIES:-}
+    ATLAS_HSTS_MAX_AGE: ${ATLAS_HSTS_MAX_AGE:-0}
+    TZ: ${ATLAS_TIMEZONE:-Europe/Paris}
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "3"}
+
 services:
-  icecast:
-    # NOTE: l'image ghcr.io/karlheinzniebuhr/icecast:latest référencée avant
-    # n'est plus accessible (registry denied). Remplacée par moul/icecast:latest
-    # qui sert HTTP 200 sur /admin/ avec les creds par défaut.
-    image: moul/icecast:latest
-    container_name: nova-icecast
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
+  web:
+    <<: *runtime
+    profiles: [web, full]
+    command: [web]
     environment:
-      - ICECAST_SOURCE_PASSWORD=hackme
-      - ICECAST_ADMIN_PASSWORD=hackme
-      - ICECAST_HOSTNAME=localhost
-    networks:
-      - nova-net
+      <<: *environment
+      ATLAS_ROLE: web
+    ports:
+      - "127.0.0.1:${ATLAS_WEB_PORT:-5055}:5055"
+    secrets: [admin_username, admin_password_hash, session_secret, icecast_source_password]
+    volumes:
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/config
+        target: /app/config
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/data
+        target: /app/data
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/site
+        target: /app/site
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/audio_queue
+        target: /app/audio_queue
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/logs/web
+        target: /app/logs
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/music
+        target: /app/music
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/background_music
+        target: /app/background_music
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, python, -m, deploy.healthcheck, web]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  news:
+    <<: *runtime
+    profiles: [news, full]
+    command: [news]
+    environment:
+      <<: *environment
+      ATLAS_ROLE: news
+    volumes:
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/config
+        target: /app/config
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/data
+        target: /app/data
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/site
+        target: /app/site
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/logs/news
+        target: /app/logs
+        read_only: false
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, python, -m, deploy.healthcheck, news]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  radio:
+    <<: *runtime
+    profiles: [radio, full]
+    command: [radio]
+    environment:
+      <<: *environment
+      ATLAS_ROLE: radio
+    depends_on:
+      icecast:
+        condition: service_healthy
+    secrets: [icecast_source_password]
+    volumes:
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/config
+        target: /app/config
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/data
+        target: /app/data
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/site
+        target: /app/site
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/audio_queue
+        target: /app/audio_queue
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/logs/radio
+        target: /app/logs
+        read_only: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/music
+        target: /app/music
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/background_music
+        target: /app/background_music
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, python, -m, deploy.healthcheck, radio]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  icecast:
+    image: ${ATLAS_ICECAST_IMAGE:-nova-atlas-icecast:2.5.0-02}
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.icecast
+    profiles: [radio, full]
+    user: "${ATLAS_UID:-10001}:${ATLAS_GID:-10001}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: ${ATLAS_ICECAST_STOP_GRACE:-30s}
+    secrets: [icecast_config]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    networks: [backend]
+    healthcheck:
+      test: [CMD, /usr/local/bin/icecast-health.sh]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
 
 networks:
-  nova-net:
+  backend:
+    internal: true
+  egress:
     driver: bridge
+
+secrets:
+  admin_username:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/admin_username
+  admin_password_hash:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/admin_password_hash
+  session_secret:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/session_secret
+  icecast_source_password:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/icecast_source_password
+  icecast_config:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/icecast.xml

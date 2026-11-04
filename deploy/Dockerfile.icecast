@@ -1,0 +1,9 @@
+FROM libretime/icecast:2.5.0-debian@sha256:01b91f4d302775f761a5a23cd716586bf33574822d51a6667969c23165e5f286
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl libxml2-utils tini && rm -rf /var/lib/apt/lists/*
+COPY deploy/icecast-entrypoint.sh deploy/icecast-health.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/icecast-entrypoint.sh /usr/local/bin/icecast-health.sh \
+    && rm -f /etc/icecast.xml /usr/local/bin/docker-entrypoint /usr/local/bin/xml-edit
+USER 10001:10001
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/icecast-entrypoint.sh"]
+CMD []

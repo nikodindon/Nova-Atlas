@@ -55,7 +55,7 @@ class Streamer:
         self._debug      = config.get("_debug", False)
 
         self.icecast_url = (
-            f"icecast://{ice.get('user', 'source')}:{ice.get('password', 'hackme')}"
+            f"icecast://{ice.get('user', 'source')}:{ice.get('password', '')}"
             f"@{ice.get('host', 'localhost')}:{ice.get('port', 8000)}{ice.get('mount', '/nova')}"
         )
 
@@ -312,7 +312,7 @@ class AndroidStreamer:
         self._debug      = config.get("_debug", False)
 
         self.icecast_url = (
-            f"icecast://{ice.get('user', 'source')}:{ice.get('password', 'hackme')}"
+            f"icecast://{ice.get('user', 'source')}:{ice.get('password', '')}"
             f"@{ice.get('host', 'localhost')}:{ice.get('port', 8000)}{android_mount}"
         )
         # On garde la config pour recharger le bulletin courant si besoin
@@ -576,7 +576,7 @@ class AndroidStreamer:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE if self._debug else subprocess.DEVNULL,
             )
-            logger.info(f"🔗 [android] ffmpeg connecté à Icecast {self.icecast_url}")
+            logger.info("[android] ffmpeg connected to configured Icecast mount")
 
     def _kill_ffmpeg(self):
         if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:

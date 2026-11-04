@@ -187,3 +187,12 @@ Références : [Flask — sécurité](https://flask.palletsprojects.com/en/stabl
 Sprint 01G : scripts statiques et CSP sans unsafe-eval ; HSTS optionnel
 `ATLAS_HSTS_MAX_AGE=0` par défaut. Voir WEB_SECURITY.md avant configuration du proxy
 ou service direct des exports. Authentification et contrôles réseau restent distincts.
+
+## Installation Compose — Sprint 02
+
+Le déploiement Compose initialise les mêmes variables admin depuis des fichiers
+privés montés par rôle, sans interpolation de hashes ou mots de passe dans Compose.
+Aucun chargement des anciens .env : passer explicitement le compose.env neuf généré.
+Les paramètres Icecast et le port web sont gérés hors de l'UI en mode conteneur.
+Refus de démarrage si secrets/permissions/configuration manquent. Voir
+DOCKER_DEPLOYMENT.md pour identités, rotation, HTTPS et sauvegarde complète.

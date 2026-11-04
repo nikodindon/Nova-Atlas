@@ -1,0 +1,22 @@
+# Exact runtime allowlist, including for deployments initialized at non-default paths.
+**
+!Dockerfile
+!requirements-runtime.lock
+!main.py
+!modules/
+!modules/**
+!deploy/
+!deploy/__init__.py
+!deploy/runtime.py
+!deploy/entrypoint.py
+!deploy/healthcheck.py
+!deploy/ollama_client.py
+!deploy/ollama
+!deploy/icecast-entrypoint.sh
+!deploy/icecast-health.sh
+!deploy/Dockerfile.icecast
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/*.key
+**/*.pem

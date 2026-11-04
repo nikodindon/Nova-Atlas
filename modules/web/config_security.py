@@ -123,6 +123,8 @@ def validate_update(section, key, value):
 
 
 def update_yaml(path, section, key, value):
+    if os.environ.get('ATLAS_CONTAINER') == '1' and (section == 'icecast' or (section,key) == ('web','port')):
+        raise ValueError('Container-managed setting; update deployment configuration/secrets offline')
     if not isinstance(section, str) or not isinstance(key, str):
         raise ValueError('Section et clé requises')
     validate_update(section, key, value)

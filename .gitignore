@@ -87,3 +87,8 @@ data/subscriptions.json
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Container deployment state and generated secret/configuration files
+/deploy/local/
+compose.env
+compose.*.env

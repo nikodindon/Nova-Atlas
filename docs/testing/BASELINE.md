@@ -114,3 +114,20 @@ Compilation Python, contrôle JavaScript CSRF, syntaxe de tous les assets JS et
 git diff --check réussis. La CI installe Chromium headless et ses bibliothèques,
 puis exécute ces mêmes tests pour les deux contrôles push/PR. Aucun serveur,
 Edge TTS, Icecast, modèle ou source RSS réel démarré.
+
+## Sprint 02 — Compose et persistance
+
+Socle dev@f70ff2c : 866 tests. Quatre reproductions en échec avant correction :
+services manquants, tag latest, credentials d'exemple et port hôte wildcard.
+Suite locale finale Python 3.12 : **907 réussis, 0 échec, 0 ignoré** en 29,63 s,
+dont Chromium conservé et processus News synthétique avec SIGTERM au démarrage.
+Compose est résolu avec un env temporaire explicite, sans daemon et sans .env privé.
+Les tests de précontrôles ne lisent que leurs secrets synthétiques temporaires.
+Compilation Python, syntaxe JS/shell, contrôle CSRF et git diff --check réussis.
+
+Deux images de contrôle ont été construites localement, sans pile ni service
+applicatif démarré. La CI Docker construit également les images, puis teste sur un
+projet jetable Web/Icecast uniquement : exécutables, santé, singleton/ressource
+partagée, audio sinusoïdal et reçu, permissions, persistance et arrêt. Les probes
+News/Radio remplacent leur entrypoint ; aucun moteur RSS, TTS ou LLM réel lancé.
+Voir DOCKER_DEPLOYMENT.md pour la procédure, les limites et les conditions du FS.
