@@ -39,6 +39,7 @@ def cache_identity(prompt,language,alias,deployment,prompt_version,task):
 
 
 def safe_url(value):
+    if not isinstance(value,str):return False
     try:
         u=urlsplit(value);port=u.port
         return (u.scheme in ('http','https') and bool(u.hostname) and not u.username and not u.password
@@ -211,9 +212,9 @@ class GatewayClient:
                         usage=data.get('usage',{})
                         tokens={k:v for k,v in usage.items() if k in ('prompt_tokens','completion_tokens','total_tokens') and type(v) is int and v>=0} if isinstance(usage,dict) else {}
                         log.info('LLM alias=%s deployment=%s provider=%s duration=%.3f success=true tokens=%s cost_estimate=unknown',alias,name,d['provider'],self.clock()-started,tokens)
-                        if use_cache and cache_key:
+                        if use_cache and cache_key and data.get('model',d['model'])==d['model']:
                             from modules.fetch.article_state import atomic_json
-                            try:atomic_json(path,{'identity':identity,'deployment':name,'text':text,'ts':time.time()})
+                            try:atomic_json(path,{'identity':identity,'deployment':name,'effective_model':data.get('model',d['model']),'text':text,'ts':time.time()})
                             except OSError:log.warning('Gateway cache write failed; generated text retained')
                         return text
                     except GatewayError as exc:

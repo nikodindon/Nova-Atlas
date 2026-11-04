@@ -269,6 +269,9 @@ class OllamaClient:
             except GatewayError as exc:
                 self.log.warning('Gateway request failed kind=%s', exc.kind)
                 return ''
+            except Exception as exc:
+                self.log.error('Gateway request failed (%s)', type(exc).__name__)
+                return ''
         if self.provider not in LOCAL_EXCLUSIVE_PROVIDERS:
             self.log.error('Backend non supporté ; génération refusée')
             return ''

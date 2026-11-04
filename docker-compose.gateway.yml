@@ -10,6 +10,7 @@ services:
     networks: [backend, egress, llm_clients]
     secrets: [icecast_source_password, litellm_master_key]
   litellm:
+    init: true
     image: ${ATLAS_LITELLM_IMAGE:-nova-atlas-litellm:1.108.0-03}
     build: {context: ., dockerfile: deploy/Dockerfile.litellm}
     profiles: [gateway]

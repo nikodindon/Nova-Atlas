@@ -9,6 +9,7 @@
 !deploy/__init__.py
 !deploy/runtime.py
 !deploy/gateway.py
+!deploy/gateway_auth.py
 !deploy/Dockerfile.litellm
 !deploy/entrypoint.py
 !deploy/healthcheck.py

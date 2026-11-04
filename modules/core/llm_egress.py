@@ -52,7 +52,13 @@ def create_relay(policy,directory,key,provider_keys,*,transport=None):
         if request.path=='/health' and request.method=='GET':return None
         if not hmac.compare_digest(request.headers.get('Authorization',''),'Bearer '+key):return jsonify(error={'code':'authentication'}),401
     @app.get('/health')
-    def health():return {'status':'ok'}
+    def health():
+        import os,tempfile
+        try:
+            with tempfile.NamedTemporaryFile(dir=directory,prefix='.gateway-health-') as probe:
+                probe.write(b'ok');probe.flush();os.fsync(probe.fileno())
+        except OSError:return {'status':'storage_unavailable'},503
+        return {'status':'ok'}
     @app.post('/<name>/v1/chat/completions')
     def completion(name):
         d=policy['deployments'].get(name)
@@ -75,7 +81,7 @@ def create_relay(policy,directory,key,provider_keys,*,transport=None):
             from modules.core.llm_gateway import response_text
             text=response_text(data)
             # Deliberately reconstruct the response. No arbitrary provider metadata.
-            return {'id':'atlas-response','object':'chat.completion','created':int(time.time()),'model':d['model'],
+            return {'id':'atlas-response','object':'chat.completion','created':int(time.time()),'model':data.get('model') if isinstance(data.get('model'),str) and len(data['model'])<=200 else d['model'],
                     'choices':[{'index':0,'message':{'role':'assistant','content':text},'finish_reason':'stop'}],
                     'usage':{k:v for k,v in data.get('usage',{}).items() if k in ('prompt_tokens','completion_tokens','total_tokens') and type(v) is int and v>=0} if isinstance(data.get('usage'),dict) else {}}
         except GatewayError as exc:

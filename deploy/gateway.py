@@ -41,7 +41,7 @@ def proxy_config(policy):
                     'api_base':'http://llm-egress:4041/'+name+'/v1','api_key':'os.environ/ATLAS_EGRESS_KEY','max_retries':0}})
     return {'model_list':models,'router_settings':{'num_retries':0,'timeout':900,'fallbacks':[]},
             'litellm_settings':{'telemetry':False,'set_verbose':False,'turn_off_message_logging':True,'num_retries':0},
-            'general_settings':{'master_key':'os.environ/LITELLM_MASTER_KEY','disable_spend_logs':True,'disable_error_logs':True}}
+            'general_settings':{'master_key':'os.environ/LITELLM_MASTER_KEY','custom_auth':'deploy.gateway_auth.authenticate','disable_spend_logs':True,'disable_error_logs':True}}
 
 
 def main():

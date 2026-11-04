@@ -268,3 +268,47 @@ def test_gateway_initialization_and_compose_resolution(tmp_path):
     config=json.loads(output);assert set(config['services'])=={'web','news','radio','icecast','litellm','llm-egress'}
     assert 'ports' not in config['services']['litellm']
     for service in ('web','news','radio','llm-egress','litellm'):assert config['services'][service]['user']==f'{os.getuid()}:{os.getgid()}'
+
+
+def test_undeclared_provider_model_substitution_is_not_cached(setup):
+    cfg,_=setup;data={**response(),'model':'unexpected-model'}
+    client=gw.GatewayClient(cfg,transport=Mock(return_value=data))
+    assert client.call('prompt','fetch',20,cache_key='same')
+    assert not list(client.directory.glob('*.json'))
+
+
+def test_relay_health_checks_writable_storage(policy,tmp_path):
+    client=create_relay(policy,tmp_path/'missing','synthetic',{}).test_client()
+    assert client.get('/health').status_code==503
+    (tmp_path/'missing').mkdir();assert client.get('/health').status_code==200
+
+
+def test_public_example_is_local_only_and_proxy_init_reaps():
+    assert gw.load_policy(ROOT/'config/llm_routes.yaml.example')['local_only'] is True
+    config=yaml.safe_load((ROOT/'docker-compose.gateway.yml').read_text())
+    assert config['services']['litellm']['init'] is True
+
+@pytest.mark.parametrize('key,path,body,status',[
+    ('wrong','/v1/chat/completions',{'model':'atlas-fast'},401),
+    ('synthetic-key','/key/generate',{},403),
+    ('synthetic-key','/v1/chat/completions',{'model':'unlisted'},403),
+    ('synthetic-key','/v1/chat/completions',{'model':'atlas-fast','api_base':'http://evil.invalid'},400),
+    ('synthetic-key','/v1/chat/completions',{'model':'atlas-fast','extra_headers':{'Authorization':'evil'}},400),
+    ('synthetic-key','/v1/chat/completions',{'model':'atlas-fast','num_retries':1},400),
+    ('synthetic-key','/v1/chat/completions',{'model':'atlas-fast'},200),
+])
+def test_proxy_custom_auth_no_database_and_inference_only(monkeypatch,key,path,body,status):
+    import asyncio,sys,types
+    from deploy import gateway_auth
+    class HTTPException(Exception):
+        def __init__(self,status_code,detail):self.status_code=status_code
+    monkeypatch.setitem(sys.modules,'starlette.exceptions',types.SimpleNamespace(HTTPException=HTTPException))
+    monkeypatch.setitem(sys.modules,'litellm.proxy._types',types.SimpleNamespace(UserAPIKeyAuth=lambda **kwargs:kwargs))
+    monkeypatch.setenv('LITELLM_MASTER_KEY','synthetic-key')
+    monkeypatch.setattr(gateway_auth,'allowed_models',lambda:{'atlas-fast'})
+    async def get_body():return body
+    request=types.SimpleNamespace(method='POST',url=types.SimpleNamespace(path=path),json=get_body)
+    if status==200:assert asyncio.run(gateway_auth.authenticate(request,key))=={'api_key':'synthetic-key'}
+    else:
+        with pytest.raises(HTTPException) as caught:asyncio.run(gateway_auth.authenticate(request,key))
+        assert caught.value.status_code==status
