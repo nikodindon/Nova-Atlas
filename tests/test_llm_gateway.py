@@ -323,3 +323,10 @@ def test_relay_provider_retry_after_embargo_even_if_intermediary_drops_header(po
     assert first.status_code==second.status_code==429
     assert 0<float(second.headers['Retry-After'])<=30
     assert transport.call_count==1
+
+
+def test_litellm_prefixed_retry_after_never_shortens_provider_delay(monkeypatch):
+    opener=Mock();opener.open.side_effect=urllib.error.HTTPError('http://fake.invalid',429,'safe',{'Retry-After':'1','llm_provider-retry-after':'30'},io.BytesIO(b'{}'))
+    monkeypatch.setattr(gw.urllib.request,'build_opener',lambda *a:opener)
+    with pytest.raises(gw.GatewayError) as caught:gw.post_json('http://fake.invalid',{},'synthetic',1)
+    assert caught.value.retry_after==30

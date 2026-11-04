@@ -125,7 +125,9 @@ def post_json(url,payload,key,timeout):
         kinds={401:'authentication',402:'payment',403:'forbidden',404:'model_not_found',429:'rate_limit',408:'timeout',504:'timeout'}
         kind=kinds.get(status,'unavailable' if status>=500 else 'request_rejected')
         if code in ('context_length_exceeded','context_window_exceeded'):kind='context'
-        raise GatewayError(kind,status=status,retry_after=retry_after(exc.headers.get('Retry-After'))) from None
+        delays=[retry_after(exc.headers.get(name)) for name in ('Retry-After','llm_provider-retry-after')]
+        valid=[value for value in delays if value is not None]
+        raise GatewayError(kind,status=status,retry_after=max(valid) if valid else None) from None
     except (socket.timeout,TimeoutError):raise GatewayError('timeout') from None
     except (urllib.error.URLError,OSError):raise GatewayError('network') from None
     except (ValueError,UnicodeError):raise GatewayError('invalid_response') from None
