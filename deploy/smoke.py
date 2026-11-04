@@ -1,6 +1,7 @@
 """Disposable GitHub CI only: builds images, runs Web/Icecast, never News/Radio engines."""
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import subprocess
@@ -10,13 +11,20 @@ import uuid
 from deploy.init import initialize
 
 ROOT=Path(__file__).resolve().parents[1]
+_REDACTIONS=[]
+
+
+def diagnostic(output):
+    for value in _REDACTIONS:
+        output=output.replace(value,'[redacted]')
+    output=re.sub(r'(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])','[redacted]',output)
+    print(output[-12000:],flush=True)
 
 
 def run(command,*,input=None,check=True):
     result=subprocess.run(command,cwd=ROOT,input=input,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=900)
     if check and result.returncode:
-        # Build diagnostics contain no build args/secrets. Runtime output is not printed.
-        if 'build' in command:print(result.stdout)
+        diagnostic(result.stdout)
         raise RuntimeError('Isolated Docker smoke command failed')
     return result
 
@@ -26,6 +34,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='atlas-compose-smoke-') as temporary:
         state=Path(temporary)/'state'
         initialize(state,'synthetic-ci-admin',secrets.token_urlsafe(32))
+        _REDACTIONS[:]=[p.read_text().strip() for p in (state/'secrets').iterdir() if p.is_file()]
         with (state/'compose.env').open('a') as out:out.write('ATLAS_WEB_PORT=0\n')
         command=['docker','compose','-p','atlas-ci-'+uuid.uuid4().hex[:10],'-f',str(ROOT/'docker-compose.yml'),'--env-file',str(state/'compose.env'),'--profile','full']
         app_image='nova-atlas:02-foundation'
@@ -100,6 +109,9 @@ publish_audio(source,target,inspect_audio(source),1)
             for name in ('admin_password_hash','session_secret','icecast_source_password'):
                 assert (state/'secrets'/name).read_text().strip() not in logs
             print('Docker smoke PASS: builds, non-root binaries, closed secrets, health, shared locks/audio, persistence and SIGTERM. No engines started.')
+        except BaseException:
+            diagnostic(run(command+['logs','--no-color','--tail','60','web','icecast'],check=False).stdout)
+            raise
         finally:
             run(command+['down','--remove-orphans'],check=False)
 
