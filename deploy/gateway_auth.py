@@ -19,8 +19,9 @@ def allowed_models():
 
 
 async def authenticate(request,api_key):
-    from starlette.exceptions import HTTPException
-    from litellm.proxy._types import UserAPIKeyAuth
+    from litellm.proxy._types import UserAPIKeyAuth, ProxyException
+    def HTTPException(status_code,detail):
+        return ProxyException(message=detail,type="auth_error",param=None,code=status_code)
     expected=os.environ.get('LITELLM_MASTER_KEY','')
     if not expected or not isinstance(api_key,str) or not hmac.compare_digest(api_key,expected):
         raise HTTPException(status_code=401,detail='Gateway authentication required')

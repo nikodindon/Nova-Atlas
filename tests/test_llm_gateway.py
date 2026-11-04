@@ -301,9 +301,8 @@ def test_proxy_custom_auth_no_database_and_inference_only(monkeypatch,key,path,b
     import asyncio,sys,types
     from deploy import gateway_auth
     class HTTPException(Exception):
-        def __init__(self,status_code,detail):self.status_code=status_code
-    monkeypatch.setitem(sys.modules,'starlette.exceptions',types.SimpleNamespace(HTTPException=HTTPException))
-    monkeypatch.setitem(sys.modules,'litellm.proxy._types',types.SimpleNamespace(UserAPIKeyAuth=lambda **kwargs:kwargs))
+        def __init__(self,*,code,message,type,param):self.status_code=code
+    monkeypatch.setitem(sys.modules,'litellm.proxy._types',types.SimpleNamespace(UserAPIKeyAuth=lambda **kwargs:kwargs,ProxyException=HTTPException))
     monkeypatch.setenv('LITELLM_MASTER_KEY','synthetic-key')
     monkeypatch.setattr(gateway_auth,'allowed_models',lambda:{'atlas-fast'})
     async def get_body():return body
