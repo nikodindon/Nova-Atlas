@@ -99,3 +99,13 @@ par nh3 et les liens filtrés avant HTML. Des assets JS connus initialisent les
 composants sans interpréter le HTML reçu. Navigation publique et radio persistent,
 CSP self sans unsafe-eval ni scripts inline ; styles historiques inline conservés.
 Aucune API Android modifiée. Voir WEB_SECURITY.md pour audit et limites.
+
+## Livraison incrémentale Sprint 02
+
+Compose sépare les modes existants --web/--news/--radio et Icecast, sans dupliquer
+leurs schedulers. Racine /app commune, mêmes binds POSIX locaux et UID/GID pour
+les verrous, journaux et MP3 privés ; contrôles d'identité de stockage avant exec.
+Images non-root, secrets en fichiers, backend interne et egress explicite, health
+processus/stockage distincte de la santé métier. Tini et arrêt coopératif incluent
+les travaux web en cours. L'adaptateur Ollama de déploiement conserve l'appel run
+existant sans installer de modèle ; aucun backend cloud. Voir DOCKER_DEPLOYMENT.md.

@@ -190,3 +190,19 @@ Voir [WEB_SECURITY.md](WEB_SECURITY.md) pour inventaire détaillé, politique HT
 nginx/Tailscale, déploiement des exports et limites. Les styles inline historiques
 restent permis ; la compromission du serveur/assets et les anciens exports non
 régénérés ne sont pas couverts. Aucun secret historique reproduit ou révoqué ici.
+
+## Mise à jour Sprint 02
+
+Socle dev@f70ff2c après fusion explicitement demandée de la PR #9, CI réussie.
+Quatre reproductions de déploiement en échec avant correction : services manquants,
+latest, identifiants d'exemple opérationnels et écoute hôte wildcard. Compose les
+corrige avec profils, secrets privés et port web loopback. Les digests Python et
+Icecast ont été vérifiés publiquement, sans utiliser de credentials privés.
+
+Les processus partagent les mêmes binds/UID et identifiants LLM ; leases de rôle
+stables contre les doubles instances. SIGTERM est installé avant les enfants et
+le web draine requêtes/flashs. Le log Android ne révèle plus l'URL Icecast contenant
+le mot de passe. Les réglages conteneur gérés ne peuvent pas être écrasés par l'UI.
+Voir DOCKER_DEPLOYMENT.md : healthchecks non métier, arrêt forcé après expiration,
+limites POSIX/local et tests CI. Aucun déploiement, migration ou accès aux secrets
+historiques. Leur rotation reste à effectuer par le propriétaire.

@@ -259,6 +259,7 @@ paths:
 icecast:
   host: localhost
   port: 8000
-  password: hackme
+  # Définir explicitement hors Git ; Compose injecte un fichier secret.
+  password: ""
   mount: /nova
   user: source

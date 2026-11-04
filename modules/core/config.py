@@ -52,6 +52,10 @@ DEFAULT_CONFIG = {
 def load_config(config_path: str = None) -> Dict[str, Any]:
     """Load configuration from YAML file with fallback to defaults."""
     path = Path(config_path) if config_path else CONFIG_PATH
+    import os
+    if os.environ.get('ATLAS_CONTAINER') == '1':
+        from deploy.runtime import load_container_config
+        return load_container_config(path)  # Fail closed; never fall back to example settings.
 
     if not path.exists():
         print(f"⚠️  Config file not found: {path}. Using default configuration.")

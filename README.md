@@ -1,13 +1,14 @@
 # Nova-Atlas
 
-> **État Sprint 00 / V2 (novembre 2026)** : le socle actuel est Python/Flask,
+> **État Sprints 01 / 02 (novembre 2026)** : le socle actuel est Python/Flask,
 > stockage JSON/YAML, Ollama CLI ou llama-server, Edge TTS/FFmpeg/Icecast.
 > Les pages sont générées et servies par Flask ; la V2 n'est pas encore livrée.
 > Sprint 01A ajoute une administration Flask fermée par défaut :
 > [initialisation et connexion](docs/SECRETS_AND_ADMIN.md).
 > Les descriptions ci-dessous restent historiques et ne garantissent pas la
 > fiabilité ni la sécurité du déploiement. Les routes d'administration doivent
-> rester sur un réseau maîtrisé ; l’audit XSS complet reste à traiter.
+> rester sur un réseau maîtrisé ; les rendus et la CSP sont décrits dans
+> [la sécurité web](docs/WEB_SECURITY.md).
 > Sprint 01B centralise la [protection HTTP/SSRF](docs/HTTP_SECURITY.md) des sources.
 > Sprint 01C fiabilise le [scheduler et son arrêt](docs/SCHEDULER.md) ;
 > la radio respecte désormais les heures cibles de `config/bulletins.yaml`.
@@ -18,10 +19,33 @@
 > [Roadmap V2](docs/ROADMAP_V2.md) · [Audit P0](docs/AUDIT_P0.md) ·
 > [Baseline et tests hors ligne](docs/testing/BASELINE.md) ·
 > [Secrets et routes admin](docs/SECRETS_AND_ADMIN.md).
-> Baseline : 185 tests existants réussis ; suite Sprint 00 : 190 réussis.
+> Baseline historique : 185 puis 190 tests au Sprint 00 ; 866 avant le Sprint 02.
 > Les variables admin sont lues dans l’environnement du processus ; `.env` n’est pas chargé automatiquement.
 > Incident historique OpenRouter signalé : révocation à réaliser par le propriétaire.
 
+
+## Installation Compose préparée au Sprint 02
+
+[Procédure complète : DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md).
+Quatre services existants séparés (`web`, `news`, `radio`, `icecast`), profils
+sélectifs, images versionnées/digests, utilisateur non-root, état POSIX local
+partagé et secrets en fichiers. Web publié sur loopback ; Icecast reste interne.
+Aucun GPU ni modèle dans les images. Aucun déploiement réel réalisé par cette PR.
+
+```sh
+python3.12 -m venv .venv-container
+.venv-container/bin/python -m pip install -r requirements-runtime.lock
+.venv-container/bin/python -m deploy.init --directory deploy/local --admin-username atlas-owner
+docker compose --env-file deploy/local/compose.env --profile web config --quiet
+docker compose --env-file deploy/local/compose.env --profile web build web
+docker compose --env-file deploy/local/compose.env --profile web up -d --wait web
+```
+
+Le mot de passe est demandé sans écho ; initialisation limitée à un répertoire
+neuf. Ce démarrage web seul n'active ni sources ni LLM ni radio. Configurer ensuite
+HTTPS, le serveur LLM de confiance et les flux avant tout profil complet autorisé.
+Arrêt, sauvegarde, restauration, permissions, limites et rollback sont documentés.
+Ne jamais lancer la pile sur des données existantes par copie automatique.
 
 Nova-Atlas is a fully autonomous AI-powered news engine and internet radio station.
 It collects news from dozens of RSS feeds, analyzes them using local LLMs (Ollama or llama-server), and generates high-quality spoken bulletins, written editions, daily reports, social media posts, and a modern static website — all running locally.

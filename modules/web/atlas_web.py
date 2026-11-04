@@ -1278,6 +1278,7 @@ def create_app(config: dict, *, root: Path = None):
     install_web_security(app)
     install_admin_security(app)
     app.extensions["atlas_paths"] = paths
+    app.extensions["atlas_background_jobs"] = []
     @app.get('/assets/<name>')
     def web_asset(name):
         allowed = {'web.js','flash.js','csrf.js','config.js','simple-config.js','feeds.js','preferences.js'}
@@ -1312,7 +1313,11 @@ def create_app(config: dict, *, root: Path = None):
                         upstream_session.close()
             def audio_chunks():
                 try:
-                    yield from req.iter_content(chunk_size=4096)
+                    for chunk in req.iter_content(chunk_size=4096):
+                        event=app.extensions.get('atlas_stop_event')
+                        if event is not None and event.is_set():
+                            break
+                        yield chunk
                 finally:
                     close_upstream()
             result = _Resp(audio_chunks(), content_type="audio/mpeg", status=req.status_code)
@@ -1878,7 +1883,11 @@ def create_app(config: dict, *, root: Path = None):
                     _flash_guard.release()
 
             try:
-                threading.Thread(target=_run_flash, daemon=True, name=f"FlashJob_{job_id}").start()
+                jobs=app.extensions['atlas_background_jobs']
+                jobs[:]=[job for job in jobs if job.is_alive()]
+                job_thread=threading.Thread(target=_run_flash, daemon=True, name=f"FlashJob_{job_id}")
+                jobs.append(job_thread)
+                job_thread.start()
             except Exception:
                 _flash_guard.release()
                 _flash_jobs[job_id]['status'] = 'error'
@@ -1950,14 +1959,18 @@ def create_app(config: dict, *, root: Path = None):
 
 
 def run_server(config: dict, host: str = "0.0.0.0", port: int = 5055,
-               debug: bool = False):
+               debug: bool = False, *, stop_event=None):
     app = create_app(config)
     _sync_icecast_to_atlas_config(config, app.extensions['atlas_paths'])
     # Access logs can include credential-bearing query strings; do not enable them.
     import logging
     logging.getLogger('werkzeug').setLevel(logging.CRITICAL)
     # The interactive debugger must never expose configuration or execution access.
-    app.run(host=host, port=port, debug=False, use_reloader=False)
+    if stop_event is None:
+        app.run(host=host, port=port, debug=False, use_reloader=False)
+    else:
+        from modules.web.lifecycle import serve
+        serve(app,host,port,stop_event)
 
 # ─── TEMPLATES HTML ───────────────────────────────────────────────────────────
 # (identiques à la version originale — seules les références aux chemins ont

@@ -312,7 +312,7 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
 
 # ─── PROCESSUS : WEB SERVER ───────────────────────────────────────────────────
 
-def run_web_server(config: dict, port_override: int = None, debug: bool = False):
+def run_web_server(config: dict, port_override: int = None, debug: bool = False, *, stop_event=None):
     setup_logging(debug)
     from modules.web.atlas_web import run_server, generate_static_site
 
@@ -328,7 +328,9 @@ def run_web_server(config: dict, port_override: int = None, debug: bool = False)
         log.warning(f"Génération site : {e}")
 
     log.info(f"✅ Web → http://localhost:{port}/")
-    run_server(config, host=host, port=port)
+    if stop_event is not None and stop_event.is_set():
+        return
+    run_server(config, host=host, port=port, stop_event=stop_event)
 
 
 # ─── ONE-SHOT COMMANDS ────────────────────────────────────────────────────────
@@ -396,7 +398,7 @@ def _scheduler_process(fn, args, stop_event):
 
 
 def _start_process(fn, name: str, *args) -> multiprocessing.Process:
-    if fn in (run_news_engine, run_radio):
+    if fn in (run_news_engine, run_radio, run_web_server):
         stop_event = multiprocessing.Event()
         p = multiprocessing.Process(target=_scheduler_process, args=(fn, args, stop_event),
                                     name=name, daemon=True)
@@ -463,9 +465,39 @@ def main():
     if do_web:   proc_defs.append((run_web_server,  "WebServer",  (config, args.port, debug)))
 
     processes = []
+    stopping = False
+    starting = True
+    stop_requested = False
+    restart_requested = False
+    def shutdown(sig, frame):
+        nonlocal stopping, stop_requested
+        if starting:
+            stop_requested = True
+            return
+        if stopping:
+            return
+        stopping = True
+        logger.info("\n⛔ Arrêt : attente des traitements actifs...")
+        for p in processes:
+            event = getattr(p, 'scheduler_stop_event', None)
+            if event is not None:
+                event.set()
+        for p in processes:
+            _stop_process(p)
+        sys.exit(0)
+
+    # Handle Docker SIGTERM before the first child can start work.
+    signal.signal(signal.SIGINT, shutdown)
+    if sys.platform != 'win32':
+        signal.signal(signal.SIGTERM, shutdown)
     for fn, name, fn_args in proc_defs:
+        if stop_requested:
+            break
         processes.append(_start_process(fn, name, *fn_args))
         time.sleep(0.5)
+    starting = False
+    if stop_requested:
+        shutdown(signal.SIGTERM, None)
 
     logger.info("=" * 68)
     if do_news:
@@ -478,22 +510,6 @@ def main():
         logger.info(f"🌐  Web          : http://localhost:{args.port or wc.get('port',5055)}/")
     logger.info("=" * 68)
     logger.info("Ctrl+C pour arrêter")
-
-    stopping = False
-    restart_requested = False
-    def shutdown(sig, frame):
-        nonlocal stopping
-        if stopping:
-            return
-        stopping = True
-        logger.info("\n⛔ Arrêt : attente des traitements actifs...")
-        for p in processes:
-            event = getattr(p, 'scheduler_stop_event', None)
-            if event is not None:
-                event.set()
-        for p in processes:
-            _stop_process(p)
-        sys.exit(0)
 
     def request_restart(sig, frame):
         nonlocal restart_requested
