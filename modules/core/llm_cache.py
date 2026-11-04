@@ -18,7 +18,9 @@ TTL = 7 jours par défaut (config.llm.cache_ttl_days). Passé ce délai,
 l'entrée est régénérée. On peut forcer le bypass avec use_cache=False
 pour les éditions/rapports qui veulent du contenu frais.
 
-Thread-safe via un lock fichier (réutilise le pattern de llm_client.py).
+Chaque fichier est remplacé atomiquement. La paire txt/meta n'est pas une
+transaction ; les générations d'une même ressource sont sérialisées par llm_lock.
+Aucun verrou LLM n'est requis pour une lecture de cache déjà disponible.
 """
 
 import hashlib

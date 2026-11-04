@@ -63,3 +63,11 @@ Le scheduler reste dans les processus existants. Décisions isolées dans
 modules/core/scheduler.py, attente Event, créneaux civils datés, admissions par
 famille et arrêt coopératif. L'historique est borné et en mémoire ; les jobs durables
 et l'idempotence inter-instances restent au sprint SQL. Voir SCHEDULER.md.
+
+## Livraison incrémentale Sprint 01D
+
+Les ressources LLM locales exclusives utilisent un flock partagé par ressource,
+avec un bail par processus/thread et une attente bornée sans préemption. Le cache
+peut répondre sans ce verrou ; il est revérifié après attente. La capacité des
+futures API cloud sera gérée séparément par l'adaptateur/LiteLLM, jamais par le
+verrou global d'un modèle local. Aucun backend cloud ajouté. Voir LLM_LOCKING.md.

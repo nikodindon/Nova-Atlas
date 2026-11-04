@@ -54,6 +54,9 @@ data/seen_hashes.json
 data/preferences.json
 data/processed_hashes.json
 data/ollama.lock
+data/ollama.lock.meta
+data/llm-*.lock
+data/llm-*.lock.meta
 
 # Site généré
 site/
