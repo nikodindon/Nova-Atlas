@@ -50,7 +50,7 @@ def safe_url(value):
 def load_policy(path):
     try:
         policy=yaml.safe_load(Path(path).read_text())
-        if policy['version']!=1 or type(policy['local_only']) is not bool or type(policy.get('allow_paid',False)) is not bool:raise ValueError()
+        if type(policy['version']) is not int or policy['version']!=1 or type(policy['local_only']) is not bool or type(policy.get('allow_paid',False)) is not bool:raise ValueError()
         deployments=policy['deployments'];aliases=policy['aliases']
         if not isinstance(deployments,dict) or not deployments or len(deployments)>16 or set(aliases)!=set(ALIASES):raise ValueError()
         import re

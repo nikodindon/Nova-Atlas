@@ -248,6 +248,7 @@ def test_relay_error_redaction_retry_and_context(policy,tmp_path):
     result=client.post('/local-main/v1/chat/completions',headers=headers,json=body)
     assert result.status_code==429 and result.headers['Retry-After']=='42'
     transport.side_effect=gw.GatewayError('context',status=400)
+    client=create_relay(policy,tmp_path,'synthetic',{},transport=transport).test_client()
     result=client.post('/local-main/v1/chat/completions',headers=headers,json=body)
     assert result.json['error']['code']=='context_length_exceeded'
 
@@ -311,3 +312,14 @@ def test_proxy_custom_auth_no_database_and_inference_only(monkeypatch,key,path,b
     else:
         with pytest.raises(HTTPException) as caught:asyncio.run(gateway_auth.authenticate(request,key))
         assert caught.value.status_code==status
+
+
+def test_relay_provider_retry_after_embargo_even_if_intermediary_drops_header(policy,tmp_path):
+    transport=Mock(side_effect=gw.GatewayError('rate_limit',status=429,retry_after=30))
+    client=create_relay(policy,tmp_path,'synthetic',{},transport=transport).test_client()
+    headers={'Authorization':'Bearer synthetic'};body={'messages':[{'role':'user','content':'prompt'}]}
+    first=client.post('/local-main/v1/chat/completions',headers=headers,json=body)
+    second=client.post('/local-main/v1/chat/completions',headers=headers,json=body)
+    assert first.status_code==second.status_code==429
+    assert 0<float(second.headers['Retry-After'])<=30
+    assert transport.call_count==1

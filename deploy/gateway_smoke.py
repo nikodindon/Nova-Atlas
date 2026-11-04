@@ -43,6 +43,18 @@ else:raise AssertionError('Unauthenticated gateway accepted')
 """
             probe=['run','--rm','--no-deps','--entrypoint','python','news','-c',code]
             smoke.run(command+probe)
+            errors="""import time
+from modules.core.config import load_config
+from modules.core.llm_client import OllamaClient
+client=OllamaClient(load_config('/app/config/config.yaml'))
+start=time.monotonic()
+assert client.call('SIMULATE_429',caller='fetch',timeout=30)
+assert time.monotonic()-start>=2
+assert client.call('SIMULATE_500',caller='fetch',timeout=30)==''
+"""
+            smoke.run(command+['run','--rm','--no-deps','--entrypoint','python','news','-c',errors])
+            counts="import json,urllib.request;data=json.load(urllib.request.urlopen('http://127.0.0.1:8080/counts'));assert data['SIMULATE_429']==2;assert data['SIMULATE_500']==2"
+            smoke.run(command+['exec','-T','fake-provider','python','-c',counts])
             smoke.run(command+['stop','litellm','llm-egress'])
             for service in ('litellm','llm-egress'):
                 container=smoke.run(command+['ps','-aq',service]).stdout.strip()

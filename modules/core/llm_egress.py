@@ -16,12 +16,20 @@ from modules.core.llm_lock import LocalLLMLock,resource_path
 
 class Capacity:
     def __init__(self,directory):
-        self.directory=directory;self.guard=threading.Lock();self.requests={}
+        self.directory=directory;self.guard=threading.Lock();self.requests={};self.cooldowns={}
+
+    def defer(self,deployment,seconds):
+        identity=deployment['provider']+':'+(deployment.get('resource','local-llm') if deployment['provider'] in ('ollama','llama-server') else '')
+        with self.guard:self.cooldowns[identity]=max(self.cooldowns.get(identity,0),time.monotonic()+seconds)
 
     @contextmanager
     def hold(self,deployment):
         local=deployment['provider'] in ('ollama','llama-server')
         provider=deployment['provider']
+        with self.guard:
+            identity=provider+':'+(deployment.get('resource','local-llm') if local else '')
+            remaining=self.cooldowns.get(identity,0)-time.monotonic()
+            if remaining>0:raise GatewayError('rate_limit',status=429,retry_after=remaining)
         if not local:
             with self.guard:
                 now=time.monotonic();recent=[t for t in self.requests.get(provider,[]) if now-t<60]
@@ -77,7 +85,10 @@ def create_relay(policy,directory,key,provider_keys,*,transport=None):
             timeout=float(request.headers.get('X-Atlas-Timeout','900'))
             if not math.isfinite(timeout) or not 0<timeout<=3600:raise GatewayError('request_rejected',status=400)
             with capacity.hold(d):
-                data=transport(d['base_url'].rstrip('/')+'/chat/completions',payload,provider_keys.get(d['provider'],''),timeout)
+                try:data=transport(d['base_url'].rstrip('/')+'/chat/completions',payload,provider_keys.get(d['provider'],''),timeout)
+                except GatewayError as exc:
+                    if exc.retry_after is not None:capacity.defer(d,exc.retry_after)
+                    raise
             from modules.core.llm_gateway import response_text
             text=response_text(data)
             # Deliberately reconstruct the response. No arbitrary provider metadata.
