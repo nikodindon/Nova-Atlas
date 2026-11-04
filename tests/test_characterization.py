@@ -46,14 +46,16 @@ def test_article_summary_to_spoken_text():
     assert clean_for_tts(article['summary']) == 'Une information synthétique à Paris.'
 
 
-def test_failed_audio_segment_is_currently_skipped(monkeypatch, tmp_path):
+def test_failed_audio_segment_refuses_entire_bulletin(monkeypatch, tmp_path):
     # Synthetic artifacts only; no valid MP3, Edge TTS, FFmpeg or Icecast.
-    def synthesize(text, voice, path):
+    def synthesize(text, voice, path, **kwargs):
         if text == 'failure':
             return False
         path.write_bytes(b'synthetic-audio-placeholder')
         return True
     monkeypatch.setattr('modules.radio.bulletin_generator.synthesize_segment', synthesize)
-    paths = synthesize_all_segments([('[VOIX1]', 'first'), ('[VOIX1]', 'failure'),
-                                    ('[VOIX1]', 'last')], {'[VOIX1]': 'fake'}, tmp_path)
-    assert [p.name for p in paths] == ['seg_000_VOIX1.mp3', 'seg_002_VOIX1.mp3']
+    from modules.radio.audio_integrity import AudioIntegrityError, AudioInfo
+    with pytest.raises(AudioIntegrityError):
+        synthesize_all_segments([('[VOIX1]', 'first'), ('[VOIX1]', 'failure'),
+                                 ('[VOIX1]', 'last')], {'[VOIX1]': 'fake'}, tmp_path,
+                                backoff=0, inspector=lambda _: AudioInfo(1))

@@ -5,6 +5,8 @@ Supporte fadeout fluide entre musique et bulletins.
 """
 
 import logging
+from collections import OrderedDict
+from modules.radio.audio_integrity import validated_publication, cache_publication, receipt_path
 import random
 import subprocess
 import tempfile
@@ -63,6 +65,8 @@ class Streamer:
         self._ffmpeg_proc: subprocess.Popen | None = None
         self._play_queue: Queue = Queue()
         self._lock = threading.Lock()
+        self._bulletin_lock = threading.Lock()
+        self._accepted_bulletins = OrderedDict()
 
         self._fade_cache: bytes | None = None
         self._fade_cache_ready = threading.Event()
@@ -81,11 +85,17 @@ class Streamer:
     # ------------------------------------------------------------------ #
 
     def enqueue_bulletin(self, path: Path):
-        """Ajoute un bulletin dans la file d'attente."""
-        if path and path.exists():
-            self._play_queue.put(path)
-            logger.info(f"📥 Journal en file : {path.name}")
+        """Admit an immutable validated publication once per recent history."""
+        with self._bulletin_lock:
+            if not path or not validated_publication(path) or Path(path).name in self._accepted_bulletins:
+                logger.warning('Bulletin admission refused (invalid or duplicate)')
+                return False
+            self._play_queue.put(Path(path))
+            self._accepted_bulletins[Path(path).name] = None
+            if len(self._accepted_bulletins) > 4096:
+                self._accepted_bulletins.popitem(last=False)
             self._fade_requested.set()
+            return True
 
     def run(self):
         """Boucle principale du streamer."""
@@ -127,7 +137,11 @@ class Streamer:
         try:
             bulletin = self._play_queue.get_nowait()
             logger.info(f"🎙️ Diffusion du journal : {bulletin.name}")
+            if not validated_publication(bulletin):
+                logger.warning('Queued bulletin changed; playback refused')
+                return
             self._stream_file(bulletin, is_music=False)
+            receipt_path(bulletin).unlink(missing_ok=True)
             bulletin.unlink(missing_ok=True)
         except Empty:
             music = self._pick_music()
@@ -307,6 +321,8 @@ class AndroidStreamer:
         self._stop_event     = threading.Event()
         self._ffmpeg_proc    = None
         self._lock           = threading.Lock()
+        self._bulletin_lock  = threading.Lock()
+        self._accepted_bulletins = OrderedDict()
         # Bulletin "courant" (celui qui est en train de boucler).
         # Au démarrage, on charge le dernier bulletin dispo dans
         # audio_queue/ pour ne pas commencer en silence.
@@ -314,6 +330,8 @@ class AndroidStreamer:
         self._current: Path | None = self._load_last_bulletin(config)
         # Nouveau bulletin qui attend la fin du courant
         self._pending: Path | None = None
+        if self._current:
+            self._accepted_bulletins[self._current.name] = None
         # Event levé quand le passage courant finit (entre 2 loops)
         self._current_done = threading.Event()
         self._current_done.set()  # rien en cours au début
@@ -322,69 +340,43 @@ class AndroidStreamer:
         # Icecast ne liste pas le mount tant qu'aucune donnée n'est envoyée).
         self._silence_bytes = self._generate_silence()
 
-    def _load_last_bulletin(self, config: dict) -> Path | None:
-        """
-        Charge le dernier bulletin créé dans audio_queue/ pour
-        démarrer avec du contenu (pas du silence) si possible.
-        Copie dans android_cache/ pour eviter que le Streamer
-        normal ne le supprime pendant qu'on le lit.
-        """
-        paths = config.get("paths", {})
-        queue_dir = Path(paths.get("audio_queue", "audio_queue"))
-        if not queue_dir.exists():
-            logger.debug(f"[android] Pas de dossier audio_queue: {queue_dir}")
-            return None
-        bulletins = list(queue_dir.glob("bulletin_*.mp3"))
-        if not bulletins:
-            logger.info(f"[android] Aucun bulletin dans {queue_dir}, démarrage en silence")
-            return None
-        latest = sorted(bulletins)[-1]
-        # Copier dans le cache Android pour qu'on ne soit pas
-        # affecté par le cleanup du Streamer normal
-        try:
-            cache_dir = queue_dir / "android_cache"
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            cached = cache_dir / latest.name
-            import shutil as _sh
-            _sh.copy2(latest, cached)
-            logger.info(f"📰 [android] Reprise du dernier bulletin (cache): {cached.name}")
-            return cached
-        except Exception as e:
-            logger.warning(f"[android] Echec copie cache, path direct : {e}")
-            logger.info(f"📰 [android] Reprise du dernier bulletin : {latest.name}")
-            return latest
+    def _load_last_bulletin(self, config):
+        queue_dir = Path(config.get('paths', {}).get('audio_queue', 'audio_queue'))
+        candidates = list(queue_dir.glob('bulletin_*.mp3')) + list((queue_dir / 'android_cache').glob('bulletin_*.mp3'))
+        ordered = []
+        for path in candidates:
+            try:
+                if validated_publication(path):
+                    ordered.append((path.stat().st_mtime_ns, path))
+            except OSError:
+                continue  # The primary may have consumed it during the scan.
+        for _, candidate in sorted(ordered, key=lambda entry: entry[0], reverse=True):
+            try:
+                return cache_publication(candidate, queue_dir / 'android_cache')
+            except (OSError, ValueError):
+                logger.warning('Android cached publication unavailable')
+        return None
 
     def enqueue_bulletin(self, path: Path):
-        """Le scheduler appelle ça avec le nouveau bulletin."""
-        if path and path.exists():
-            # IMPORTANT : on copie le bulletin dans notre cache local.
-            # Pourquoi : le Streamer normal supprime les bulletins apres
-            # les avoir diffuses (cf Streamer._play_next L131). Si on
-            # garde une reference au fichier original, il sera supprime
-            # et on ne pourra plus reboucler.
+        """Copy atomically before primary playback can remove the original."""
+        with self._bulletin_lock:
+            if not path or not validated_publication(path) or Path(path).name in self._accepted_bulletins:
+                logger.warning('Android bulletin admission refused (invalid or duplicate)')
+                return False
             try:
-                cache_dir = Path(self._config.get("paths", {}).get("audio_queue", "audio_queue")) / "android_cache"
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                cached = cache_dir / path.name
-                # TOUJOURS copier, même si le nom est le même : le path
-                # d'origine peut etre dans audio_queue/ qui est nettoye
-                # par le Streamer normal (unlink apres diffusion).
-                import shutil as _sh
-                _sh.copy2(path, cached)
-                path = cached
-            except Exception as e:
-                logger.warning(f"[android] Echec copie cache, path direct : {e}")
-            # Si rien n'est en cours de diffusion, on devient le courant direct
+                cached = cache_publication(path, Path(self._config.get('paths', {}).get('audio_queue', 'audio_queue')) / 'android_cache')
+            except (OSError, ValueError):
+                logger.warning('Android publication copy failed; previous audio retained')
+                return False
             if self._current is None:
-                self._current = path
+                self._current = cached
                 self._current_done.set()
-                logger.info(f"📥 [android] Premier bulletin : {path.name}")
             else:
-                # Sinon, on attend que le courant finisse
-                self._pending = path
-                logger.info(f"📥 [android] Bulletin en attente : {path.name}")
-        else:
-            logger.warning(f"[android] enqueue ignoré (path invalide) : {path}")
+                self._pending = cached
+            self._accepted_bulletins[Path(path).name] = None
+            if len(self._accepted_bulletins) > 4096:
+                self._accepted_bulletins.popitem(last=False)
+            return True
 
     def run(self):
         """Boucle principale : joue le bulletin courant en boucle."""
@@ -398,6 +390,11 @@ class AndroidStreamer:
         heartbeat.start()
         try:
             while not self._stop_event.is_set():
+                with self._bulletin_lock:
+                    if self._current is not None and not validated_publication(self._current):
+                        logger.warning('Android cached audio changed; playback refused')
+                        self._current = self._pending if validated_publication(self._pending) else None
+                        self._pending = None
                 if self._current is None:
                     # Pas de bulletin : on envoie du silence en boucle
                     # pour que le mount Icecast existe (sinon 404)
@@ -409,10 +406,13 @@ class AndroidStreamer:
                 # Joue le bulletin courant en boucle
                 self._play_in_loop(self._current)
                 # Si un nouveau bulletin attend, on bascule
-                if self._pending is not None:
-                    old = self._current
-                    self._current = self._pending
-                    self._pending = None
+                with self._bulletin_lock:
+                    pending = self._pending
+                    if pending is not None:
+                        old = self._current
+                        self._current = pending
+                        self._pending = None
+                if pending is not None:
                     logger.info(
                         f"🔄 [android] Bascule : {old.name} → {self._current.name}"
                     )

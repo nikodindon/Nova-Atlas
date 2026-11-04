@@ -143,3 +143,28 @@ exactly-once avant checkpoint ni d'ACK durable du build public. Parser RSS/Atom,
 statuts de santé des flux, normalisation temporelle globale, audio et XSS/CSP restent
 hors de cette correction. L'exposition historique OpenRouter reste une action du
 propriétaire ; aucune révocation n'est revendiquée.
+
+## Mise à jour Sprint 01F
+
+Socle `dev@2db598d`, PR #7 fusionnée sur demande explicite après CI réussie.
+Six reproductions exécutées avant correction échouaient : segment obligatoire
+manquant au début/milieu/fin, script invalide accepté, mix directement public et
+collision à la seconde. Elles passent après correction.
+
+| Constat | Statut 01F | Preuve / non-régression |
+|---|---|---|
+| `synthesize_all_segments` saute un segment échoué | Corrigé | Manifeste ordonné, validation individuelle, retry borné ; premier/centre/dernier, reprise et budget épuisé testés |
+| `build` accepte un sous-ensemble non vide | Corrigé | Nombre attendu = nombre validé, toutes les voix contrôlées ; aucun assemblage sur manifeste incomplet |
+| Script invalide accepté, troncature silencieuse | Corrigé | Structure bloquante, longueur strict/warn, profil flash conservé ; tests sans suppression de fin de texte |
+| FFmpeg considéré réussi sur simple présence du fichier | Corrigé | Codes retour, taille, décodage MP3 complet, probe optionnel, durées/formats ; tests erreurs/timeout/fichier vide/invalide |
+| Mix partiel visible et noms à la seconde | Corrigé | Zone privée même filesystem, UUID, reçu d'intégrité puis déplacement atomique ; interruption et collision concurrente testées |
+| Admissions radio/Android non validées ou dupliquées | Corrigé dans l'historique local borné | Reçu/empreinte et admission verrouillée, cache Android avant lecture principale, copie atomique ; refus et reprises testés |
+| Flash manuel potentiellement partiel | Corrigé | Validation avant `done` et contrôle du reçu lors du service audio ; auth/CSRF conservées |
+
+Les anciens MP3 non attestés restent intacts mais ne sont plus admis. La génération
+et les files ne disposent pas de jobs durables ni d'exactly-once après crash ; les
+reçus ne sont pas une signature contre un écrivain local malveillant. Voir
+[RADIO_INTEGRITY.md](RADIO_INTEGRITY.md) pour limites, nettoyage et rollback. Aucun
+TTS réseau ni streamer/Icecast/LLM réel démarré. XSS/CSP et autres P0 hors périmètre
+restent ouverts ; révocation historique OpenRouter toujours à confirmer par son
+propriétaire, aucune révocation effectuée ici.
