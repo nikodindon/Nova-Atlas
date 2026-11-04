@@ -58,7 +58,8 @@ def create_relay(policy,directory,key,provider_keys,*,transport=None):
     @app.before_request
     def authenticate():
         if request.path=='/health' and request.method=='GET':return None
-        if not hmac.compare_digest(request.headers.get('Authorization',''),'Bearer '+key):return jsonify(error={'code':'authentication'}),401
+        authorization=request.headers.get('Authorization','')
+        if not authorization.isascii() or not hmac.compare_digest(authorization,'Bearer '+key):return jsonify(error={'code':'authentication'}),401
     @app.get('/health')
     def health():
         import os,tempfile

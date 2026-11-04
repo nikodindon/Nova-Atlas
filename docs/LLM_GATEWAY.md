@@ -14,8 +14,8 @@ flowchart LR
 ```
 
 LiteLLM officiel **v1.108.0**, index public vérifié et épinglé dans
-`deploy/Dockerfile.litellm` (amd64/arm64 ; CI amd64). Son image contient les
-composants upstream ; aucun modèle téléchargé. Dérivé non-root, racine RO.
+`deploy/Dockerfile.litellm` (amd64/arm64 ; CI amd64). Son runtime upstream est Python 3.13 ; les applications Nova restent Python 3.12.
+Son image contient les composants upstream ; aucun modèle téléchargé. Dérivé non-root, racine RO.
 Les applications seules rejoignent `llm_clients`, LiteLLM et le relais seuls
 `llm_transport`, deux réseaux internes. Aucun port publié. LiteLLM n'a **aucun
 réseau egress** ; son unique destination modèle est le relais.
@@ -90,7 +90,8 @@ Aucune collecte réelle n'a été exécutée pour valider ce sprint.
 Les prompts et langues ne sont pas réécrits. Les prompts existants continuent
 d'utiliser la langue configurée ; la nouvelle opération distingue seulement la
 traduction. L'ancien paramètre model des éditions ne contourne pas le routage ;
-seul un des cinq alias explicites peut remplacer l'alias du caller.
+les callers métier gardent toujours leur alias. Le caller générique atlas peut
+sélectionner explicitement un des cinq alias via model pour les probes/outils.
 
 `llm_routes.yaml` version 1 contient `deployments` et les cinq `aliases`. Chaque
 alias liste un principal puis des alternatives **finies, uniques, explicites**,
@@ -98,7 +99,8 @@ alias liste un principal puis des alternatives **finies, uniques, explicites**,
 contient provider, model réel, base_url, languages, max_input_chars et
 max_output_tokens. Déclarer honnêtement les capacités : max_input_chars est une
 borne de caractères conservatrice, **pas un calcul universel de tokens**. Aucun
-fallback si la langue ou le volume déclaré n'est pas compatible ; pas de changement
+fallback si la capacité de sortie est inférieure à celle requise par le principal,
+la langue ou le volume déclaré n'est pas compatible ; pas de changement
 de langue. Le format supporté est texte non-streamé, sans tools/images/JSON schema.
 
 Ajouter un modèle : déclarer le déploiement, ses capacités et son coût autorisé,
@@ -154,7 +156,8 @@ Un seul propriétaire des retries : client Nova ; LiteLLM router/SDK configurés
 zéro et fallbacks désactivés. 401/402/403/404 sont distingués et non réessayés sur
 la même destination ; 429/5xx/timeout/réseau/réponse invalide ont un nombre borné.
 Backoff exponentiel borné avec jitter ; Retry-After secondes ou date HTTP respecté
-sans raccourcissement, même avant fallback. Le relais conserve aussi un embargo
+sans raccourcissement, même avant fallback (y compris le header
+`llm_provider-retry-after` préfixé par LiteLLM). Le relais conserve aussi un embargo
 fournisseur en mémoire pour éviter un contact anticipé si un intermédiaire perd
 le header ; comme les compteurs RPM, cet embargo est perdu au restart. S'il dépasse le budget restant, refus.
 Contexte trop grand et capacités incompatibles sont distingués. Une erreur finale
@@ -228,6 +231,7 @@ Aucune migration de données ou rollback réel exécuté pendant ce sprint.
 [OpenRouter Chat Completions](https://openrouter.ai/docs/api_reference/overview).
 Version/digest vérifiés au sprint ; ne pas remplacer par latest. Les mises à jour
 upstream nécessitent revalidation, notamment auth, retries et absence de DB.
-Tests unitaires sans réseau, Chromium historique, smoke Compose historique conservé.
+988 tests réussis hors ligne, Chromium historique et smoke Compose historique conservés.
+Le formulaire admin conserve le provider LiteLLM et les alias ; pas de refonte UI.
 Le smoke gateway CI utilise uniquement un faux fournisseur HTTP local jetable ;
 aucun modèle, TTS, source RSS ni compte cloud réel contacté.

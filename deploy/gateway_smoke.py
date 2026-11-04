@@ -63,7 +63,7 @@ assert client.call('SIMULATE_500',caller='fetch',timeout=30)==''
             smoke.run(command+probe)
             logs=smoke.run(command+['logs','--no-color']).stdout
             for value in smoke._REDACTIONS:assert value not in logs
-            print('Gateway smoke PASS: five aliases, language, auth, secret isolation, health, SIGTERM and restart. No external providers.',flush=True)
+            print('Gateway smoke PASS: five aliases, language, auth, 429/500 bounded retries, secret isolation, health, SIGTERM and restart. No external providers.',flush=True)
         except BaseException:
             smoke.diagnostic(smoke.run(command+['logs','--no-color','--tail','80'],check=False).stdout)
             raise

@@ -485,3 +485,16 @@ def test_flash_only_serves_complete_publication(client, app, monkeypatch, valid)
         assert audio.data == b'synthetic-valid-audio'
         path.write_bytes(b'modified after job completion')
         assert get(client, '/audio/flash_' + job + '.mp3').status_code == 404
+
+
+def test_gateway_admin_form_keeps_provider_and_alias_instead_of_cli_defaults(app,client):
+    path=app.extensions['atlas_paths']['config_file']
+    cfg=yaml.safe_load(path.read_text());cfg['llm'].update(provider='litellm',model='atlas-fast',base_url='http://litellm:4000')
+    path.write_text(yaml.safe_dump(cfg));login(client)
+    result=get(client,'/config/yaml')
+    assert result.status_code==200
+    assert re.search(r'<option value="litellm"\s+selected',result.text)
+    assert re.search(r'<option value="atlas-fast"\s+selected',result.text)
+    result=post(client,'/config/yaml/save',json={'section':'llm','key':'provider','value':'litellm'},headers={'X-CSRF-Token':csrf(client)})
+    assert result.status_code==200
+    assert yaml.safe_load(path.read_text())['llm']['provider']=='litellm'

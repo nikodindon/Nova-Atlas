@@ -291,6 +291,7 @@ def test_public_example_is_local_only_and_proxy_init_reaps():
 
 @pytest.mark.parametrize('key,path,body,status',[
     ('wrong','/v1/chat/completions',{'model':'atlas-fast'},401),
+    ('é','/v1/chat/completions',{'model':'atlas-fast'},401),
     ('synthetic-key','/key/generate',{},403),
     ('synthetic-key','/v1/chat/completions',{'model':'unlisted'},403),
     ('synthetic-key','/v1/chat/completions',{'model':'atlas-fast','api_base':'http://evil.invalid'},400),
@@ -330,3 +331,44 @@ def test_litellm_prefixed_retry_after_never_shortens_provider_delay(monkeypatch)
     monkeypatch.setattr(gw.urllib.request,'build_opener',lambda *a:opener)
     with pytest.raises(gw.GatewayError) as caught:gw.post_json('http://fake.invalid',{},'synthetic',1)
     assert caught.value.retry_after==30
+
+@pytest.mark.parametrize('provider,url,paid',[
+    ('openrouter','https://openrouter.ai/api/v1',False),
+    ('ollama-cloud','https://ollama.com/v1',False),
+    ('openrouter','https://openrouter.ai/api/v1',True),
+])
+def test_explicitly_authorized_cloud_policies_route_without_local_lock(setup,policy,provider,url,paid):
+    cfg,file=setup;policy.update(local_only=False,allow_paid=paid)
+    policy['deployments']['local-main'].update(provider=provider,base_url=url,paid=paid)
+    file.write_text(yaml.safe_dump(policy));transport=Mock(return_value=response())
+    client=gw.GatewayClient(cfg,transport=transport)
+    assert client.call('prompt français','fetch',20)
+    assert transport.call_args.args[1]['model']=='atlas-fast'
+
+
+def test_fallback_cannot_silently_reduce_required_output_capacity(setup,policy):
+    cfg,file=setup;policy['deployments']['small']={**policy['deployments']['local-main'],'max_output_tokens':128}
+    policy['aliases']['atlas-radio-script'].update(deployments=['local-main','small'],max_attempts=1)
+    file.write_text(yaml.safe_dump(policy));transport=Mock(side_effect=gw.GatewayError('unavailable'))
+    client=gw.GatewayClient(cfg,transport=transport)
+    with pytest.raises(gw.GatewayError,match='context'):client.call('script','bulletin',20)
+    assert transport.call_count==1
+
+
+def test_relay_rejects_non_ascii_auth_without_server_error(policy,tmp_path):
+    client=create_relay(policy,tmp_path,'synthetic',{}).test_client()
+    result=client.post('/local-main/v1/chat/completions',headers={'Authorization':'Bearer é'},json={})
+    assert result.status_code==401
+
+
+def test_editions_legacy_model_parameter_cannot_override_editorial_alias(setup):
+    cfg,_=setup;transport=Mock(return_value=response());client=gw.GatewayClient(cfg,transport=transport)
+    client.call('édition','editions',20,model='atlas-fast')
+    assert transport.call_args.args[1]['model']=='atlas-editorial'
+
+
+def test_web_update_preserves_gateway_provider(tmp_path):
+    from modules.web.config_security import update_yaml
+    path=tmp_path/'config.yaml';path.write_text('llm:\n  provider: litellm\n  model: atlas-fast\n')
+    update_yaml(path,'llm','provider','litellm')
+    assert yaml.safe_load(path.read_text())['llm']['provider']=='litellm'

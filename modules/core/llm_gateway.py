@@ -166,13 +166,14 @@ class GatewayClient:
     def call(self,prompt,caller,timeout,*,operation=None,cache_key=None,use_cache=True,cancel_event=None,model=None):
         use_cache=use_cache and self.enabled
         alias=alias_for(caller,operation)
-        if model in ALIASES:alias=model
+        if caller=='atlas' and model in ALIASES:alias=model
         elif model is not None:
             # Historical editions pass their real model. It cannot override deployment policy.
             log.debug('Legacy model parameter mapped to configured editorial alias')
         route=self.policy['aliases'][alias]
         if not isinstance(prompt,str) or not prompt.strip() or not isinstance(timeout,(int,float)) or not math.isfinite(timeout) or timeout<=0:raise GatewayError('request_rejected')
         deadline=self.clock()+min(timeout,float(route.get('timeout',900)))
+        required_output=self.policy['deployments'][route['deployments'][0]].get('max_output_tokens',4096)
         task=operation or caller
         fingerprint=cache_identity(prompt,self.language,alias,self.policy['deployments'],self.prompt_version,task)
         lock=LocalLLMLock(self.directory/(fingerprint+'.lock'))
@@ -182,8 +183,8 @@ class GatewayClient:
             if use_cache and cache_key:
                 for name in route['deployments']:
                     d=self.policy['deployments'][name]
-                    if len(prompt)>d.get('max_input_chars',32000) or (self.language not in d.get('languages',['*']) and '*' not in d.get('languages',['*'])):continue
-                    identity=cache_identity(prompt,self.language,alias,{'id':name,'config':d},self.prompt_version,task)
+                    if d.get('max_output_tokens',4096)<required_output or len(prompt)>d.get('max_input_chars',32000) or (self.language not in d.get('languages',['*']) and '*' not in d.get('languages',['*'])):continue
+                    identity=cache_identity(prompt,self.language,alias,{'id':name,'config':d,'required_output':required_output},self.prompt_version,task)
                     try:
                         record=json.loads((self.directory/(identity+'.json')).read_text())
                         if record['identity']==identity and record['deployment']==name and (self.ttl<=0 or 0<=time.time()-record['ts']<=self.ttl) and isinstance(record['text'],str) and record['text'].strip():return record['text']
@@ -191,9 +192,9 @@ class GatewayClient:
             last=GatewayError('unavailable')
             for index,name in enumerate(route['deployments']):
                 d=self.policy['deployments'][name]
-                if len(prompt)>d.get('max_input_chars',32000) or (self.language not in d.get('languages',['*']) and '*' not in d.get('languages',['*'])):
+                if d.get('max_output_tokens',4096)<required_output or len(prompt)>d.get('max_input_chars',32000) or (self.language not in d.get('languages',['*']) and '*' not in d.get('languages',['*'])):
                     last=GatewayError('context');continue
-                identity=cache_identity(prompt,self.language,alias,{'id':name,'config':d},self.prompt_version,task)
+                identity=cache_identity(prompt,self.language,alias,{'id':name,'config':d,'required_output':required_output},self.prompt_version,task)
                 path=self.directory/(identity+'.json')
                 if use_cache and cache_key:
                     try:
@@ -207,7 +208,7 @@ class GatewayClient:
                     started=self.clock()
                     try:
                         payload={'model':alias if index==0 else alias+'--'+name,'messages':[{'role':'user','content':prompt}],
-                                 'stream':False,'max_tokens':d.get('max_output_tokens',4096),'temperature':0.3,'num_retries':0,'extra_headers':{'X-Atlas-Timeout':str(remaining)}}
+                                 'stream':False,'max_tokens':required_output,'temperature':0.3,'num_retries':0,'extra_headers':{'X-Atlas-Timeout':str(remaining)}}
                         data=self.transport(self.url.rstrip('/')+'/v1/chat/completions',payload,self.key,remaining)
                         if cancel_event is not None and cancel_event.is_set():raise GatewayError('cancelled')
                         text=response_text(data)

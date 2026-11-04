@@ -136,8 +136,8 @@ Voir DOCKER_DEPLOYMENT.md pour la procédure, les limites et les conditions du F
 
 Socle dev@ca1f64c : 907 tests. Trois reproductions en échec avant correction :
 adaptateur d'alias absent, Compose sans passerelle optionnelle et cache sans
-identité de modèle. **978 réussis, 0 échec, 0 ignoré** en 30,44 s sous Python 3.12,
-soit 71 cas ajoutés, Chromium conservé. Aucune connexion fournisseur réelle.
+identité de modèle. **988 réussis, 0 échec, 0 ignoré** en 31,42 s sous Python 3.12,
+soit 81 cas ajoutés, Chromium conservé. Aucune connexion fournisseur réelle.
 Les tests couvrent erreurs 401/402/403/404/429/5xx, Retry-After, deadlines,
 annulation, capacités/fallback autorisé, secrets, concurrence/cache et Compose.
 Syntaxes Python/JS, contrôle CSRF et git diff --check réussis.

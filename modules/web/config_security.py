@@ -89,7 +89,7 @@ def validate_update(section, key, value):
     if field in TEXT_FIELDS:
         if not isinstance(value, str) or len(value) > TEXT_FIELDS[field] or any(c in value for c in '\r\n\x00<>'):
             raise ValueError('Valeur texte invalide')
-        if field == ('llm', 'provider') and value not in ('ollama', 'llama-server'):
+        if field == ('llm', 'provider') and value not in ('ollama', 'llama-server', 'litellm'):
             raise ValueError('Provider invalide')
         if field == ('service', 'default_language') and not re.fullmatch('[A-Za-z_-]{2,20}', value):
             raise ValueError('Langue invalide')
