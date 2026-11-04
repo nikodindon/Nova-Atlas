@@ -120,3 +120,26 @@ répertoires distincts ou avec l'ancien protocole. Un timeout client ne certifie
 l'arrêt effectif du calcul serveur. Le cache txt/meta reste non transactionnel.
 Voir LLM_LOCKING.md. Dates de déduplication, reprises, segments audio et XSS/CSP
 restent ouverts. Aucun modèle/fournisseur réel ni service de production lancé.
+
+## Mise à jour Sprint 01E
+
+Socle `dev@99bc9e4`, PR #6 fusionnée sur demande explicite, CI réussie.
+Sept reproductions échouaient avant correction ; elles vérifient maintenant le
+comportement corrigé (dont la caractérisation de l'article inaccessible).
+
+| Constat | Statut 01E | Preuve / non-régression |
+|---|---|---|
+| Soustraction des entiers YYYYMMDD | Corrigée, sept dates J−6…J | `_recent`, `_load_seen`, `_save_seen` : dates calendaires ; mois, année, février/bissextile, dates futures/invalides et purge testés |
+| Extraction vide définitivement marquée vue | Corrigée | `_process_item` : états persistants, seen uniquement après publication ; reprise même hors du flux et après redémarrage |
+| Résumé vide publié | Corrigé pour les nouvelles publications | Validation avant checkpoint/publication, erreurs LLM/extraction récupérables ; réparation historique opt-in sauvegardée |
+| Échecs HTTP indistincts | Corrigés pour les tentatives d'articles | `HTTPStatusError` sans URL/body, 429/503 Retry-After, 404/410 terminaux et SSRF ignoré ; transport simulé |
+| JSON corrompu traité comme vide, fallback copie non atomique | Corrigé | `article_state.read_json/atomic_json` : sauvegarde + arrêt conservateur, fsync/replace ; interruptions et conservation de l'original testées |
+| Reprise entre génération et sauvegarde / doublon URL | Corrigée avec checkpoint | `prepared` + jour cible, réconciliation idempotente, verrou collecteur ; pas de nouveau LLM après checkpoint durable |
+| Auth/CSRF, SSRF et verrou LLM | Préservés | Suites précédentes exécutées sans réseau/modèle/service réel |
+
+Voir [ARTICLE_INTEGRITY.md](ARTICLE_INTEGRITY.md) : bornes, états, schéma, configuration,
+rollback et limites. Pas de transaction multi-fichiers/distribuée, pas de garantie
+exactly-once avant checkpoint ni d'ACK durable du build public. Parser RSS/Atom,
+statuts de santé des flux, normalisation temporelle globale, audio et XSS/CSP restent
+hors de cette correction. L'exposition historique OpenRouter reste une action du
+propriétaire ; aucune révocation n'est revendiquée.

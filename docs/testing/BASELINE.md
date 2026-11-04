@@ -62,3 +62,17 @@ aucun lancement de main.py. La réussite distante devra être vérifiée sur Git
 Vérification complémentaire d'ordre de collecte : tests traduction → client LLM →
 caractérisations : 66 réussis en 0.37 s. Vérification syntaxique compileall réussie.
 Le HEAD dev distant vérifié avant publication est identique au socle local.
+
+## Sprint 01E — intégrité des articles
+
+Socle `dev@99bc9e4` (PR #6 fusionnée, contrôles réussis) : 663 tests.
+Sept reproductions exécutées avant correction : **7 échecs** (trois frontières
+calendaires, extraction vide marquée vue, résumé vide publié, fichier corrompu
+écrasable, suivi expiré non purgé). La caractérisation de l'article inaccessible
+vérifie maintenant sa reprise plutôt que le défaut historique.
+
+Suite finale locale Python 3.12 : **736 réussis, 0 échec, 0 ignoré**. Exécution dans
+`.venv-baseline`, fichiers temporaires uniquement, DNS/transport/LLM simulés ; aucun
+serveur Flask réel ni service audio. Syntaxe `compileall`, test JavaScript
+`node tests/test_csrf.cjs` et `git diff --check` réussis. Voir ARTICLE_INTEGRITY.md
+pour les cas de reprise et les limites ; les contrôles CI sont requis avant revue.

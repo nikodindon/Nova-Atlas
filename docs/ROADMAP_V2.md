@@ -10,8 +10,9 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | Sprint 01A | Auth admin Flask, sessions/CSRF, configuration sûre | Tests offline, revue et CI avant fusion ; pas de déploiement automatique |
 | Sprint 01B | HTTP externe/SSRF | PR #4 fusionnée après CI réussie |
 | Sprint 01C | Scheduler et concurrence | PR #5 fusionnée après CI réussie |
-| Sprint 01D | Verrou LLM local | flock, propriété, échec fermé et récupération OS testés ; revue avant fusion |
-| Autres PR P0 | Dates de déduplication, reprises, audio, XSS/CSP | Une reproduction et une non-régression par correction |
+| Sprint 01D | Verrou LLM local | PR #6 fusionnée après CI réussie |
+| Sprint 01E | Intégrité des articles JSON | Dates calendaires, retries persistants et publication atomique testés ; revue avant fusion |
+| Autres PR P0 | Audio, XSS/CSP et autres anomalies restantes | Une reproduction et une non-régression par correction |
 | 02 | Compose pour l'existant, secrets et healthchecks | Installation et redémarrage sans perte sur Linux |
 | 03 | LiteLLM et profils Ollama Cloud/OpenRouter | Alias métier, tests 429/timeout/auth, budgets/fallback |
 | 04 | PostgreSQL/Alembic et import JSON/YAML | Sauvegarde/restauration et aller-retour sans perte |
@@ -36,5 +37,8 @@ réalisée par ce sprint. Ne pas réécrire l'historique ici.
 Sprint 01A livré par la PR #3, fusionnée dans dev avant le Sprint 01B.
 Sprint 01B livré par la PR #4, fusionnée avant le Sprint 01C. Voir HTTP_SECURITY.md.
 Sprint 01C livré par la PR #5 ; voir SCHEDULER.md pour les garanties locales et les limites de reprise.
-Sprint 01D proposé sur feature/v2-llm-lock ; voir LLM_LOCKING.md pour le protocole,
-les limites et la séparation future des API cloud. Aucune fusion automatique de cette PR.
+Sprint 01D livré par la PR #6, fusionnée avant le Sprint 01E ; voir LLM_LOCKING.md.
+Sprint 01E proposé sur feature/v2-article-integrity ; voir ARTICLE_INTEGRITY.md pour
+les états, reprises, rétention et rollback. Aucun déploiement ou migration réelle ;
+aucune fusion automatique de la PR du sprint. Le sprint 05 conserve le parser
+RSS/Atom et la normalisation globale, en réutilisant ces garanties de reprise.

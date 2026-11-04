@@ -29,13 +29,15 @@ def test_legacy_feed_parser(fetcher, monkeypatch, name, count):
                              'pub_date': 'Mon, 02 Nov 2026 10:00:00 GMT'}
 
 
-def test_inaccessible_article_is_marked_seen(fetcher, monkeypatch):
-    monkeypatch.setattr(fetcher, '_fetch_content', lambda url: '')
+def test_inaccessible_article_remains_retryable(fetcher, monkeypatch, tmp_path):
+    fetcher._apply_config({"paths": {"data_dir": str(tmp_path), "articles_dir": str(tmp_path / "articles")}})
+    monkeypatch.setattr(fetcher, '_fetch_content', lambda url, **kw: '')
     seen, existing, articles = set(), set(), []
     item = {'title': 'Titre synthétique assez long pour le filtre',
             'link': 'https://example.invalid/unavailable'}
     assert fetcher._process_item(item, 'tech', seen, existing, articles) is False
-    assert seen == existing == {fetcher._hash(item['link'])}
+    assert seen == existing == set()
+    assert fetcher._state['records'][fetcher._hash(item['link'])]['status'] == 'retryable'
     assert articles == []
 
 
