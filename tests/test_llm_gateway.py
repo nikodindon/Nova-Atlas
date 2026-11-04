@@ -5,6 +5,8 @@ import io
 import json
 from pathlib import Path
 import threading
+import subprocess
+_REAL_POPEN=subprocess.Popen
 import urllib.error
 from unittest.mock import Mock
 import yaml
@@ -178,5 +180,91 @@ def test_compose_gateway_internal_only_and_cloud_keys_isolated():
     for role in ('litellm','llm-egress'):
         assert 'ports' not in services[role] and services[role]['profiles']==['gateway']
         assert services[role]['read_only'] is True and 'healthcheck' in services[role]
+        assert len(services[role]['tmpfs'])==1 and services[role]['tmpfs'][0].startswith('/tmp:')
     assert 'openrouter_key' not in services['web']['secrets']
     assert 'openrouter_key' not in services['litellm']['secrets']
+
+@pytest.mark.parametrize('error,kind',[(TimeoutError(),'timeout'),(urllib.error.URLError('private detail'),'network')])
+def test_transport_timeouts_and_network_errors_are_safe(monkeypatch,error,kind):
+    opener=Mock();opener.open.side_effect=error;monkeypatch.setattr(gw.urllib.request,'build_opener',lambda *a:opener)
+    with pytest.raises(gw.GatewayError) as caught:gw.post_json('http://fake.invalid',{},'synthetic',1)
+    assert caught.value.kind==kind and 'private' not in str(caught.value)
+
+@pytest.mark.parametrize('body,kind',[(b'{"error":{"code":"context_length_exceeded","message":"private"}}','context'),(b'{}','request_rejected')])
+def test_context_machine_code(monkeypatch,body,kind):
+    opener=Mock();opener.open.side_effect=urllib.error.HTTPError('http://fake.invalid',400,'private',{},io.BytesIO(body))
+    monkeypatch.setattr(gw.urllib.request,'build_opener',lambda *a:opener)
+    with pytest.raises(gw.GatewayError) as caught:gw.post_json('http://fake.invalid',{},'synthetic',1)
+    assert caught.value.kind==kind
+
+
+def test_fallback_cache_reused_without_refailing_primary(setup,policy):
+    cfg,file=setup;policy['deployments']['alternative']={**policy['deployments']['local-main'],'model':'other'}
+    policy['aliases']['atlas-fast'].update(deployments=['local-main','alternative'],max_attempts=1)
+    file.write_text(yaml.safe_dump(policy));transport=Mock(side_effect=[gw.GatewayError('forbidden'),response()])
+    client=gw.GatewayClient(cfg,transport=transport)
+    first=client.call('prompt','fetch',20,cache_key='article')
+    assert client.call('prompt','fetch',20,cache_key='article')==first
+    assert transport.call_count==2
+
+
+def test_same_request_threads_generate_once_and_preserve_old_cache(setup):
+    from concurrent.futures import ThreadPoolExecutor
+    cfg,_=setup;started=threading.Event();finish=threading.Event()
+    def transport(*args):started.set();assert finish.wait(3);return response()
+    mock=Mock(side_effect=transport);client=gw.GatewayClient(cfg,transport=mock)
+    old=client.directory.parent/'old.txt';old.write_text('historical summary')
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first=pool.submit(client.call,'prompt','fetch',5,cache_key='article')
+        assert started.wait(2)
+        second=pool.submit(client.call,'prompt','fetch',5,cache_key='article')
+        finish.set();assert first.result(3)==second.result(3)
+    assert mock.call_count==1 and old.read_text()=='historical summary'
+
+
+def test_alias_capabilities_prevent_incompatible_fallback(setup,policy):
+    cfg,file=setup;policy['deployments']['local-main']['languages']=['en']
+    file.write_text(yaml.safe_dump(policy));transport=Mock(return_value=response())
+    client=gw.GatewayClient(cfg,transport=transport)
+    with pytest.raises(gw.GatewayError,match='context'):client.call('prompt','fetch',20)
+    transport.assert_not_called()
+
+
+def test_cloud_rpm_shared_by_provider_and_retry_after(policy,tmp_path):
+    policy['local_only']=False
+    local=policy['deployments']['local-main'];local.update(provider='openrouter',base_url='https://openrouter.ai/api/v1',paid=False,rpm=1,concurrency=2)
+    app=create_relay(policy,tmp_path,'synthetic',{'openrouter':'private-cloud-key'},transport=Mock(return_value=response()))
+    client=app.test_client();headers={'Authorization':'Bearer synthetic'};payload={'messages':[{'role':'user','content':'prompt'}]}
+    assert client.post('/local-main/v1/chat/completions',headers=headers,json=payload).status_code==200
+    result=client.post('/local-main/v1/chat/completions',headers=headers,json=payload)
+    assert result.status_code==429 and float(result.headers['Retry-After'])>0
+    assert b'private-cloud-key' not in result.data
+
+
+def test_relay_error_redaction_retry_and_context(policy,tmp_path):
+    transport=Mock(side_effect=gw.GatewayError('rate_limit',status=429,retry_after=42))
+    client=create_relay(policy,tmp_path,'synthetic',{},transport=transport).test_client()
+    headers={'Authorization':'Bearer synthetic'};body={'messages':[{'role':'user','content':'prompt'}]}
+    result=client.post('/local-main/v1/chat/completions',headers=headers,json=body)
+    assert result.status_code==429 and result.headers['Retry-After']=='42'
+    transport.side_effect=gw.GatewayError('context',status=400)
+    result=client.post('/local-main/v1/chat/completions',headers=headers,json=body)
+    assert result.json['error']['code']=='context_length_exceeded'
+
+
+def test_gateway_initialization_and_compose_resolution(tmp_path):
+    import os,subprocess
+    from deploy.init import initialize
+    from deploy.gateway import initialize as initialize_gateway
+    root=tmp_path/'state';initialize(root,'synthetic-admin','synthetic-strong-password')
+    initialize_gateway(root,'synthetic-model','http://fake.invalid/v1')
+    assert (root/'secrets/openrouter_key').read_text()==''
+    assert (root/'secrets/litellm_master_key').stat().st_mode&0o777==0o400
+    assert yaml.safe_load((root/'config/config.yaml').read_text())['llm']['provider']=='llama-server'
+    with pytest.raises(gw.GatewayError):initialize_gateway(root,'other','http://fake.invalid/v1')
+    command=['docker','compose','-f',str(ROOT/'docker-compose.yml'),'-f',str(ROOT/'docker-compose.gateway.yml'),'--env-file',str(root/'compose.env'),'--profile','full','--profile','gateway','config','--format','json']
+    process=_REAL_POPEN(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={**os.environ,'DOCKER_CONFIG':str(tmp_path/'empty-docker-config')})
+    output,error=process.communicate(timeout=20);assert process.returncode==0,error.decode()
+    config=json.loads(output);assert set(config['services'])=={'web','news','radio','icecast','litellm','llm-egress'}
+    assert 'ports' not in config['services']['litellm']
+    for service in ('web','news','radio','llm-egress','litellm'):assert config['services'][service]['user']==f'{os.getuid()}:{os.getgid()}'

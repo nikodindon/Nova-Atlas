@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     stop_signal: SIGTERM
     stop_grace_period: ${ATLAS_STOP_GRACE:-45m}
-    tmpfs: [/tmp:rw,noexec,nosuid,size=256m,mode=1777]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m,mode=1777"]
     networks: [llm_clients, llm_transport]
     environment: {ATLAS_GATEWAY_ROLE: proxy}
     secrets: [litellm_master_key, llm_egress_key]
@@ -52,7 +52,7 @@ services:
     restart: unless-stopped
     stop_signal: SIGTERM
     stop_grace_period: ${ATLAS_STOP_GRACE:-45m}
-    tmpfs: [/tmp:rw,noexec,nosuid,size=128m,mode=1777]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"]
     networks: [llm_transport, egress]
     extra_hosts: ["host.docker.internal:host-gateway"]
     environment: {ATLAS_GATEWAY_ROLE: relay}
