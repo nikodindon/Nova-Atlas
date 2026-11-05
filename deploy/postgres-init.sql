@@ -4,8 +4,8 @@ SET log_error_verbosity = 'terse';
 DO $$
 DECLARE app_secret text; migration_secret text;
 BEGIN
-  app_secret := btrim(pg_read_file('/run/secrets/postgres_app_password'), E' \t\n\r');
-  migration_secret := btrim(pg_read_file('/run/secrets/postgres_migrator_password'), E' \t\n\r');
+  app_secret := btrim(pg_read_file('/run/secrets/postgres_app_password'), chr(10)||chr(13)||chr(9)||' ');
+  migration_secret := btrim(pg_read_file('/run/secrets/postgres_migrator_password'), chr(10)||chr(13)||chr(9)||' ');
   IF app_secret !~ '^[0-9a-f]{64}$' OR migration_secret !~ '^[0-9a-f]{64}$' THEN
     RAISE EXCEPTION 'Explicit generated database credentials required';
   END IF;
