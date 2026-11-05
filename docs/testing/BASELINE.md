@@ -198,10 +198,10 @@ Un GUID non URL ne peut pas être résolu en un permalink inventé.
 
 ## Sprint 06 — Source Manager
 
-Validation locale Python 3.12 : **1 224 réussis, 0 échec, 0 ignoré**, en 44,26 s.
+Validation locale Python 3.12 : **1 226 réussis, 0 échec, 0 ignoré**, en 45,52 s.
 Les 1 122 tests précédents sont conservés, avec adaptation explicite des réponses
 400 pour fichiers de flux corrompus/privés et de l'inventaire des routes privées.
-102 nouveaux cas : service, API, trois reproductions initialement rouges et un
+104 nouveaux cas : service, API, trois reproductions initialement rouges et un
 sixième scénario Chromium (test/import/santé/filtre/rendu hostile). Tous les appels
 réseau sont simulés ; processus locaux synthétiques pour flock interprocessus.
 
@@ -212,3 +212,7 @@ Flask ou moteur réel. Le sandbox système empêchait son démarrage, la suite a
 relancée hors sandbox avec les interdictions réseau/processus métier des fixtures.
 Smokes Docker/RSS, LiteLLM et PostgreSQL dans les jobs CI jetables existants ; le
 smoke RSS vérifie désormais aussi désactivation/rechargement atomique et export OPML.
+
+Le round-trip HTTP d’un export >64 Kio est testé : seule la route d’import, après
+authentification et CSRF, autorise un JSON ≤2 Mio (document ≤1 Mio). Les autres
+routes gardent leur limite 64 Kio. Reçus forgés et contenu modifié refusés.

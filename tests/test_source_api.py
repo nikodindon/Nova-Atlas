@@ -167,3 +167,27 @@ def test_null_version_is_not_unconditional_write(client,app):
     headers=auth(client);path=app.extensions['atlas_paths']['feeds_file'];original=path.read_bytes()
     response=post(client,PREFIX,json={'category':'tech','url':'https://new.invalid/rss','version':None},headers=headers)
     assert response.status_code==400 and path.read_bytes()==original
+
+
+def test_large_export_can_be_previewed_and_reimported(client,app):
+    headers=auth(client)
+    content='large:\n'+''.join('  - https://source.invalid/'+str(i)+'/'+'x'*1500+'\n' for i in range(48))
+    assert len(content.encode())>65536
+    preview=post(client,PREFIX+'/import',json={'format':'yaml','content':content},headers=headers)
+    assert preview.status_code==200 and preview.json['additions']==48
+    receipt=preview.json
+    applied=post(client,PREFIX+'/import',json={'format':'yaml','content':content,'apply':True,'version':receipt['version'],'fingerprint':receipt['fingerprint'],'preview_token':receipt['preview_token']},headers=headers)
+    assert applied.status_code==200
+    output=get(client,PREFIX+'/export?format=yaml');assert len(output.data)>65536
+    again=post(client,PREFIX+'/import',json={'format':'yaml','content':output.text},headers=headers)
+    assert again.status_code==200 and again.json['duplicates']==49 and again.json['additions']==0
+    assert post(client,PREFIX+'/test',json={'url':'https://public.invalid/','padding':'x'*70000},headers=headers).status_code==413
+
+
+def test_preview_receipt_cannot_be_forged_or_reused_for_other_content(client):
+    headers=auth(client);content='new:\n - https://new.invalid/rss\n'
+    preview=post(client,PREFIX+'/import',json={'format':'yaml','content':content},headers=headers).json
+    data={'format':'yaml','content':content,'apply':True,'version':preview['version'],'fingerprint':preview['fingerprint'],'preview_token':'forged'}
+    assert post(client,PREFIX+'/import',json=data,headers=headers).status_code==409
+    data['preview_token']=preview['preview_token'];data['content']=content.replace('new.invalid','other.invalid')
+    assert post(client,PREFIX+'/import',json=data,headers=headers).status_code==409

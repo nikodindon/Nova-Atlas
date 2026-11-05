@@ -115,6 +115,10 @@ def install_admin_security(app):
                 return denied(401, 'Authentification administrateur requise')
             if request.method not in ('GET', 'HEAD', 'OPTIONS') and not valid_csrf():
                 return denied(403, 'Jeton CSRF absent ou invalide')
+        # Only an authenticated/CSRF-checked import may read a larger JSON body.
+        # Other endpoints retain the existing 64 KiB ceiling.
+        if request.endpoint == 'sources_import':
+            request.max_content_length = 2 * 1024 * 1024
         if request.method == 'POST' and request.endpoint in costly:
             with lock:
                 attempts = costly[request.endpoint]

@@ -38,7 +38,8 @@ def install_source_api(app,paths):
         return jsonify(status='error',msg=str(error)),code
 
     def body(allowed,required=()):
-        if request.content_length is None or request.content_length>65536:raise SourceError('Corps absent ou trop volumineux')
+        limit=2*1024*1024 if request.endpoint=='sources_import' else 65536
+        if request.content_length is None or request.content_length>limit:raise SourceError('Corps absent ou trop volumineux')
         def pairs(items):
             result={}
             for key,value in items:

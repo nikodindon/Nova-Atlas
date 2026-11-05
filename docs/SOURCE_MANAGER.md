@@ -82,8 +82,9 @@ Réponses sources `Cache-Control: no-store`. Pas de token dans les pages publiqu
 | GET `.../export?format=yaml\|opml` | Liste portable, accès authentifié |
 | POST `.../import` | content, format ; dry-run par défaut |
 
-Corps JSON strict (pas de doublons de clés/NaN/champs inconnus), limite HTTP globale
-64 Kio, même pour import. Le service Python accepte un document ≤1 Mio ; 512 sources
+Corps JSON strict (pas de doublons de clés/NaN/champs inconnus), limite HTTP
+64 Kio sauf import authentifié et vérifié CSRF (JSON ≤2 Mio, contenu ≤1 Mio).
+Le service Python accepte un document ≤1 Mio ; 512 sources
 actives + désactivées. News conserve sa propre borne configurable `feed_max_sources`
 (256 par défaut) : ajuster explicitement si la liste active dépasse ce seuil.
 Version = SHA-256 du texte exact courant. Mutations modernes exigent une version
@@ -145,7 +146,7 @@ exécuté. Les gestionnaires restent dans le JS statique autorisé par la CSP.
 ## Import et export
 
 YAML Nova Atlas et OPML 2.0. OPML : DTD/entités externes interdites, XML strict sans
-réseau, ≤2 048 nœuds, profondeur ≤10, document ≤1 Mio (HTTP ≤64 Kio). L'attribut
+réseau, ≤2 048 nœuds, profondeur ≤10, document ≤1 Mio (JSON HTTP ≤2 Mio après auth/CSRF). L'attribut
 optionnel enabled conserve les désactivés pour Nova Atlas ; les autres lecteurs
 OPML peuvent l'ignorer. Les catégories vides sont exportées. Aucun fichier local
 ni URL de téléchargement d'import n'est accepté : uniquement un contenu transmis.
