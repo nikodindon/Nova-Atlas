@@ -96,3 +96,9 @@ compose.*.env
 # Private RSS validators, cached entries and interrupted atomic writes
 feed_ingestion_state.json
 .feed_ingestion_state.json*
+
+# Source Manager local locks, test admission/cache and atomic leftovers
+feeds.yaml.lock
+source-tests.lock
+source_test_state.json
+.source_test_state.json*

@@ -271,7 +271,7 @@ def test_feed_credentials_are_not_reflected(client, app):
     path.write_text('tech:\n  - https://u:synthetic-private-feed@example.invalid/rss?api_key=synthetic-key\n')
     login(client)
     response = get(client, '/config/feeds')
-    assert response.status_code == 200
+    assert response.status_code == 400
     assert 'synthetic-private-feed' not in response.text and 'synthetic-key' not in response.text
     assert post(client, '/config/feeds/add', json={'category': 'tech', 'url': 'https://u:synthetic-private-feed@example.invalid/'}, headers={'X-CSRF-Token': csrf(client)}).status_code == 400
 
@@ -295,6 +295,8 @@ def test_all_registered_routes_classified(app):
     private.discard('/api/flash/status/abc')
     private.discard('/audio/flash_abc.mp3')
     private.update({'/api/flash/status/<job_id>', '/audio/flash_<job_id>.mp3'})
+    private -= {'/config/feeds/add','/config/feeds/remove','/config/feeds/reset','/config/feeds/move','/config/feeds/toggle','/config/feeds/category'}
+    private |= {'/config/feeds/<action>','/api/admin/sources','/api/admin/sources/<identity>','/api/admin/sources/actions/<action>','/api/admin/sources/stats','/api/admin/sources/export','/api/admin/sources/import','/api/admin/sources/test'}
     assert {r.rule for r in app.url_map.iter_rules()} == public | private
 
 
@@ -376,7 +378,7 @@ def test_symlink_escape_and_static_html_are_not_served(client, app, tmp_path):
 def test_logs_do_not_echo_malformed_feed_credentials(client, app, caplog):
     login(client)
     app.extensions['atlas_paths']['feeds_file'].write_text('synthetic-secret-token-malformed-line\n')
-    assert get(client, '/config/feeds').status_code == 200
+    assert get(client, '/config/feeds').status_code == 400
     assert 'synthetic-secret-token-malformed-line' not in caplog.text
 
 

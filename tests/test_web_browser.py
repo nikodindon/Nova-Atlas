@@ -178,3 +178,37 @@ def test_csp_blocks_inline_script_and_handler(browser_page):
     assert page.evaluate('window.inlineHandlerRan') is None
     assert set(page.evaluate('window.violations'))=={'script-src-elem','script-src-attr'}
     page.evaluate('window.violations=[]')  # These two attempted violations were deliberate.
+
+
+def test_source_manager_test_import_health_and_hostile_names(browser_page,monkeypatch):
+    from modules.http import external as http
+    page,errors,requests,injections=browser_page
+    payload=b'<rss version="2.0"><channel><item><title>&lt;img src=x onerror=window.pwned=1&gt; titre</title><link>https://news.invalid/article</link></item></channel></rss>'
+    monkeypatch.setattr(http,'get',lambda url,**kwargs:http.Response(payload,200,{'etag':'"safe"'},url))
+    page.goto('https://atlas.invalid/admin/login')
+    page.locator('[name="username"]').fill('admin-test');page.locator('[name="password"]').fill('synthetic-test-password')
+    page.evaluate("async()=>{const form=document.querySelector('form');await fetch(form.action,{method:'POST',body:new FormData(form),redirect:'manual'});}")
+    page.goto('https://atlas.invalid/config/feeds/page');page.wait_for_selector('.feed-item')
+    page.locator('#source-test-url').fill('https://test.invalid/rss');page.locator('#source-test-form button').click()
+    page.wait_for_function("()=>document.getElementById('source-test-result').textContent.includes('rss20')")
+    assert page.locator('.feed-item').count()==1  # Testing is never adding.
+    assert page.locator('#source-test-result img').count()==0
+    page.locator('details summary').click()
+    content='imports:\n  - https://import.invalid/rss\n'
+    page.locator('#source-import-content').fill(content);page.locator('#source-import-form button[type="submit"]').click()
+    page.wait_for_function("()=>!document.getElementById('source-import-apply').disabled")
+    assert page.locator('.feed-item').count()==1
+    page.locator('#source-import-apply').click();page.wait_for_selector('.feed-item[data-cat="imports"]')
+    page.locator('.feed-item[data-cat="imports"] [data-action="toggle"]').click()
+    page.wait_for_function("()=>document.querySelector('.feed-item[data-cat=imports]').textContent.includes('disabled')")
+    page.locator('#source-health').select_option('disabled');page.locator('#source-filter button').click()
+    page.wait_for_function("()=>document.querySelectorAll('.feed-item').length===1")
+    assert page.locator('.feed-item[data-cat="imports"]').count()==1
+    page.locator('.feed-item[data-cat="imports"] [data-action="toggle"]').click()
+    page.wait_for_function("()=>document.querySelectorAll('.feed-item').length===0")
+    page.locator('#source-health').select_option('');page.locator('#source-filter button').click()
+    page.wait_for_function("()=>document.querySelectorAll('.feed-item').length===2")
+    status=page.evaluate("""async()=>{const listing=await (await fetch('/api/admin/sources')).json();return (await fetch('/api/admin/sources/'+listing.sources[0].id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:listing.version,name:'<img src=x onerror=window.pwned=1>'})})).status;}""")
+    assert status==200
+    page.reload();page.wait_for_function("()=>document.querySelector('#feeds-container').textContent.includes('<img')")
+    assert page.locator('#feeds-container img').count()==0 and page.evaluate('window.pwned') is None

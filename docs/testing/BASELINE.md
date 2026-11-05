@@ -195,3 +195,20 @@ Smokes LiteLLM/PostgreSQL et Chromium conservés ; aucune source RSS Internet r�
 Les liens absolus et GUID conservent leur orthographe XML exacte (casse du schéma,
 Unicode, encodage, query et fragment), afin de ne pas changer les hashes historiques.
 Un GUID non URL ne peut pas être résolu en un permalink inventé.
+
+## Sprint 06 — Source Manager
+
+Validation locale Python 3.12 : **1 224 réussis, 0 échec, 0 ignoré**, en 44,26 s.
+Les 1 122 tests précédents sont conservés, avec adaptation explicite des réponses
+400 pour fichiers de flux corrompus/privés et de l'inventaire des routes privées.
+102 nouveaux cas : service, API, trois reproductions initialement rouges et un
+sixième scénario Chromium (test/import/santé/filtre/rendu hostile). Tous les appels
+réseau sont simulés ; processus locaux synthétiques pour flock interprocessus.
+
+Commandes : `python -m pytest -q`, compileall main/modules/deploy/tests,
+`node tests/test_csrf.cjs`, `node --check` sur tous les assets, `git diff --check`.
+Chromium local exécuté avec interception complète par le client Flask ; aucun serveur
+Flask ou moteur réel. Le sandbox système empêchait son démarrage, la suite a été
+relancée hors sandbox avec les interdictions réseau/processus métier des fixtures.
+Smokes Docker/RSS, LiteLLM et PostgreSQL dans les jobs CI jetables existants ; le
+smoke RSS vérifie désormais aussi désactivation/rechargement atomique et export OPML.

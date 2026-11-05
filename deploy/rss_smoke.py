@@ -48,7 +48,11 @@ worker.start()
 try:
  with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
   root=Path(tmp);atlas_fetch.init_ollama=lambda config:None
-  atlas_fetch._load_rss_sources=lambda:{'tech':['http://news.invalid/rss','http://news.invalid/atom']}
+  from modules.core.source_manager import SourceManager
+  feeds=root/'feeds.yaml';feeds.write_text('tech:\n  - http://news.invalid/rss\n  - http://news.invalid/atom\n')
+  manager=SourceManager(feeds,root/'feed_ingestion_state.json')
+  atlas_fetch.DEFAULT_FEEDS_PATH=feeds
+  atlas_fetch.invalidate_feeds_cache()
   config={'paths':{'data_dir':str(root),'articles_dir':str(root/'articles')},'rss':{'feed_min_poll_seconds':0}}
   engine=ArticleFetcher(config)
   engine._fetch_content=lambda *a,**kw:'Synthetic article body'
@@ -64,6 +68,16 @@ try:
   articles=engine._load_today();assert len(articles)==2
   assert all(set(a)=={'hash','timestamp','category','title','title_original','link','source','pub_date','summary'} for a in articles)
   state=json.load(open(root/'feed_ingestion_state.json'));assert all(r['http_status']==304 for r in state['records'].values())
+  version=manager.read().version;rss_id=manager.read().sources[0].id
+  manager.mutate('disable',{'id':rss_id},version)
+  assert atlas_fetch._load_rss_sources()=={'tech':['http://news.invalid/atom']}
+  before=len(requests);assert restarted.run()==0
+  assert [path for path,tag in requests[before:]]==['/atom']
+  assert manager.listing()['sources'][0]['health']=='disabled'
+  opml=manager.export('opml');incoming,preview=manager.preview(opml,'opml')
+  assert preview['duplicates']==2 and preview['additions']==0
+  manager.mutate('enable',{'id':rss_id})
+  assert len(atlas_fetch._load_rss_sources()['tech'])==2
   try:client.get('http://news.invalid/redirect',accept_not_modified=True)
   except http.BlockedURL:pass
   else:raise AssertionError('private redirect accepted')
@@ -71,7 +85,7 @@ try:
 finally:
  http.get=real_get;server.shutdown();worker.join();server.server_close();faulthandler.cancel_dump_traceback_later()
 assert not any(t.name.startswith('FeedHTTP') for t in threading.enumerate())
-print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers and private redirect rejection. No external source/model.')
+print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers, Source Manager atomic disable/reload/export and private redirect rejection. No external source/model.')
 '''
 
 

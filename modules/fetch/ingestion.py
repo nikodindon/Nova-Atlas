@@ -107,7 +107,13 @@ class FeedIngestor:
         self.policy=key(json.dumps({'parser':1,'limit':self.options['max_articles_per_feed'],'age':self.options['max_age_days']}))
         self.cancel_event=None
         self.host_budget=http.HostBudget(self.options['feed_per_host'],clock=lambda:self.now().timestamp(),default_cooldown=self.options['feed_retry_base_seconds'])
-        for rec in self.state.records.values():
+        embargo_records=list(self.state.records.values())
+        if self.state.path is not None and self.state.path.name=='feed_ingestion_state.json':
+            # Admin tests own a separate journal, but their server embargoes also
+            # constrain the next News cycle. Never merge/write its entries/cache.
+            auxiliary=self.state.path.with_name('source_test_state.json')
+            if auxiliary.exists():embargo_records.extend(FeedState(auxiliary).records.values())
+        for rec in embargo_records:
             if rec.get('host_until',0)>self.now().timestamp() and rec.get('rate_host',rec.get('host')):
                 self.host_budget.defer_key(rec.get('rate_host',rec['host']),rec['host_until'])
 

@@ -137,3 +137,13 @@ cache conditionnel/état de santé legacy privé et replay 304 après interrupti
 le journal d'articles et les publications restent séquentiels et autoritaires.
 Pas de canonicalisation destructive, changement des prompts/API ou cutover SQL.
 Voir RSS_INGESTION.md et AUDIT_P1.md pour formats, budgets et limites DNS/dates.
+
+## Sprint 06 — Source Manager legacy
+
+SourceManager centralise le modèle, la grammaire YAML bornée, validation et mutations
+sous flock stable + version SHA-256. L'API administrative et les anciennes routes
+utilisent ce service ; la page Flask utilise uniquement JS statique et rendu textuel.
+L'état de santé du collecteur reste indépendant et lu seul par Web. Le journal des
+tests ponctuels est séparé ; ses embargos hôte contraignent le prochain cycle News.
+Sources autoritaires dans YAML ; snapshots SQL inchangés, aucune écriture métier SQL.
+Voir SOURCE_MANAGER.md pour contrats, concurrence, formats et limites.
