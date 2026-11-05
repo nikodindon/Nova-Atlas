@@ -121,7 +121,7 @@ def upgrade():
     sa.PrimaryKeyConstraint('snapshot_id', 'id'),
     sa.UniqueConstraint('snapshot_id', 'legacy_hash', name='uq_attempt_hash')
     )
-    
+
 
 def downgrade():
 # Versioned DDL; never create_all at application startup.
@@ -132,4 +132,3 @@ def downgrade():
     op.drop_table('editorial_outputs')
     op.drop_table('articles')
     op.drop_table('import_runs')
-    
