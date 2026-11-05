@@ -561,7 +561,7 @@ class ArticleFetcher:
             f"varier le style. Reponds UNIQUEMENT avec le titre reformule, "
             f"rien d'autre :\n{title}"
         )
-        translated = ollama_call(prompt, timeout=30, caller="fetch")
+        translated = ollama_call(prompt, timeout=30, caller="fetch", operation="translate")
         if translated and len(translated) > 3 and not translated.startswith("["):
             cleaned = translated.strip().strip('"').strip("'")
             # Filet de securite multi-langues : detecte si la traduction

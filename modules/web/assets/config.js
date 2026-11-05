@@ -6,7 +6,7 @@ if(!document.getElementById("llm-provider"))return;
         // Affiche/masque le champ base_url selon le provider
         document.getElementById('llm-provider').addEventListener('change', function() {
           document.getElementById('row-llm-baseurl').style.display =
-            this.value === 'llama-server' ? '' : 'none';
+            this.value !== 'ollama' ? '' : 'none';
         });
 
 

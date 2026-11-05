@@ -327,3 +327,11 @@ preuve de diffusion réelle, de connectivité LLM/TTS ou de performance 24 h, ni
 test arm64. Le partage de fichiers et l'UID commun restent une frontière de confiance,
 pas une isolation multi-utilisateurs. Rotation des caches/logs, capacité distribuée,
 services SQL/LiteLLM et durcissement opérationnel ultérieur restent hors sprint.
+
+## Extension optionnelle Sprint 03
+
+`docker-compose.gateway.yml` ajoute le profil gateway (LiteLLM + relais de sortie).
+Le Compose de base et ses profils restent utilisables seuls. Initialisation,
+secret interne, mapping des cinq alias, capacités locales/cloud, réseaux, smoke
+et rollback sont détaillés dans [LLM_GATEWAY.md](LLM_GATEWAY.md). Aucun cloud
+n'est activé par défaut ; le relais partage le même data/UID que les apps.

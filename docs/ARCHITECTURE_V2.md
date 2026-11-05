@@ -109,3 +109,12 @@ Images non-root, secrets en fichiers, backend interne et egress explicite, healt
 processus/stockage distincte de la santé métier. Tini et arrêt coopératif incluent
 les travaux web en cours. L'adaptateur Ollama de déploiement conserve l'appel run
 existant sans installer de modèle ; aucun backend cloud. Voir DOCKER_DEPLOYMENT.md.
+
+## Livraison incrémentale Sprint 03
+
+Backend LiteLLM optionnel, alias métier stables et Chat Completions. Proxy sans
+DB/Redis ni port public, relais de sortie à destinations configurées : flock local
+commun aux anciens clients et slots cloud séparés, secrets par rôle, retries/fallback
+uniquement dans l'adaptateur Nova. Cache gateway versionné sans migration des
+anciens fichiers. Pas de plafond financier strict sans comptabilité persistante ;
+voir LLM_GATEWAY.md pour limites multi-hôtes, budgets et rollback.

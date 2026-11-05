@@ -196,3 +196,10 @@ Aucun chargement des anciens .env : passer explicitement le compose.env neuf gé
 Les paramètres Icecast et le port web sont gérés hors de l'UI en mode conteneur.
 Refus de démarrage si secrets/permissions/configuration manquent. Voir
 DOCKER_DEPLOYMENT.md pour identités, rotation, HTTPS et sauvegarde complète.
+
+Sprint 03 : master_key LiteLLM interne montée seulement dans les apps et le proxy ;
+clé du relais seulement dans proxy/relais ; clés cloud uniquement dans relais.
+UI LiteLLM désactivée, pas de port publié ni DB/gestion de clés virtuelles. Les
+fichiers vides cloud initiaux n'autorisent aucun provider. Voir LLM_GATEWAY.md pour
+initialisation, rotation et risques résiduels. L'exposition historique OpenRouter
+reste une action de révocation/audit du propriétaire, sans réutilisation.

@@ -1,0 +1,21 @@
+# Copy only into private deployment config, then supply a model you actually have.
+# No cloud provider is enabled. base_url includes /v1 for local OpenAI-compatible APIs.
+version: 1
+local_only: true
+allow_paid: false
+deployments:
+  local-main:
+    provider: llama-server # or ollama with its local /v1 endpoint
+    model: CONFIGURE_AN_EXISTING_LOCAL_MODEL
+    base_url: http://host.docker.internal:8080/v1
+    resource: local-llm
+    concurrency: 1
+    max_input_chars: 32000
+    max_output_tokens: 4096
+    languages: ['*']
+aliases:
+  atlas-fast: {deployments: [local-main], max_attempts: 2, timeout: 240}
+  atlas-translate: {deployments: [local-main], max_attempts: 2, timeout: 30}
+  atlas-editorial: {deployments: [local-main], max_attempts: 2, timeout: 900}
+  atlas-radio-script: {deployments: [local-main], max_attempts: 2, timeout: 900}
+  atlas-verify: {deployments: [local-main], max_attempts: 2, timeout: 240}

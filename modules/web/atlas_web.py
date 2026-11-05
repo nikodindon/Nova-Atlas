@@ -3107,29 +3107,40 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         <div class="cfg-row">
           <div>
             <div class="cfg-row-label">Provider</div>
-            <div class="cfg-row-desc">Ollama CLI ou llama-server HTTP</div>
+            <div class="cfg-row-desc">Ollama CLI, llama-server ou passerelle LiteLLM</div>
           </div>
           <select id="llm-provider">
-            <option value="ollama" {{ 'selected' if llm.get('provider')!='llama-server' }}>ollama (CLI)</option>
+            <option value="ollama" {{ 'selected' if llm.get('provider') not in ('llama-server','litellm') }}>ollama (CLI)</option>
+            <option value="litellm" {{ 'selected' if llm.get('provider')=='litellm' }}>LiteLLM (passerelle)</option>
             <option value="llama-server" {{ 'selected' if llm.get('provider')=='llama-server' }}>llama-server (HTTP)</option>
           </select>
         </div>
-        <div class="cfg-row" id="row-llm-baseurl" style="{{'display:none' if llm.get('provider')!='llama-server' }}">
+        <div class="cfg-row" id="row-llm-baseurl" style="{{'display:none' if llm.get('provider') not in ('llama-server','litellm') }}">
           <div>
-            <div class="cfg-row-label">Base URL (llama-server)</div>
-            <div class="cfg-row-desc">URL du serveur llama-server</div>
+            <div class="cfg-row-label">Base URL HTTP</div>
+            <div class="cfg-row-desc">URL du serveur LLM ou de la passerelle interne</div>
           </div>
           <input type="text" id="llm-baseurl" value="{{ llm.get('base_url','http://localhost:8080') }}" style="max-width:220px">
         </div>
         <div class="cfg-row">
           <div>
             <div class="cfg-row-label">Modèle actif</div>
+            {% if llm.get('provider')=='litellm' %}
+            <div class="cfg-row-desc">Les tâches utilisent leurs alias configurés ; les modèles réels se règlent dans le déploiement de la passerelle.</div>
+            {% else %}
             <div class="cfg-row-desc">Installez via <code style="background:var(--bg3);padding:.1rem .35rem;border-radius:4px;font-size:.8rem;">ollama pull &lt;modèle&gt;</code> ou téléchargez un GGUF</div>
+            {% endif %}
           </div>
           <select id="ollama-model">
+            {% if llm.get('provider')=='litellm' %}
+            {% for alias in ['atlas-fast','atlas-translate','atlas-editorial','atlas-radio-script','atlas-verify'] %}
+            <option value="{{ alias }}" {{ 'selected' if llm.get('model')==alias }}>{{ alias }}</option>
+            {% endfor %}
+            {% else %}
             {% for mid, mlabel in [('qwen3:8b','qwen3:8b'),('mistral-small:22b','mistral-small:22b'),('mistral:7b','mistral:7b'),('phi4:14b','phi4:14b'),('llama3.1:8b','llama3.1:8b'),('deepseek-r1:14b','deepseek-r1:14b'),('gemma2:9b','gemma2:9b')] %}
             <option value="{{ mid }}" {{ 'selected' if llm.get('model')==mid }}>{{ mlabel }}</option>
             {% endfor %}
+            {% endif %}
           </select>
         </div>
         <div class="cfg-row">

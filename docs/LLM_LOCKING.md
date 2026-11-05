@@ -151,3 +151,11 @@ exclusives**. Aucun verrou global unique pour toutes les API cloud n'est introdu
 
 Références : [flock Linux](https://man7.org/linux/man-pages/man2/flock.2.html),
 [fcntl Python 3.12](https://docs.python.org/3.12/library/fcntl.html).
+
+## Extension Sprint 03
+
+Le backend litellm n'acquiert pas le flock global dans le client. Son relais de
+sortie acquiert le même resource_path/UID/data pour chaque ressource locale,
+coordonnant les appels directs historiques du même hôte. Le cloud a des slots
+séparés par fournisseur. Le cache gateway a des verrous par requête. Aucun appel
+direct externe sur un autre hôte n'est couvert ; voir LLM_GATEWAY.md.

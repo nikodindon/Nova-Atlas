@@ -16,7 +16,7 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | Sprint 01G | XSS, JavaScript et CSP | PR #9 fusionnée après CI réussie |
 | Autres PR P0 | Anomalies résiduelles, revue de déploiement et robustesse | Une reproduction et une non-régression par correction |
 | 02 | Compose pour l'existant, secrets et healthchecks | Images et smoke CI isolé ; revue avant déploiement Linux réel |
-| 03 | LiteLLM et profils Ollama Cloud/OpenRouter | Alias métier, tests 429/timeout/auth, budgets/fallback |
+| 03 | LiteLLM et profils Ollama Cloud/OpenRouter | PR #11 en revue : alias, tests offline/smoke, capacités et fallback ; budgets persistants différés |
 | 04 | PostgreSQL/Alembic et import JSON/YAML | Sauvegarde/restauration et aller-retour sans perte |
 | 05 | Collecte RSS/Atom, dates, statuts et retries | Erreur temporaire récupérable, HTTP simulé |
 | 06 | Source Manager API | CRUD, test, santé, SSRF et import/export des flux historiques |
@@ -56,3 +56,9 @@ Sprint 02 proposé sur feature/v2-docker-foundation ; voir DOCKER_DEPLOYMENT.md.
 Aucun déploiement/migration réel ni fusion automatique. La santé métier, les lots
 longs, les sauvegardes et le réseau hôte restent à vérifier dans une installation
 autorisée avant exposition ; PostgreSQL/LiteLLM restent aux étapes suivantes.
+
+Sprint 03 : passerelle LiteLLM opt-in, cinq alias, backend historique conservé,
+cloud désactivé par défaut, relais de capacité local/cloud et cache par modèle.
+Tests hors ligne et smoke complet avec fournisseur simulé ; détails LLM_GATEWAY.md.
+Les quotas financiers persistants, équité distribuée et jobs durables restent à
+livrer avec l'architecture de stockage ; aucune base ajoutée par ce sprint.

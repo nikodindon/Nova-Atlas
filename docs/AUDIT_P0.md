@@ -206,3 +206,15 @@ le mot de passe. Les réglages conteneur gérés ne peuvent pas être écrasés 
 Voir DOCKER_DEPLOYMENT.md : healthchecks non métier, arrêt forcé après expiration,
 limites POSIX/local et tests CI. Aucun déploiement, migration ou accès aux secrets
 historiques. Leur rotation reste à effectuer par le propriétaire.
+
+## Extension de capacité LLM — Sprint 03
+
+Le backend optionnel litellm utilise un relais interne qui acquiert le même flock
+local que les clients historiques ; cloud séparé par fournisseur et slots, sans
+verrou global local. Namespace de cache gateway-v1 par alias/modèle/langue/prompt
+et tâche, anciens fichiers préservés. L'auth upstream sans DB a été reproduite
+avec un mauvais token (400 No connected db) : hook explicite 401/403, inférence
+seule et allowlist des paramètres. Les modes DB/gestion de clés/budget SQL restent
+désactivés. Limites résiduelles : métriques/RPM/cooldowns non persistants, appels
+directs d'autres machines hors flock, timeout ne prouvant pas l'arrêt du calcul
+serveur ; pas de plafond financier strict. Voir LLM_GATEWAY.md et tests gateway.

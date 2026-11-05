@@ -317,3 +317,8 @@ See the Commands section below for one-shot operations.
 ## License
 
 MIT License
+
+La passerelle LiteLLM est une extension **optionnelle**, utilisable avec un seul
+modèle local et sans clé cloud. Voir [LLM_GATEWAY.md](docs/LLM_GATEWAY.md) pour les
+alias, l'initialisation et le profil Compose gateway. Les backends historiques
+restent disponibles ; aucun fournisseur payant n'est activé automatiquement.
