@@ -3,12 +3,16 @@
 !Dockerfile
 !requirements-runtime.lock
 !main.py
+!alembic.ini
+!migrations/
+!migrations/**
 !modules/
 !modules/**
 !deploy/
 !deploy/__init__.py
 !deploy/runtime.py
 !deploy/gateway.py
+!deploy/database.py
 !deploy/gateway_auth.py
 !deploy/Dockerfile.litellm
 !deploy/entrypoint.py

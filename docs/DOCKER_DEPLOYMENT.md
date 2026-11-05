@@ -335,3 +335,12 @@ Le Compose de base et ses profils restent utilisables seuls. Initialisation,
 secret interne, mapping des cinq alias, capacités locales/cloud, réseaux, smoke
 et rollback sont détaillés dans [LLM_GATEWAY.md](LLM_GATEWAY.md). Aucun cloud
 n'est activé par défaut ; le relais partage le même data/UID que les apps.
+
+## Extension optionnelle Sprint 04
+
+`docker-compose.database.yml` ajoute database (PostgreSQL 18.6 épinglé, interne)
+et database-tools (CLI explicite). Aucune application existante ne reçoit de secret
+ou de dépendance DB ; LiteLLM reste sans DB. Nouveau stockage indépendant
+ATLAS_STORAGE/postgresql, mêmes UID/GID, secrets privés et initialisation uniquement
+sur chemins neufs. Aucun import/migration Alembic au démarrage. Installation,
+pg_dump/restore et rollback : [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md).

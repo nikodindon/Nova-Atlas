@@ -30,3 +30,10 @@ urllib3==2.8.0
 Werkzeug==3.1.9
 yarl==1.25.1
 nh3==0.3.7
+
+# Sprint 04: SQL snapshot tools, Python 3.12.
+SQLAlchemy==2.1.8
+alembic==1.20.1
+Mako==1.4.3
+psycopg==3.3.8
+psycopg-binary==3.3.8

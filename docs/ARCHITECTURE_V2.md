@@ -118,3 +118,13 @@ commun aux anciens clients et slots cloud séparés, secrets par rôle, retries/
 uniquement dans l'adaptateur Nova. Cache gateway versionné sans migration des
 anciens fichiers. Pas de plafond financier strict sans comptabilité persistante ;
 voir LLM_GATEWAY.md pour limites multi-hôtes, budgets et rollback.
+
+## Livraison incrémentale Sprint 04
+
+PostgreSQL optionnel, Alembic et snapshots historiques transactionnels importables/
+exportables. Sources, articles, tentatives/checkpoints, sorties, seen et documents
+complets sont conservés avec manifeste et empreintes. Les outils seuls lisent SQL ;
+les producteurs/lecteurs métier gardent legacy comme autorité. Aucune migration au
+startup ni cutover fictif : storage.mode postgres est refusé par main tant que le
+parcours métier n'est pas branché. Voir DATABASE_MIGRATION.md pour droits, dates,
+round-trip, sauvegarde et limites. Audio et verrous POSIX inchangés.

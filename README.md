@@ -322,3 +322,8 @@ La passerelle LiteLLM est une extension **optionnelle**, utilisable avec un seul
 modèle local et sans clé cloud. Voir [LLM_GATEWAY.md](docs/LLM_GATEWAY.md) pour les
 alias, l'initialisation et le profil Compose gateway. Les backends historiques
 restent disponibles ; aucun fournisseur payant n'est activé automatiquement.
+
+Le socle PostgreSQL du Sprint 04 est **optionnel et limité aux snapshots** :
+Alembic, import dry-run par défaut, vérification et export sans écrasement. News,
+Web et Radio gardent leurs fichiers historiques ; aucune migration automatique.
+Voir [DATABASE_MIGRATION.md](docs/DATABASE_MIGRATION.md) avant toute opération.

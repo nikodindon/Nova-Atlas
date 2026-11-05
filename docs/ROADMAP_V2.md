@@ -62,3 +62,8 @@ cloud désactivé par défaut, relais de capacité local/cloud et cache par mod�
 Tests hors ligne et smoke complet avec fournisseur simulé ; détails LLM_GATEWAY.md.
 Les quotas financiers persistants, équité distribuée et jobs durables restent à
 livrer avec l'architecture de stockage ; aucune base ajoutée par ce sprint.
+
+Sprint 04 : socle PostgreSQL/Alembic et import/export de snapshots proposé. La
+bascule effective collecte/publication/lecteurs reste une tranche complémentaire,
+avec transactions de traitement et protocole de cutover à tester. Les fichiers
+restent autoritaires dans cette PR ; voir DATABASE_MIGRATION.md.

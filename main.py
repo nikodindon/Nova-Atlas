@@ -425,6 +425,11 @@ def main():
     setup_logging(args.debug)
 
     config       = load_config(args.config)
+    from modules.persistence import runtime_mode, StorageError
+    try:runtime_mode(config)
+    except StorageError:
+        logger.error("PostgreSQL business mode is not enabled; use the explicit snapshot CLI")
+        raise SystemExit(78)
     service_name = get_service_name(config)
 
     logger.info("=" * 68)
