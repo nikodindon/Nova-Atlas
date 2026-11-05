@@ -68,3 +68,13 @@ def test_cancel_after_extraction_does_not_start_llm_or_consume_retry_budget(tmp_
     engine._summarize.assert_not_called()
     record=next(iter(engine._state['records'].values()))
     assert record['status']=='retryable' and record['attempts']==0
+
+
+def test_generation_already_started_keeps_attempt_budget_on_shutdown(tmp_path,monkeypatch):
+    engine=fetcher_at(tmp_path,monkeypatch);cancel=threading.Event()
+    monkeypatch.setattr(atlas_fetch,'_load_rss_sources',lambda:{'tech':['https://first.invalid/rss']})
+    monkeypatch.setattr(http,'get',Mock(return_value=http.Response(xml(['https://news.example/a']),200,{},'https://first.invalid/rss')))
+    def generation(*args):cancel.set();raise TimeoutError('SYNTHETIC_PRIVATE_VALUE')
+    engine._summarize=Mock(side_effect=generation)
+    assert engine.run(stop_event=cancel)==0
+    assert next(iter(engine._state['records'].values()))['attempts']==1

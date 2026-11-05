@@ -110,8 +110,8 @@ def _log_rss_sources_count():
         f"(depuis config/feeds.yaml)"
     ) if total else None
 
-# Note: l'ancien dict RSS_SOURCES ci-dessous est conservé temporairement
-# comme fallback si config/feeds.yaml n'existe pas. Sera supprimé en v0.3.
+# Symbole de compatibilité uniquement ; un fichier absent donne une liste vide,
+# sans retour automatique à des sources hardcodées.
 RSS_SOURCES = {
     "geopolitique": [],
     "economie": [],
@@ -763,6 +763,7 @@ class ArticleFetcher:
                    next_attempt_at=self._now().timestamp() + min(
                        self.retry_cap, self.retry_base * 2 ** rec['attempts']))
         self._save_state()
+        generation_started = False
         try:
             content = self._fetch_content(item['link'], raise_errors=True,
                 host_budget=getattr(getattr(self, '_ingestion', None), 'host_budget', None),
@@ -772,6 +773,7 @@ class ArticleFetcher:
             if not content.strip():
                 raise ArticleAttemptError('empty_extraction')
             from modules.utils.helpers import clean_for_tts
+            generation_started = True
             summary = clean_for_tts(self._summarize(item['title'], content, category) or '')
             if not summary.strip() or summary.lstrip().startswith('[') or len(summary) > 16000:
                 raise ArticleAttemptError('invalid_summary')
@@ -787,7 +789,7 @@ class ArticleFetcher:
             if not valid_article(article):
                 raise ArticleAttemptError('invalid_article')
         except Exception as exc:
-            if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+            if not generation_started and getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
                 rec.update(status='retryable', attempts=max(0,rec['attempts']-1),reason='collection_cancelled',next_attempt_at=0,updated_at=self._now().timestamp())
                 self._save_state()
             else:

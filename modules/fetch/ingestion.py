@@ -51,7 +51,8 @@ class FeedState:
                 raw=source.read(MAX_STATE+1)
                 if len(raw)>MAX_STATE:raise ValueError()
             data=json.loads(raw)
-            if data.get('version')!=1 or not isinstance(data.get('records'),dict) or len(data['records'])>515:raise ValueError()
+            if not isinstance(data,dict):raise ValueError()
+            if type(data.get('version')) is not int or data.get('version')!=1 or not isinstance(data.get('records'),dict) or len(data['records'])>515:raise ValueError()
             for identity,record in data['records'].items():
                 if len(identity)!=64 or any(c not in '0123456789abcdef' for c in identity) or not isinstance(record,dict):raise ValueError()
                 if set(record)-{'last_attempt','status','error','http_status','duration','warnings','policy','host','last_success','failures','next_attempt_at','last_count','last_good_fetch','response_url','etag','last_modified','entries','latest_published_at','host_until','rate_host','retry_until'}:raise ValueError()
@@ -131,6 +132,7 @@ class FeedIngestor:
     def download(self,url):
         now=self.now();started=time.monotonic();prior=self._prior(url)
         if self.cancel_event is not None and self.cancel_event.is_set():return FeedResult('temporarily_unavailable',reason='cancelled',deferred=True)
+        if prior.get('next_attempt_at',0)>now.timestamp():return FeedResult('temporarily_unavailable',reason='scheduled_later',deferred=True)
         try:
             host=self.host(url)
             with self._lock:
@@ -208,7 +210,10 @@ class FeedIngestor:
 
     def invalidate(self,url):
         with self._lock:
-            self.state.records.pop(key(url),None);self.state.dirty=True;self.state.save(self.now().timestamp())
+            record=self.state.records.get(key(url))
+            if record is not None:
+                for name in ('etag','last_modified','response_url','entries','policy'):record.pop(name,None)
+                self.state.dirty=True;self.state.save(self.now().timestamp())
 
     def fetch(self,url):
         result=self.download(url);self.record(url,result);return result
@@ -227,7 +232,7 @@ class FeedIngestor:
                     if len(active)>=self.options['feed_workers']:break
                     try:host=self.host(url)
                     except http.BlockedURL:
-                        result=FeedResult('blocked_by_security',reason='security_policy');results[url]=result;self.record(url,result);pending.remove(url);continue
+                        result=self.download(url);results[url]=result;self.record(url,result);pending.remove(url);continue
                     if by_host.get(host,0)>=self.options['feed_per_host']:continue
                     future=pool.submit(downloader,url);active[future]=(url,host);by_host[host]=by_host.get(host,0)+1;pending.remove(url)
                 if not active:continue

@@ -327,3 +327,9 @@ Le socle PostgreSQL du Sprint 04 est **optionnel et limité aux snapshots** :
 Alembic, import dry-run par défaut, vérification et export sans écrasement. News,
 Web et Radio gardent leurs fichiers historiques ; aucune migration automatique.
 Voir [DATABASE_MIGRATION.md](docs/DATABASE_MIGRATION.md) avant toute opération.
+
+Le moteur d'ingestion prend désormais en charge RSS et Atom avec cache HTTP
+conditionnel et état de santé privé, sans PostgreSQL obligatoire. Voir
+[RSS_INGESTION.md](docs/RSS_INGESTION.md) pour formats, limites et configuration.
+Après mise à jour d'une installation Python historique, réinstaller ses dépendances
+pour disposer de feedparser épinglé ; les prompts et contrats publics restent inchangés.

@@ -266,3 +266,24 @@ def test_minimal_journal_provenance_does_not_duplicate_html_bodies():
     assert item['ingestion']['entry_id']=='urn:stable:20'
     assert item['ingestion']['source_key']==key(URL)
     assert not {'summary_raw','content_raw','title','link','feed_url'}&set(item['ingestion'])
+
+
+def test_invalidating_validators_does_not_bypass_retry_after(service,monkeypatch):
+    transport=Mock(side_effect=http.HTTPStatusError(429,'7200'));monkeypatch.setattr(http,'get',transport)
+    service.fetch(URL);service.invalidate(URL)
+    restarted=FeedIngestor(service.state.path,clock=service.clock)
+    assert restarted.fetch(URL).reason=='scheduled_later' and transport.call_count==1
+
+@pytest.mark.parametrize('data',[[],None,{'version':2,'records':{}},{'version':1,'records':{'bad':{}}}])
+def test_invalid_state_schema_is_preserved_without_stopping_ingestion(service,monkeypatch,data):
+    raw=json.dumps(data);service.state.path.write_text(raw)
+    restarted=FeedIngestor(service.state.path)
+    monkeypatch.setattr(http,'get',Mock(return_value=response()))
+    assert restarted.fetch(URL).status=='success' and service.state.path.read_text()==raw
+
+
+def test_literal_private_source_uses_backoff_without_network(service,monkeypatch):
+    transport=Mock();monkeypatch.setattr(http,'get',transport)
+    assert service.fetch_many(['http://127.0.0.1/feed'])['http://127.0.0.1/feed'].status=='blocked_by_security'
+    assert service.fetch_many(['http://127.0.0.1/feed'])['http://127.0.0.1/feed'].reason=='scheduled_later'
+    transport.assert_not_called()

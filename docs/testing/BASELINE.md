@@ -169,3 +169,25 @@ avant commit, checkpoint/tentatives préservés, export sémantique, déconnexio
 redémarrage PGDATA, pg_dump/pg_restore dans une DB neuve puis downgrade/upgrade.
 Aucun producteur métier ni import réel n'est démarré. Les huit contrôles push/PR
 incluent ce nouveau job ; la bascule métier SQL reste explicitement hors livraison.
+
+## Sprint 05 — ingestion RSS/Atom
+
+Socle dev@1cf5352 : 1 034 tests. Six reproductions exécutées avant correction :
+contrat RSS, Atom ignoré, 304, réseau confondu avec vide, XML malformé et date avec
+offset différent. Toutes échouaient au nouveau contrat typé sur l'ancien parser.
+Suite locale finale Python 3.12 : **1 118 réussis, 0 échec, 0 ignoré** en 34,21 s,
+soit 84 nouveaux cas ; la caractérisation Atom vérifie désormais son ingestion.
+
+Fixtures RSS 0.90/0.91/0.92/0.93/0.94/1.0/2.0, Atom 0.3/1.0, CDATA/namespaces,
+dates fiables/ambiguës, HTML hostile, requêtes conditionnelles, persistance,
+backoff/rétention, DNS/redirect, concurrence et arrêt. Intégration réelle du journal
+legacy avec extraction/LLM simulés : crash avant découverte puis 304, quota catégorie,
+déduplication inter-flux, contrat JSON public identique et budget de tentatives.
+Syntaxes Python/JS, CSRF et git diff --check réussis.
+
+Le job Docker historique ajoute un probe RSS dans un conteneur network=none :
+faux serveur loopback et transport explicitement injecté, vraie politique URL/DNS
+avant chaque requête/redirect. 200/304, reprise cache après restart, déduplication,
+absence de nouvelles générations et rejet du redirect privé. Échéance 30 secondes
+et nettoyage du faux serveur. Aucun transport dérogatoire sélectionnable en prod.
+Smokes LiteLLM/PostgreSQL et Chromium conservés ; aucune source RSS Internet réelle.

@@ -33,9 +33,10 @@ retrieved_at et les statuts de dates. Les datetime fiables sont UTC aware.
 Le titre HTML est converti en texte ; scripts/styles retirés. Summary/content bruts
 restent des données non fiables, jamais du HTML à exécuter.
 
-`legacy()` expose title/link/pub_date plus ingestion privée. Cette provenance est
+`legacy()` expose title/link/pub_date plus ingestion privée. Une provenance compacte (source_key, identifiant, dates, auteur/source bornés) est
 stockée au niveau du record d'article_processing.json, pas dans l'article public.
-Les champs JSON consommés par le site/Android, éditions, posts et radio restent
+Les corps summary/content restent dans le cache borné, pas dupliqués dans chaque
+record de reprise. Les champs JSON consommés par le site/Android, éditions, posts et radio restent
 identiques. Les prompts ne sont pas modifiés ; le contenu RSS ne remplace pas
 l'extraction historique de la page. Pas de nouvelle UI Source Manager.
 
@@ -138,7 +139,7 @@ conditionnelle ; la collecte peut continuer sans validateurs, le journal métier
 reste indépendant. Corriger sur copie à l'arrêt plutôt que remplacer des données.
 
 FeedIngestor.invalidate(url) permet au futur Source Manager d'invalider explicitement
-un record. Pas de nouvelle route admin. Intervention manuelle : drainer/arrêter les
+les validateurs/snapshot d'un record, sans raccourcir ses embargos de retry. Pas de nouvelle route admin. Intervention manuelle : drainer/arrêter les
 collecteurs, sauvegarder le cache privé, modifier une copie validée ou le conserver
 à part, puis redémarrer. Une invalidation totale provoque de nouveaux téléchargements,
 pas l'effacement des articles/seen. Ne pas supprimer les fichiers .lock.
@@ -166,6 +167,8 @@ Les délais de source ne constituent pas des retries agressifs de sécurité.
 Arrêt : le scheduler transmet son Event à fetcher.run ; plus de nouvelles requêtes
 ni appels LLM après observation du stop. Les tâches HTTP actives drainent dans leurs
 budgets, les futures non admises sont annulées ; ThreadPoolExecutor est rejoint.
+Une annulation observée avant génération ne consomme pas le budget de tentatives
+de l'article ; un résumé déjà obtenu peut être publié sans nouvelle traduction.
 Pas de worker de téléchargement abandonné. Limite héritée du résolveur libc : un
 DNS bloqué n'est pas annulable, au plus quatre workers DNS daemon peuvent terminer
 après leur deadline. Les sockets/watchdogs et limites SSRF restent celles du Sprint
