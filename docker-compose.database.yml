@@ -1,0 +1,87 @@
+# Explicit database overlay. No migration/import occurs during service startup.
+services:
+  postgres:
+    image: postgres:18.6-trixie@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+    profiles: [database]
+    entrypoint: [/bin/sh, /opt/atlas/postgres-entrypoint.sh]
+    user: "${ATLAS_UID:-10001}:${ATLAS_GID:-10001}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    stop_signal: SIGINT
+    stop_grace_period: ${ATLAS_DB_STOP_GRACE:-2m}
+    mem_limit: 512m
+    cpus: 1.0
+    shm_size: 128m
+    environment:
+      POSTGRES_DB: nova_atlas
+      POSTGRES_USER: atlas_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --encoding=UTF8 --locale=C.UTF-8
+      PGDATA: /var/lib/postgresql/18/docker
+    command: [postgres, -c, max_connections=30, -c, shared_buffers=64MB, -c, statement_timeout=15000, -c, lock_timeout=5000, -c, idle_in_transaction_session_timeout=30000, -c, log_min_error_statement=panic, -c, log_error_verbosity=terse, -c, log_statement=none, -c, timezone=UTC]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+      - /var/run/postgresql:rw,nosuid,size=16m,uid=${ATLAS_UID:-10001},gid=${ATLAS_GID:-10001},mode=3775
+    networks: [database]
+    secrets: [postgres_admin_password, postgres_app_password, postgres_migrator_password]
+    volumes:
+      - type: bind
+        source: ${ATLAS_STORAGE:-./deploy/local}/postgresql
+        target: /var/lib/postgresql
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./deploy/postgres-init.sql
+        target: /docker-entrypoint-initdb.d/10-atlas.sql
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./deploy/postgres-entrypoint.sh
+        target: /opt/atlas/postgres-entrypoint.sh
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, atlas_admin, -d, nova_atlas]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 12
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+  dbtools:
+    image: ${ATLAS_IMAGE:-nova-atlas:02-foundation}
+    build: {context: ., dockerfile: Dockerfile}
+    profiles: [database-tools]
+    user: "${ATLAS_UID:-10001}:${ATLAS_GID:-10001}"
+    entrypoint: [/usr/bin/tini, --, python, -m, modules.persistence.cli]
+    command: [health]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: "no"
+    stop_grace_period: 2m
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,mode=1777"]
+    environment: {ATLAS_DB_HOST: postgres, ATLAS_DB_NAME: nova_atlas}
+    networks: [database]
+    secrets: [postgres_app_password, postgres_migrator_password]
+    volumes:
+      - type: bind
+        source: ${ATLAS_IMPORT_ROOT:-${ATLAS_STORAGE:-./deploy/local}/migration_input}
+        target: /imports
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ATLAS_DB_EXPORTS:-${ATLAS_STORAGE:-./deploy/local}/database_exports}
+        target: /exports
+        bind: {create_host_path: false}
+    depends_on:
+      postgres: {condition: service_healthy}
+networks:
+  database: {internal: true}
+secrets:
+  postgres_admin_password:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/postgres_admin_password
+  postgres_app_password:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/postgres_app_password
+  postgres_migrator_password:
+    file: ${ATLAS_STORAGE:-./deploy/local}/secrets/postgres_migrator_password

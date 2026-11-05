@@ -17,7 +17,7 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | Autres PR P0 | Anomalies résiduelles, revue de déploiement et robustesse | Une reproduction et une non-régression par correction |
 | 02 | Compose pour l'existant, secrets et healthchecks | Images et smoke CI isolé ; revue avant déploiement Linux réel |
 | 03 | LiteLLM et profils Ollama Cloud/OpenRouter | PR #11 en revue : alias, tests offline/smoke, capacités et fallback ; budgets persistants différés |
-| 04 | PostgreSQL/Alembic et import JSON/YAML | Sauvegarde/restauration et aller-retour sans perte |
+| 04 | PostgreSQL/Alembic et import JSON/YAML | PR #12 en revue : snapshots vérifiés et dump/restore ; cutover métier en PR complémentaire |
 | 05 | Collecte RSS/Atom, dates, statuts et retries | Erreur temporaire récupérable, HTTP simulé |
 | 06 | Source Manager API | CRUD, test, santé, SSRF et import/export des flux historiques |
 | 07 | Découverte de sources | Recherche/prévisualisation/ajout bornés, RSSHub facultatif |
@@ -62,3 +62,8 @@ cloud désactivé par défaut, relais de capacité local/cloud et cache par mod�
 Tests hors ligne et smoke complet avec fournisseur simulé ; détails LLM_GATEWAY.md.
 Les quotas financiers persistants, équité distribuée et jobs durables restent à
 livrer avec l'architecture de stockage ; aucune base ajoutée par ce sprint.
+
+Sprint 04 : socle PostgreSQL/Alembic et import/export de snapshots proposé. La
+bascule effective collecte/publication/lecteurs reste une tranche complémentaire,
+avec transactions de traitement et protocole de cutover à tester. Les fichiers
+restent autoritaires dans cette PR ; voir DATABASE_MIGRATION.md.

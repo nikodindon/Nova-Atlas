@@ -4,7 +4,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 WORKDIR /app
 COPY requirements-runtime.lock /app/requirements-runtime.lock
 RUN python -m pip install --no-cache-dir -r requirements-runtime.lock
-COPY main.py /app/main.py
+COPY main.py alembic.ini /app/
+COPY migrations /app/migrations
 COPY modules /app/modules
 COPY deploy /app/deploy
 RUN chmod 755 /app/deploy/ollama && ln -s /app/deploy/ollama /usr/local/bin/ollama \

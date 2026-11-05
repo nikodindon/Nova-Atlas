@@ -149,3 +149,23 @@ aucun scheduler, RSS, LLM, Edge TTS, Icecast ou streamer réel n'est démarré p
 nouveau job. Vérifications de bout en bout : cinq alias/langue, auth, absence de
 secrets dans les logs, santé, SIGTERM/restart ; scénarios 429/500 et comptage des
 appels ajoutés pour vérifier l'unique niveau de retry. Voir LLM_GATEWAY.md.
+
+## Sprint 04 — PostgreSQL et archives réversibles
+
+Socle dev@0d7f787 : 988 tests. Trois reproductions en échec avant correction :
+planificateur d'import absent, overlay DB absent et aucune révision Alembic.
+Suite locale finale Python 3.12 : **1 034 réussis, 0 échec, 0 ignoré** en 33,75 s,
+soit 46 cas supplémentaires. Chromium et smokes Docker/LiteLLM conservés.
+Syntaxes Python/JavaScript, CSRF et git diff --check réussis.
+
+Les unités utilisent des copies synthétiques et SQLite pour le rollback élémentaire ;
+le test du journal exporté invoque le véritable chargeur legacy sans init de moteur.
+Les documents sources complets permettent de vérifier précision numérique, champs
+inconnus, commentaires et Unicode sans dépendre de la seule projection JSONB.
+
+La CI database-smoke utilise PostgreSQL 18.6 réel jetable : Alembic + comparaison de
+schéma, droits app/migrateur, dry-run, imports répétés/concurrents, processus tué
+avant commit, checkpoint/tentatives préservés, export sémantique, déconnexion et
+redémarrage PGDATA, pg_dump/pg_restore dans une DB neuve puis downgrade/upgrade.
+Aucun producteur métier ni import réel n'est démarré. Les huit contrôles push/PR
+incluent ce nouveau job ; la bascule métier SQL reste explicitement hors livraison.

@@ -218,3 +218,17 @@ seule et allowlist des paramètres. Les modes DB/gestion de clés/budget SQL res
 désactivés. Limites résiduelles : métriques/RPM/cooldowns non persistants, appels
 directs d'autres machines hors flock, timeout ne prouvant pas l'arrêt du calcul
 serveur ; pas de plafond financier strict. Voir LLM_GATEWAY.md et tests gateway.
+
+## Fondation PostgreSQL — Sprint 04
+
+Imports explicites de snapshots, une transaction et advisory lock par manifeste ;
+aucun remplacement silencieux des originaux ou des anciens snapshots. Alembic
+versionné, droits limités, dates naïves non converties arbitrairement. Le bootstrap
+interrompu est refusé au redémarrage plutôt que considéré comme complet ; aucune
+suppression/réinitialisation automatique de PGDATA. Tests PostgreSQL jetable.
+
+Limite à ne pas masquer : les producteurs et consommateurs opérationnels restent
+legacy, avec les garanties des Sprints 01E/01F et leurs verrous POSIX. Aucune
+transition de job/checkpoint/publication en SQL n'est annoncée ici. Le cutover,
+la concurrence de collecteurs SQL et les nouveaux événements/jobs nécessitent une
+PR complémentaire avec tests métier. Voir DATABASE_MIGRATION.md.
