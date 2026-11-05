@@ -185,3 +185,13 @@ n'a pas d'accusé de réception durable ; l'API JSON reste disponible, un procha
 build du site est nécessaire. Les garanties distribuées/transactions SQL restent
 au sprint PostgreSQL. Aucun mécanisme ne corrige un stockage défaillant ou une
 édition externe concurrente non coopérative des JSON.
+
+## Extension Sprint 05
+
+La découverte reçoit des FeedEntry RSS/Atom ; title/link/pub_date restent les
+champs métier. La provenance ingestion, bornée et JSON-safe, est conservée dans
+le record privé de reprise, jamais dans le JSON public. Un 304 rejoue les entrées
+validées en cache avant déduplication ; le hash URL, les sept jours et les règles
+prepared/target_day/publication ne changent pas. Les téléchargements de flux seuls
+sont parallèles. Arrêt observé avant traitement du prochain article ; les records
+non traités restent découverts/reprenables. Voir RSS_INGESTION.md.

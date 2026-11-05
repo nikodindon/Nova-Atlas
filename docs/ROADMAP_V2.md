@@ -67,3 +67,8 @@ Sprint 04 : socle PostgreSQL/Alembic et import/export de snapshots proposé. La
 bascule effective collecte/publication/lecteurs reste une tranche complémentaire,
 avec transactions de traitement et protocole de cutover à tester. Les fichiers
 restent autoritaires dans cette PR ; voir DATABASE_MIGRATION.md.
+
+Sprint 05 : RSS/Atom, résultats typés, cache conditionnel et santé des flux legacy,
+téléchargements bornés avec limites par hostname effectif. La consolidation
+multi-sources, la découverte et l'interface Source Manager restent aux sprints
+suivants ; voir RSS_INGESTION.md et AUDIT_P1.md. Aucun cutover PostgreSQL.

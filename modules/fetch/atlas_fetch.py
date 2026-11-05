@@ -47,6 +47,7 @@ DEFAULT_FEEDS_PATH = Path("config/feeds.yaml")
 # Cache module-level pour éviter de relire le fichier à chaque fetch
 _cached_feeds: dict | None = None
 _cached_feeds_mtime: float = 0
+_cached_feeds_path: str | None = None
 
 
 def _load_rss_sources(feeds_path: str | Path = None) -> dict:
@@ -56,17 +57,17 @@ def _load_rss_sources(feeds_path: str | Path = None) -> dict:
     En cas d'erreur, fallback sur un dict vide (le fetch tournera mais ne
     ramènera rien — mieux qu'un crash).
     """
-    global _cached_feeds, _cached_feeds_mtime
+    global _cached_feeds, _cached_feeds_mtime, _cached_feeds_path
     path = Path(feeds_path or DEFAULT_FEEDS_PATH)
     if not path.exists():
         return {}
 
     try:
-        mtime = path.stat().st_mtime
+        mtime = path.stat().st_mtime_ns
     except OSError:
         return {}
 
-    if _cached_feeds is not None and mtime == _cached_feeds_mtime:
+    if _cached_feeds is not None and str(path.absolute()) == _cached_feeds_path and mtime == _cached_feeds_mtime:
         return _cached_feeds
 
     try:
@@ -75,20 +76,22 @@ def _load_rss_sources(feeds_path: str | Path = None) -> dict:
     except Exception as e:
         import logging
         logging.getLogger("nova.fetch").warning(
-            f"Impossible de charger {path}: {e} — fetch tournera à vide"
+            "RSS configuration unavailable; no active sources loaded"
         )
         feeds = {}
 
     _cached_feeds = feeds
     _cached_feeds_mtime = mtime
+    _cached_feeds_path = str(path.absolute())
     return feeds
 
 
 def invalidate_feeds_cache():
     """Force le rechargement au prochain appel (utilisé après /config/restart)."""
-    global _cached_feeds, _cached_feeds_mtime
+    global _cached_feeds, _cached_feeds_mtime, _cached_feeds_path
     _cached_feeds = None
     _cached_feeds_mtime = 0
+    _cached_feeds_path = None
 
 
 # Backward-compat : RSS_SOURCES reste accessible comme un dict, mais
@@ -289,6 +292,9 @@ class ArticleFetcher:
         self.retry_base = max(1, min(86400, int(fetch_cfg.get('retry_base_seconds', 1800))))
         self.retry_cap = max(self.retry_base, min(604800, int(fetch_cfg.get('retry_max_seconds', 21600))))
         self.state_file = self.seen_file.with_name('article_processing.json')
+        self.feed_state_file = self.seen_file.with_name('feed_ingestion_state.json')
+        from modules.fetch.ingestion import options
+        self._feed_options = options(rss_cfg)
 
     def reload_config(self, config: dict):
         """Recharge la config à chaud sans redémarrer le processus."""
@@ -351,32 +357,19 @@ class ArticleFetcher:
 
     # ── RSS fetch ─────────────────────────────────────────────────────────────
 
-    def _fetch_rss(self, url: str) -> list:
-        try:
-            r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP)
-            r.raise_for_status()
-            soup  = BeautifulSoup(r.content, "xml", parser=_rss_xml_parser)
-            items = []
-            for item in soup.find_all("item")[:self.max_per_feed]:
-                title_tag = item.find("title")
-                link_tag  = item.find("link")
-                pub_tag   = item.find("pubDate")
-                title = title_tag.get_text().strip() if title_tag else ""
-                link  = link_tag.get_text().strip()  if link_tag  else ""
-                pub   = pub_tag.get_text().strip()   if pub_tag   else ""
-                if title and link:
-                    items.append({"title": title, "link": link, "pub_date": pub})
-            return items
-        except Exception as e:
-            self.log.debug("RSS retrieval failed (%s)", type(e).__name__)
-            return []
+    def _fetch_rss(self, url: str):
+        from modules.fetch.ingestion import FeedIngestor
+        ingestor = getattr(self, '_ingestion', None)
+        if ingestor is None:
+            ingestor = FeedIngestor(config={'max_articles_per_feed':self.max_per_feed})
+        return ingestor.download(url)
 
     # ── Article content ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _fetch_content(url: str, *, raise_errors=False) -> str:
+    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None) -> str:
         try:
-            r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP)
+            r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP, host_budget=host_budget, cancel_event=cancel_event)
             r.raise_for_status()
             soup = BeautifulSoup(r.text, "html.parser")
             for tag in soup(["script","style","nav","header","footer",
@@ -690,6 +683,9 @@ class ArticleFetcher:
                           'category': category, 'discovered_at': self._now().timestamp(),
                           'updated_at': self._now().timestamp(),
                           'next_attempt_at': 0}
+            if isinstance(item.get('ingestion'), dict):
+                # Internal provenance stays in the private retry journal, never the public article JSON.
+                records[h]['ingestion'] = item['ingestion']
             self._save_state()
         return records[h]
 
@@ -768,7 +764,9 @@ class ArticleFetcher:
                        self.retry_cap, self.retry_base * 2 ** rec['attempts']))
         self._save_state()
         try:
-            content = self._fetch_content(item['link'], raise_errors=True)
+            content = self._fetch_content(item['link'], raise_errors=True,
+                host_budget=getattr(getattr(self, '_ingestion', None), 'host_budget', None),
+                cancel_event=getattr(self, '_feed_stop_event', None))
             if not content.strip():
                 raise ArticleAttemptError('empty_extraction')
             from modules.utils.helpers import clean_for_tts
@@ -792,7 +790,8 @@ class ArticleFetcher:
         self._save_state()
         return self._commit_prepared(h, rec, seen, existing_hashes, articles)
 
-    def run(self):
+    def run(self, *, stop_event=None):
+        self._feed_stop_event = stop_event
         acquired = False
         try:
             with collection_lock(self.seen_file.with_name('article-integrity.lock')):
@@ -830,9 +829,18 @@ class ArticleFetcher:
                   and 'prepared' not in rec):
                 rec.update(status='failed', reason='retention_expired')
         self._save_state()
-        for category, feeds in _load_rss_sources().items():
+        from modules.fetch.ingestion import FeedIngestor
+        self._ingestion = FeedIngestor(self.feed_state_file, config=self._feed_options, clock=self._now)
+        sources = _load_rss_sources()
+        results = self._ingestion.fetch_many([url for feeds in sources.values() for url in feeds],
+            downloader=self._fetch_rss, cancel_event=getattr(self, '_feed_stop_event', None))
+        from collections import Counter
+        self.log.info('Feed results: %s', dict(Counter(result.status for result in results.values())))
+        for category, feeds in sources.items():
             for feed_url in feeds:
-                for item in self._fetch_rss(feed_url):
+                result = results[feed_url]
+                for entry in result.entries:
+                    item = entry.legacy()
                     if self._hash(item['link']) not in existing_hashes:
                         self._record(item, category)
         if self.retry_summaries:
@@ -854,6 +862,8 @@ class ArticleFetcher:
         self._save_state()
         count = 0
         while any(queues.values()):
+            if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+                break
             for queue in queues.values():
                 if queue:
                     item, category = queue.pop(0)

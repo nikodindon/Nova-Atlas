@@ -9,6 +9,7 @@ from modules.fetch import atlas_fetch, article_state
 from modules.fetch.article_state import StorageError, atomic_json, collection_lock
 from modules.http import external as http
 from tests.test_article_reproductions import fetcher_at
+from tests.rss_helpers import result as feed_result
 
 ITEM = {'title': 'Une information synthétique complète', 'link': 'https://news.example/article',
         'pub_date': 'Wed, 04 Nov 2026 10:00:00 GMT'}
@@ -20,7 +21,7 @@ def engine(tmp_path, monkeypatch):
     now = [datetime(2026, 11, 4, 12)]
     obj._clock = lambda: now[0]
     monkeypatch.setattr(atlas_fetch, '_load_rss_sources', lambda: {'tech': ['https://news.example/rss']})
-    monkeypatch.setattr(obj, '_fetch_rss', Mock(return_value=[dict(ITEM)]))
+    monkeypatch.setattr(obj, '_fetch_rss', Mock(return_value=feed_result([dict(ITEM)])))
     obj.advance = lambda **kw: now.__setitem__(0, now[0] + timedelta(**kw))
     return obj
 
@@ -30,7 +31,7 @@ def record(engine):
 
 
 def test_success_preserves_public_schema_and_deduplicates_url(engine):
-    engine._fetch_rss.return_value = [ITEM, {**ITEM, 'title': 'Autre titre pour la même URL'}]
+    engine._fetch_rss.return_value = feed_result([ITEM, {**ITEM, 'title': 'Autre titre pour la même URL'}])
     assert engine.run() == 1
     articles = engine._load_today()
     assert len(articles) == 1
@@ -48,7 +49,7 @@ def test_temporary_error_recovered_even_after_feed_drops_article(engine, failure
     assert engine.run() == 0
     assert record(engine)['status'] == 'retryable'
     assert engine._load_seen() == set()
-    engine._fetch_rss.return_value = []
+    engine._fetch_rss.return_value = feed_result([])
     assert engine.run() == 0
     assert engine._fetch_content.call_count == 1
     engine.advance(minutes=30)
@@ -132,7 +133,7 @@ def test_llm_exception_then_recovery(engine):
 
 
 def test_failed_article_does_not_block_other_articles(engine):
-    engine._fetch_rss.return_value = [ITEM, {**ITEM, 'link': 'https://news.example/second'}]
+    engine._fetch_rss.return_value = feed_result([ITEM, {**ITEM, 'link': 'https://news.example/second'}])
     engine._fetch_content.side_effect = [TimeoutError(), 'Good content']
     assert engine.run() == 1
     assert len(engine._load_today()) == 1
@@ -142,7 +143,7 @@ def test_success_never_overwritten_after_network_failure(engine):
     assert engine.run() == 1
     raw = engine._today_file().read_bytes()
     engine._fetch_content.side_effect = TimeoutError()
-    engine._fetch_rss.return_value = [ITEM, {**ITEM, 'link': 'https://news.example/second'}]
+    engine._fetch_rss.return_value = feed_result([ITEM, {**ITEM, 'link': 'https://news.example/second'}])
     assert engine.run() == 0
     assert engine._today_file().read_bytes() == raw
     engine._summarize.assert_called_once()
@@ -169,7 +170,7 @@ def test_restart_retains_attempts_and_next_attempt(engine, tmp_path, monkeypatch
     engine._fetch_content.side_effect = TimeoutError()
     engine.run()
     restarted = fetcher_at(tmp_path, monkeypatch, engine._now())
-    monkeypatch.setattr(restarted, '_fetch_rss', Mock(return_value=[]))
+    monkeypatch.setattr(restarted, '_fetch_rss', Mock(return_value=feed_result([])))
     assert restarted.run() == 0
     restarted._fetch_content.assert_not_called()
     restarted._clock = lambda: engine._now() + timedelta(minutes=30)
@@ -245,7 +246,7 @@ def test_optional_legacy_summary_repair_preserves_fields_and_backup(engine):
     legacy = {**ITEM, 'summary': '', 'custom_field': 'kept', 'no_content': True}
     engine._today_file().write_text(json.dumps([legacy]))
     engine.retry_summaries = True
-    engine._fetch_rss.return_value = []
+    engine._fetch_rss.return_value = feed_result([])
     assert engine.run() == 1
     assert len(engine._load_today()) == 1
     assert engine._load_today()[0]['custom_field'] == 'kept'
@@ -342,9 +343,9 @@ def test_tracking_write_failure_never_starts_llm(engine, monkeypatch):
 
 def test_category_cap_defers_discovered_articles_without_losing_them(engine):
     engine.max_per_category = 1
-    engine._fetch_rss.return_value = [ITEM, {**ITEM, 'link': 'https://news.example/second'}]
+    engine._fetch_rss.return_value = feed_result([ITEM, {**ITEM, 'link': 'https://news.example/second'}])
     assert engine.run() == 1
-    engine._fetch_rss.return_value = []
+    engine._fetch_rss.return_value = feed_result([])
     assert engine.run() == 1
     assert len(engine._load_today()) == 2
 
@@ -361,7 +362,7 @@ def test_retention_expires_pending_without_resetting_attempts(engine):
 
 def test_logs_do_not_include_response_exception_or_title(engine):
     engine._fetch_content.side_effect = TimeoutError('SYNTHETIC_PRIVATE_VALUE')
-    engine._fetch_rss.return_value = [{**ITEM, 'title': 'SYNTHETIC_PRIVATE_TITLE'}]
+    engine._fetch_rss.return_value = feed_result([{**ITEM, 'title': 'SYNTHETIC_PRIVATE_TITLE'}])
     engine.run()
     assert 'SYNTHETIC_PRIVATE' not in str(engine.log.mock_calls)
 

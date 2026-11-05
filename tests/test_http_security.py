@@ -354,7 +354,7 @@ def test_rss_and_article_share_same_client(monkeypatch):
         Response(('<article>' + 'Information synthétique. '*20 + '</article>').encode(), 200, {}, 'https://article.example/news'),
     ])
     monkeypatch.setattr('modules.fetch.atlas_fetch.source_http.get', fetch)
-    assert fetcher._fetch_rss('https://feed.example/')[0]['title'] == 'News'
+    assert fetcher._fetch_rss('https://feed.example/').entries[0].title == 'News'
     assert 'Information synthétique' in fetcher._fetch_content('https://article.example/news')
     assert fetch.call_count == 2
 
@@ -364,7 +364,7 @@ def test_blocked_article_fails_without_llm_or_disk_writes(monkeypatch):
     fetcher = ArticleFetcher.__new__(ArticleFetcher)
     fetcher.log = Mock()
     fetcher.max_per_feed = 8
-    assert fetcher._fetch_rss('http://127.0.0.1/feed') == []
+    assert fetcher._fetch_rss('http://127.0.0.1/feed').status == 'blocked_by_security'
     assert fetcher._fetch_content('http://100.64.1.2/article') == ''
     assert '127.0.0.1' not in str(fetcher.log.mock_calls)
 
@@ -523,12 +523,13 @@ def test_rss_xml_cannot_load_external_dtd_or_entities(monkeypatch, tmp_path):
         def resolve(self, url, public_id, context):
             calls.append(url)
             raise AssertionError('No XML resource may be loaded')
-    factory = atlas_fetch._rss_xml_parser
+    from modules.fetch import feed_parser
+    factory = feed_parser.etree.XMLParser
     def guarded_factory(**kwargs):
         parser = factory(**kwargs)
         parser.resolvers.add(NoExternalResources())
         return parser
-    monkeypatch.setattr(atlas_fetch, '_rss_xml_parser', guarded_factory)
+    monkeypatch.setattr(feed_parser.etree, 'XMLParser', guarded_factory)
     synthetic = tmp_path / 'synthetic.txt'
     synthetic.write_text('synthetic-credential-not-to-read')
     xml = (f'<!DOCTYPE rss SYSTEM "http://127.0.0.1/external.dtd" '

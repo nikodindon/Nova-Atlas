@@ -150,7 +150,7 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
 
     def fetch_and_rebuild():
         try:
-            new_count = fetcher.run()
+            new_count = fetcher.run(stop_event=stop_event)
             if new_count and new_count > 0:
                 generate_static_site(config, full=False)
                 log.info(f"[WEB] Site régénéré ({new_count} nouveaux articles)")
@@ -191,7 +191,7 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
     def initial_fetch_and_rebuild():
         # Preserve the startup rebuild even when the initial fetch returns zero articles.
         try:
-            fetcher.run()
+            fetcher.run(stop_event=stop_event)
             generate_static_site(config, full=False)
         except Exception as e:
             log.error(f"Fetch initial : {e}")

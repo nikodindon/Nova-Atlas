@@ -344,3 +344,11 @@ ou de dépendance DB ; LiteLLM reste sans DB. Nouveau stockage indépendant
 ATLAS_STORAGE/postgresql, mêmes UID/GID, secrets privés et initialisation uniquement
 sur chemins neufs. Aucun import/migration Alembic au démarrage. Installation,
 pg_dump/restore et rollback : [DATABASE_MIGRATION.md](DATABASE_MIGRATION.md).
+
+## Extension Sprint 05
+
+feedparser et son dépendant sont épinglés dans l'image existante. Le fichier privé
+feed_ingestion_state.json utilise le bind data commun ; pas de volume/service de
+production supplémentaire ni changement PostgreSQL/LiteLLM. Le smoke RSS utilise
+un conteneur jetable network=none et un transport de test injecté, jamais une
+exception SSRF de production. Configuration/rollback : RSS_INGESTION.md.

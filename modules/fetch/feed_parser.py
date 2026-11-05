@@ -1,0 +1,159 @@
+"""Bounded RSS/Atom parser, no network/path interpretation by feedparser."""
+from dataclasses import dataclass,field,asdict
+from datetime import datetime,timezone
+from email.utils import parsedate_to_datetime
+import io
+from urllib.parse import urljoin
+import feedparser
+from bs4 import BeautifulSoup
+from lxml import etree
+from modules.http.external import parse_url,BlockedURL
+
+VERSIONS={'rss','rss090','rss091n','rss091u','rss092','rss093','rss094','rss10','rss20','atom03','atom10'}
+
+
+def source_date(raw):
+    if not raw:return None,'missing'
+    try:
+        try:value=datetime.fromisoformat(raw.replace('Z','+00:00'))
+        except ValueError:value=parsedate_to_datetime(raw)
+        if value.tzinfo is None:return None,'ambiguous_local'
+        return value.astimezone(timezone.utc),'aware'
+    except (ValueError,TypeError,OverflowError):return None,'invalid'
+
+
+@dataclass(frozen=True)
+class FeedEntry:
+    feed_url: str
+    entry_id: str
+    title: str
+    link: str
+    published_raw: str = ''
+    published_at: datetime | None = None
+    updated_raw: str = ''
+    updated_at: datetime | None = None
+    author: str = ''
+    source: str = ''
+    category: str = ''
+    summary_raw: str = ''
+    content_raw: str = ''
+    retrieved_at: datetime | None = None
+    published_status: str = 'missing'
+    updated_status: str = 'missing'
+
+    def to_dict(self):
+        data=asdict(self)
+        for key in ('published_at','updated_at','retrieved_at'):
+            if data[key] is not None:data[key]=data[key].isoformat()
+        return data
+
+    @classmethod
+    def from_dict(cls,data):
+        data=dict(data)
+        for key in ('published_at','updated_at','retrieved_at'):
+            if data.get(key) is not None:
+                value=datetime.fromisoformat(data[key])
+                if value.tzinfo is None:raise ValueError('naive cache date')
+                data[key]=value.astimezone(timezone.utc)
+        entry=cls(**data)
+        if any(not isinstance(getattr(entry,k),str) or len(getattr(entry,k))>limit for k,limit in (
+            ('title',4096),('link',4096),('feed_url',4096),('entry_id',4096),('published_raw',1024),('updated_raw',1024),
+            ('author',1024),('source',1024),('category',200),('summary_raw',16000),('content_raw',16000))):raise ValueError('invalid cache entry')
+        parse_url(entry.link);parse_url(entry.feed_url)
+        return entry
+
+    def legacy(self):
+        # Private journal only. The public article serializer keeps its existing fields.
+        return {'title':self.title,'link':self.link,'pub_date':self.published_raw,'ingestion':self.to_dict()}
+
+
+@dataclass(frozen=True)
+class FeedResult:
+    status: str
+    entries: tuple[FeedEntry,...] = ()
+    reason: str = ''
+    http_status: int | None = None
+    warnings: tuple[str,...] = ()
+    etag: str | None = None
+    last_modified: str | None = None
+    response_url: str = ''
+    retrieved_at: datetime | None = None
+    duration: float = 0
+    retry_after: float | None = None
+    deferred: bool = False
+    rate_host: str = ""
+
+
+def _raw_date(element,names):
+    for node in element:
+        if isinstance(node.tag,str) and etree.QName(node).localname.lower() in names:
+            return ''.join(node.itertext()).strip()[:1024]
+    return ''
+
+
+def _plain(value):
+    soup=BeautifulSoup(value,'html.parser')
+    for node in soup(['script','style']):node.decompose()
+    return soup.get_text(' ',strip=True)
+
+
+def parse_feed(body,feed_url,response_url,*,retrieved_at=None,max_bytes=4*1024*1024):
+    now=retrieved_at or datetime.now(timezone.utc)
+    def invalid(reason):return FeedResult('invalid_feed',reason=reason,retrieved_at=now,response_url=response_url)
+    if not isinstance(body,bytes) or not body or len(body)>max_bytes:return invalid('empty_or_oversized_body')
+    try:
+        parser=etree.XMLParser(resolve_entities=False,load_dtd=False,no_network=True,huge_tree=False,recover=False)
+        root=etree.fromstring(body,parser=parser,base_url=response_url)
+        if root.getroottree().docinfo.doctype:return invalid('dtd_forbidden')
+        nodes=[];count=0
+        for node in root.iter():
+            count+=1
+            if count>25000:return invalid('xml_node_limit')
+            if isinstance(node.tag,str) and etree.QName(node).localname in ('item','entry'):nodes.append(node)
+        if len(nodes)>1000:return invalid('entry_limit')
+        data=feedparser.parse(io.BytesIO(body),response_headers={'content-type':'application/xml','content-location':response_url},
+                              sanitize_html=False,resolve_relative_uris=False)
+    except (etree.XMLSyntaxError,ValueError,TypeError,RecursionError):return invalid('invalid_xml')
+    if data.get('version') not in VERSIONS:return invalid('unrecognized_format')
+    if data.get('bozo'):
+        # XML was independently validated. Encoding overrides are explicit, not silent repair.
+        name=type(data.get('bozo_exception')).__name__
+        if name not in ('CharacterEncodingOverride','NonXMLContentType'):return invalid('parser_error')
+        warnings=['encoding_or_content_type_override']
+    else:warnings=[]
+    parsed=data.get('entries',[])
+    if len(parsed)!=len(nodes):return invalid('entry_structure_mismatch')
+    entries=[];bad=0;truncated=0
+    for entry,node in zip(parsed,nodes):
+        title=_plain(dict.get(entry,'title',''))
+        candidates=[l.get('href','') for l in entry.get('links',[]) if l.get('rel','alternate')=='alternate' and l.get('type','text/html') in ('text/html','application/xhtml+xml','')]
+        if not candidates:candidates=[dict.get(entry,'link','')]
+        if not candidates[0] and data['version'].startswith('rss') and entry.get('guidislink'):candidates=[dict.get(entry,'id','')]
+        link=''
+        for candidate in candidates:
+            if not candidate:continue
+            proposed=urljoin(node.base or response_url,candidate.strip())
+            try:parse_url(proposed)
+            except BlockedURL:continue
+            link=proposed;break
+        if not title or not link or len(title)>4096 or len(link)>4096:bad+=1;continue
+        pub=_raw_date(node,{'published','pubdate','issued'})
+        if not pub and data['version'].startswith('rss'):pub=_raw_date(node,{'date'})
+        updated=_raw_date(node,{'updated','modified'})
+        published_at,published_status=source_date(pub);updated_at,updated_status=source_date(updated)
+        summary=dict.get(entry,'summary','');content='\n'.join(c.get('value','') for c in entry.get('content',[]))
+        if len(summary)>16000 or len(content)>16000:truncated+=1
+        entries.append(FeedEntry(feed_url=feed_url,entry_id=str(dict.get(entry,'id',''))[:4096],title=title,link=link,
+            published_raw=pub,published_at=published_at,updated_raw=updated,updated_at=updated_at,
+            author=str(entry.get('author',''))[:1024],source=str(data.get('feed',{}).get('title',''))[:1024],
+            category=str(entry.get('tags',[{}])[0].get('term',''))[:200] if entry.get('tags') else '',
+            summary_raw=summary[:16000],content_raw=content[:16000],retrieved_at=now,
+            published_status=published_status,updated_status=updated_status))
+    invalid_dates=sum(e.published_status=='invalid' or e.updated_status=='invalid' for e in entries)
+    ambiguous_dates=sum(e.published_status=='ambiguous_local' or e.updated_status=='ambiguous_local' for e in entries)
+    if invalid_dates:warnings.append('invalid_dates:'+str(invalid_dates))
+    if ambiguous_dates:warnings.append('ambiguous_dates:'+str(ambiguous_dates))
+    if bad:warnings.append('invalid_entries:'+str(bad))
+    if truncated:warnings.append('raw_content_truncated:'+str(truncated))
+    if nodes and not entries:return invalid('no_usable_entries')
+    return FeedResult('success' if entries else 'empty',tuple(entries),warnings=tuple(warnings),response_url=response_url,retrieved_at=now)
