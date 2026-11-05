@@ -36,6 +36,7 @@ def _write(stage_fd,path,raw):
 
 def export_snapshot(plan,destination):
     destination=Path(destination).absolute()
+    if '..' in destination.parts:raise StorageError('unsafe_export_parent')
     if destination.exists() or destination.is_symlink():raise StorageError('export_destination_exists')
     parent=_parent_fd(destination.parent);stage='.atlas-export-'+secrets.token_hex(12);created=False
     try:

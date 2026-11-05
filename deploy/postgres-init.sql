@@ -1,4 +1,5 @@
 -- Official image runs this only on a NEW cluster. No history import or Alembic here.
+\set VERBOSITY terse
 SET log_min_error_statement = 'panic';
 SET log_error_verbosity = 'terse';
 DO $$

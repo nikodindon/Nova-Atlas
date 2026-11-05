@@ -20,7 +20,7 @@ bascule métier serait mensongère tant que le parcours collecte/checkpoint/publ
 n'est pas connecté transactionnellement. `select_storage` sait lire un inventaire
 legacy ou un snapshot PostgreSQL explicitement choisi, sans migration implicite.
 
-Les transactions SQL protègent les imports, **pas encore** la génération/publification
+Les transactions SQL protègent les imports, **pas encore** la génération/publication
 métier. Le flock des collecteurs, les checkpoints du Sprint 01E, le scheduler,
 le cache LLM et les reçus MP3 restent indispensables et inchangés. Les tests
 historiques de deux collecteurs/LLM/audio sont conservés. Leur remplacement SQL,
@@ -160,7 +160,11 @@ versions Alembic. dbtools monte app+migrator pour les commandes explicitement co
 
 Host TCP SCRAM-SHA-256, pas de trust réseau. Socket Unix local de bootstrap de
 l'image officielle dans le conteneur de confiance ; exec Docker dans ce conteneur
-est un privilège administrateur, pas une frontière d'auth utilisateur. Révoquer les
+est un privilège administrateur, pas une frontière d'auth utilisateur. Un marqueur
+privé n'est écrit qu'à la toute fin du bootstrap ; PG_VERSION sans ce marqueur
+refuse tout redémarrage automatique. Ne pas fabriquer le marqueur pour contourner
+un échec : conserver le cluster incomplet pour diagnostic et repartir d'un chemin
+neuf après revue opérateur, sans effacer l'existant automatiquement. Révoquer les
 accès PUBLIC aux DB/schema de l'installation ; aucune API DB publique.
 
 Aucun DATABASE_URL secret dans Compose/config, commande ou diagnostic : URL SQLAlchemy
@@ -275,6 +279,7 @@ perte tant que ce protocole métier complet n'est pas implémenté et testé.
 
 ## Validation et limites
 
+Suite locale finale : **1 034 tests réussis, 0 échec, 0 ignoré**.
 Unit tests hors réseau avec fichiers temporaires et SQLite pour les transactions
 élémentaires ; SQLite n'est ni le backend de production ni une preuve des droits/
 verrous PostgreSQL. CI dédiée : vraie image PostgreSQL jetable, Alembic/schema,

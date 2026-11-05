@@ -2,6 +2,7 @@
 No business service or external source/provider is started.
 """
 import json
+import hashlib
 import os
 from pathlib import Path
 import secrets
@@ -16,11 +17,12 @@ from deploy.database import initialize as initialize_database
 
 def fixture(root):
     for folder in ['config','data/articles','data/posts','data/reports','data/editions']:(root/folder).mkdir(parents=True,exist_ok=True)
-    article={'hash':'synthetic','link':'https://example.invalid/article','title':'Été 🌍','title_original':'夏','summary':'Résumé synthétique','timestamp':'2026-10-25T02:30:00','pub_date':'2024-02-29T12:00:00+01:00','extra':{'preserved':True}}
+    legacy_hash=hashlib.md5(b'https://example.invalid/article').hexdigest()
+    article={'hash':legacy_hash,'link':'https://example.invalid/article','title':'Été 🌍','title_original':'夏','summary':'Résumé synthétique','timestamp':'2026-10-25T02:30:00','pub_date':'2024-02-29T12:00:00+01:00','extra':{'preserved':True}}
     (root/'config/feeds.yaml').write_text('tech: [https://example.invalid/feed]\n')
     (root/'data/articles/20261025_articles.json').write_text(json.dumps([article],ensure_ascii=False))
-    (root/'data/seen_hashes.json').write_text(json.dumps({'synthetic':'20261025','future':'20990101'}))
-    (root/'data/article_processing.json').write_text(json.dumps({'version':1,'records':{'synthetic':{'status':'processing','attempts':2,'prepared':article,'target_day':'20261025','discovered_at':1792886400}}}))
+    (root/'data/seen_hashes.json').write_text(json.dumps({legacy_hash:'20261025','future':'20990101'}))
+    (root/'data/article_processing.json').write_text(json.dumps({'version':1,'records':{legacy_hash:{'status':'processing','attempts':2,'item':{'link':article['link'],'title':article['title'],'pub_date':''},'category':'tech','updated_at':1792886500,'next_attempt_at':1792886500,'prepared':article,'target_day':'20261025','discovered_at':1792886400}}}))
     (root/'data/reports/20261025_report.md').write_text('# Rapport\nÉté\n')
     (root/'data/editions/20261025_matin.md').write_text('# Matin\nTexte\n')
     (root/'data/posts/20261025_1200_posts.json').write_text('[{"post_x":"Été","validated":false,"unknown":3}]')
@@ -108,6 +110,7 @@ import_snapshot(engine_from_env(),'/imports',plan,expected=plan['id'],quiesced=T
 from modules.persistence.repository import read_snapshot
 from modules.persistence.database import engine_from_env
 import json
+import hashlib
 report=json.load(open('/exports/roundtrip/SNAPSHOT_REPORT.json'))
 assert plan_import('/exports/roundtrip')['counts']==read_snapshot(engine_from_env(),report['source_snapshot'])['counts']
 """)

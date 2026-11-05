@@ -1,6 +1,6 @@
 # Architecture V2 — cible et transition
 
-## Existant
+## Socle historique au Sprint 00
 
 `main.py` orchestre processus et threads ; Python/Flask/Jinja, requests/BeautifulSoup,
 LLM Ollama CLI ou llama-server HTTP, Edge TTS, FFmpeg et Icecast. Les échanges

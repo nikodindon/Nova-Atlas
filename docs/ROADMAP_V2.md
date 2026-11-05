@@ -17,7 +17,7 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | Autres PR P0 | Anomalies résiduelles, revue de déploiement et robustesse | Une reproduction et une non-régression par correction |
 | 02 | Compose pour l'existant, secrets et healthchecks | Images et smoke CI isolé ; revue avant déploiement Linux réel |
 | 03 | LiteLLM et profils Ollama Cloud/OpenRouter | PR #11 en revue : alias, tests offline/smoke, capacités et fallback ; budgets persistants différés |
-| 04 | PostgreSQL/Alembic et import JSON/YAML | Sauvegarde/restauration et aller-retour sans perte |
+| 04 | PostgreSQL/Alembic et import JSON/YAML | PR #12 en revue : snapshots vérifiés et dump/restore ; cutover métier en PR complémentaire |
 | 05 | Collecte RSS/Atom, dates, statuts et retries | Erreur temporaire récupérable, HTTP simulé |
 | 06 | Source Manager API | CRUD, test, santé, SSRF et import/export des flux historiques |
 | 07 | Découverte de sources | Recherche/prévisualisation/ajout bornés, RSSHub facultatif |

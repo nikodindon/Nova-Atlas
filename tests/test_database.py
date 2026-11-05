@@ -2,6 +2,8 @@
 import copy
 from datetime import datetime,timezone
 import io
+import hashlib
+HASH=hashlib.md5(b"https://example.invalid/story").hexdigest()
 import json
 import os
 from pathlib import Path
@@ -12,6 +14,7 @@ import yaml
 import pytest
 from alembic import command
 from alembic.config import Config
+from modules.fetch.atlas_fetch import ArticleFetcher
 from modules.persistence import StorageError,runtime_mode,schema
 from modules.persistence.legacy import plan_import,verify_sources,date_value,canonical,safe_read
 from modules.persistence.repository import import_snapshot,read_snapshot,select_storage
@@ -23,11 +26,11 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def synthetic(root):
     for folder in ['config','data/articles','data/reports','data/editions','data/posts']:(root/folder).mkdir(parents=True,exist_ok=True)
-    article={'hash':'synthetic-hash','link':'https://example.invalid/story','title':'Été 🌍','title_original':'夏','summary':'Résumé validé',
+    article={'hash':HASH,'link':'https://example.invalid/story','title':'Été 🌍','title_original':'夏','summary':'Résumé validé',
              'source':'Synthetic','category':'tech','pub_date':'Sun, 01 Nov 2026 10:00:00 GMT','timestamp':'2026-11-01T11:10:00','extra':{'unknown':['preserved',1]}}
     files={'data/articles/20261101_articles.json':[article],
-           'data/seen_hashes.json':{'synthetic-hash':'20261101','future':'20990101','bad':'20261345'},
-           'data/article_processing.json':{'version':1,'unknown_root':'kept','records':{'synthetic-hash':{'status':'processing','attempts':2,'discovered_at':1793527200,'next_attempt_at':1793530800,'prepared':article,'target_day':'20261101','unknown':'preserved'}}},
+           'data/seen_hashes.json':{HASH:'20261101','future':'20990101','bad':'20261345'},
+           'data/article_processing.json':{'version':1,'unknown_root':'kept','records':{HASH:{'status':'processing','attempts':2,'item':{'link':article['link'],'title':article['title'],'pub_date':''},'category':'tech','updated_at':1793527300,'discovered_at':1793527200,'next_attempt_at':1793530800,'prepared':article,'target_day':'20261101','unknown':'preserved'}}},
            'data/posts/20261101_1200_posts.json':[{'slot':'20261101_1200','post_x':'Texte','validated':False,'extra':3}]}
     for name,value in files.items():(root/name).write_text(json.dumps(value,ensure_ascii=False))
     (root/'config/feeds.yaml').write_text('tech:\n  - https://example.invalid/feed\n  - url: https://example.invalid/other\n    enabled: false\n    name: Source 🌍\n    custom: [a, b]\n')
@@ -113,7 +116,7 @@ def test_bad_input_never_destroys_existing_snapshot(engine,legacy,tmp_path,mutat
     if mutation=='duplicate_keys':path.write_text('[{"title":"one","title":"two"}]')
     if mutation in ('negative_attempts','wrong_version'):
         state=legacy/'data/article_processing.json';data=json.loads(state.read_text())
-        if mutation=='negative_attempts':data['records']['synthetic-hash']['attempts']=-1
+        if mutation=='negative_attempts':data['records'][HASH]['attempts']=-1
         else:data['version']=2
         state.write_text(json.dumps(data))
     if mutation=='invalid_date_name':path.rename(path.with_name('20260230_articles.json'))
@@ -212,3 +215,76 @@ def test_partial_bootstrap_is_refused_before_postgres_can_restart(tmp_path):
     out,err=process.communicate(timeout=5)
     assert process.returncode==78 and b'bootstrap completion' in err
     assert b'a'*64 not in out+err
+
+
+def test_export_is_readable_by_real_legacy_processing_loader(engine,legacy,tmp_path):
+    from modules.fetch.atlas_fetch import ArticleFetcher
+    plan=read_snapshot(engine,apply(engine,legacy)['snapshot'])
+    destination=tmp_path/'restored';export_snapshot(plan,destination)
+    reader=object.__new__(ArticleFetcher);reader.state_file=destination/'data/article_processing.json'
+    state=reader._load_state()
+    assert state['records'][HASH]['prepared']['summary']=='Résumé validé'
+    assert state['records'][HASH]['attempts']==2
+
+
+def test_raw_precision_comments_and_unicode_survive_postgres_archive_contract(engine,legacy,tmp_path):
+    path=legacy/'data/articles/20261101_articles.json'
+    raw=path.read_text().replace('"extra": {','"measurement": 0.123456789012345678901234567890, "extra": {')
+    path.write_text(raw)
+    feeds=legacy/'config/feeds.yaml';feeds.write_text('# Commentaire historique 🌍\n'+feeds.read_text())
+    plan=read_snapshot(engine,apply(engine,legacy)['snapshot']);target=tmp_path/'precise';export_snapshot(plan,target)
+    assert (target/'data/articles/20261101_articles.json').read_bytes()==path.read_bytes()
+    assert (target/'config/feeds.yaml').read_bytes()==feeds.read_bytes()
+
+@pytest.mark.parametrize('mutation',['bad_hash','missing_item','bad_checkpoint','bad_time','yaml_alias','escaped_nul'])
+def test_invalid_records_refused_during_dry_run(legacy,mutation):
+    path=legacy/'data/article_processing.json';data=json.loads(path.read_text());record=data['records'][HASH]
+    if mutation=='bad_hash':data['records']['invalid']=data['records'].pop(HASH)
+    if mutation=='missing_item':record.pop('item')
+    if mutation=='bad_checkpoint':record['prepared']['summary']=''
+    if mutation=='bad_time':record['next_attempt_at']='tomorrow'
+    if mutation=='yaml_alias':(legacy/'config/feeds.yaml').write_text('tech: &a [https://example.invalid/feed]\nworld: *a\n')
+    if mutation=='escaped_nul':record['unknown']='bad\x00value'
+    path.write_text(json.dumps(data))
+    with pytest.raises(StorageError):plan_import(legacy)
+
+
+def test_same_url_on_two_editorial_days_is_not_silently_deduplicated(engine,legacy):
+    original=legacy/'data/articles/20261101_articles.json'
+    (original.parent/'20261102_articles.json').write_bytes(original.read_bytes())
+    plan=read_snapshot(engine,apply(engine,legacy)['snapshot'])
+    assert len(plan['rows']['articles'])==2
+    assert plan['rows']['processing_attempts'][0]['article_id'] is None
+
+
+def test_export_interruption_does_not_publish_or_damage_previous_output(legacy,tmp_path,monkeypatch):
+    from modules.persistence import export
+    plan=plan_import(legacy);old=tmp_path/'previous';export_snapshot(plan,old)
+    previous=(old/'data/articles/20261101_articles.json').read_bytes()
+    def interruption(*args):raise KeyboardInterrupt()
+    monkeypatch.setattr(export,'_write',interruption)
+    with pytest.raises(KeyboardInterrupt):export_snapshot(plan,tmp_path/'interrupted')
+    assert not (tmp_path/'interrupted').exists() and not list(tmp_path.glob('.atlas-export-*'))
+    assert (old/'data/articles/20261101_articles.json').read_bytes()==previous
+
+
+def test_database_initialization_private_no_overwrite_and_compose_resolution(tmp_path):
+    from deploy.init import initialize
+    from deploy.database import initialize as initialize_database
+    state=tmp_path/'state';initialize(state,'synthetic','synthetic-long-password')
+    initialize_database(state)
+    for role in ['admin','app','migrator']:
+        file=state/'secrets'/('postgres_'+role+'_password')
+        assert file.stat().st_mode&0o777==0o400 and len(file.read_text().strip())==64
+    with pytest.raises(StorageError):initialize_database(state)
+    command=['docker','compose','-f',str(ROOT/'docker-compose.yml'),'-f',str(ROOT/'docker-compose.database.yml'),'--env-file',str(state/'compose.env'),'--profile','database','--profile','database-tools','config','--format','json']
+    process=_REAL_POPEN(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={**os.environ,'DOCKER_CONFIG':str(tmp_path/'docker-empty')})
+    output,error=process.communicate(timeout=20);assert process.returncode==0,error.decode()
+    config=json.loads(output);pg=config['services']['postgres'];tool=config['services']['dbtools']
+    assert set(config['services'])=={'postgres','dbtools'} and 'ports' not in pg
+    assert config['networks']['database']['internal'] is True
+    assert pg['user']==f'{os.getuid()}:{os.getgid()}' and pg['read_only'] is True
+    assert any(v['source']==str(state/'postgresql') and v['target']=='/var/lib/postgresql' for v in pg['volumes'])
+    assert tool['depends_on']['postgres']['condition']=='service_healthy'
+    assert 'POSTGRES_PASSWORD' not in pg['environment']
+    assert pg['environment']['POSTGRES_PASSWORD_FILE'].startswith('/run/secrets/')

@@ -97,7 +97,7 @@ def url(value):
 def safe_read(root,relative):
     """Walk every directory with openat/O_NOFOLLOW, including absolute root ancestors."""
     path=PurePosixPath(relative)
-    if path.is_absolute() or '..' in path.parts or not path.parts:raise StorageError('unsafe_path')
+    if path.is_absolute() or '..' in path.parts or '..' in Path(root).parts or not path.parts:raise StorageError('unsafe_path')
     fd=os.open('/',os.O_RDONLY|os.O_DIRECTORY)
     try:
         for part in Path(root).absolute().parts[1:]+path.parts[:-1]:
@@ -195,7 +195,7 @@ def projections(documents):
                     title_original=text(article.get('title_original')),source=text(article.get('source')),category=text(article.get('category')),
                     summary=summary,published_raw=text(article.get('pub_date')),dates=dates,published_at=utc(article.get('pub_date')),
                     first_seen_at=None,fetched_at=None,processed_at=utc(article.get('timestamp')),
-                    publication_state='published' if summary and summary.strip() and not article.get('no_content') else 'incomplete')
+                    publication_state='published' if summary and summary.strip() and not summary.lstrip().startswith('[') and not article.get('no_content') else 'incomplete')
         elif kind=='seen':
             if not isinstance(payload,dict):raise StorageError('invalid_seen')
             for h,value in payload.items():
@@ -215,10 +215,19 @@ def projections(documents):
     for doc in documents:
         if doc['kind']!='attempts':continue
         p=doc['payload']
-        if not isinstance(p,dict) or p.get('version')!=1 or not isinstance(p.get('records'),dict):raise StorageError('unsupported_processing_schema')
+        if not isinstance(p,dict) or type(p.get('version')) is not int or p.get('version')!=1 or not isinstance(p.get('records'),dict) or len(p['records'])>10000:raise StorageError('unsupported_processing_schema')
         for h,rec in p['records'].items():
             text(h,required=True,maximum=512)
-            if not isinstance(rec,dict) or rec.get('status') not in STATES or type(rec.get('attempts')) is not int or rec['attempts']<0:raise StorageError('invalid_processing_record')
+            if not isinstance(rec,dict) or rec.get('status') not in STATES or type(rec.get('attempts')) is not int or not 0<=rec['attempts']<=20:raise StorageError('invalid_processing_record')
+            item=rec.get('item')
+            if not isinstance(item,dict) or not isinstance(rec.get('category'),str):raise StorageError('invalid_processing_item')
+            item_url=url(item.get('link'));text(item.get('title'),required=True);text(item.get('pub_date',''))
+            if hashlib.md5(item_url.strip().encode()).hexdigest()!=h:raise StorageError('processing_hash_mismatch')
+            if any(type(rec.get(k,rec.get('updated_at'))) not in (int,float) or not math.isfinite(rec.get(k,rec.get('updated_at'))) for k in ('updated_at','next_attempt_at','discovered_at')):raise StorageError('invalid_processing_time')
+            if 'prepared' in rec:
+                checkpoint=rec['prepared']
+                if not isinstance(checkpoint,dict) or checkpoint.get('hash')!=h or hashlib.md5(url(checkpoint.get('link')).strip().encode()).hexdigest()!=h or not isinstance(checkpoint.get('summary'),str) or not checkpoint['summary'].strip() or checkpoint['summary'].lstrip().startswith('[') or checkpoint.get('no_content'):raise StorageError('invalid_processing_checkpoint')
+                text(checkpoint.get('title'),required=True);day(rec.get('target_day'))
             ids=hash_ids.get(h,set());article_id=next(iter(ids)) if len(ids)==1 else None
             add('processing_attempts',digest(h),rec,article_id=article_id,legacy_hash=h,state=rec['status'],attempts=rec['attempts'],
                 reason=text(rec.get('reason')),next_attempt_at=utc(rec.get('next_attempt_at')),checkpoint=rec.get('prepared'),source_version=1)
