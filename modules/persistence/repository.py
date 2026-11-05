@@ -16,6 +16,7 @@ def import_snapshot(engine,root,plan,*,expected,quiesced=False,after_insert=None
             connection.execute(sa.text('SELECT pg_advisory_xact_lock(:key)'),{'key':int(plan['id'][:15],16)})
         existing=connection.execute(sa.select(schema.runs).where(schema.runs.c.id==plan['id'])).mappings().first()
         if existing:
+            verify_sources(root,plan)
             verify_snapshot(connection,plan['id'])
             return {'snapshot':plan['id'],'result':'already_imported','counts':existing['counts']}
         connection.execute(schema.runs.insert().values(id=plan['id'],source_version=1,manifest=plan['manifest'],counts=plan['counts'],result='succeeded',created_at=now))

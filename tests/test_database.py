@@ -201,3 +201,14 @@ def test_secret_engine_url_is_hidden_and_pool_bounded(tmp_path,monkeypatch):
         assert 'synthetic-private' not in repr(engine.url)
         assert engine.hide_parameters is True and engine.pool.size()==2 and engine.pool._max_overflow==0
     finally:engine.dispose()
+
+
+def test_partial_bootstrap_is_refused_before_postgres_can_restart(tmp_path):
+    secret_root=tmp_path/'secrets';secret_root.mkdir()
+    for role in ['admin','app','migrator']:
+        p=secret_root/('postgres_'+role+'_password');p.write_text('a'*64+'\n');p.chmod(0o400)
+    data=tmp_path/'pgdata';data.mkdir();(data/'PG_VERSION').write_text('18\n')
+    process=_REAL_POPEN(['sh',str(ROOT/'deploy/postgres-entrypoint.sh'),'postgres'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={**os.environ,'PGDATA':str(data),'ATLAS_DB_SECRETS':str(secret_root)})
+    out,err=process.communicate(timeout=5)
+    assert process.returncode==78 and b'bootstrap completion' in err
+    assert b'a'*64 not in out+err
