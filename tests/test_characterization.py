@@ -17,14 +17,16 @@ def fetcher():
     obj.max_per_feed = 8
     return obj
 
-@pytest.mark.parametrize('name,count', [('rss.xml', 1), ('atom.xml', 0)])
+@pytest.mark.parametrize('name,count', [('rss.xml', 1), ('atom.xml', 1)])
 def test_legacy_feed_parser(fetcher, monkeypatch, name, count):
-    response = Mock(content=(FIXTURES / name).read_bytes())
+    from modules.http.external import Response
+    response = Response((FIXTURES / name).read_bytes(),200,{},'https://example.invalid/feed')
     monkeypatch.setattr('modules.fetch.atlas_fetch.source_http.get', Mock(return_value=response))
     result = fetcher._fetch_rss('https://example.invalid/feed')
-    assert len(result) == count  # Atom deliberately characterizes current limitation.
-    if result:
-        assert result[0] == {'title': 'Un titre français',
+    assert result.status == 'success'
+    assert len(result.entries) == count
+    if name == 'rss.xml':
+        assert {k:result.entries[0].legacy()[k] for k in ('title','link','pub_date')} == {'title': 'Un titre français',
                              'link': 'https://example.invalid/article',
                              'pub_date': 'Mon, 02 Nov 2026 10:00:00 GMT'}
 

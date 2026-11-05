@@ -10,3 +10,6 @@ markdown
 pytest
 # HTML éditorial non fiable : sanitisation HTML5 côté serveur
 nh3==0.3.7
+# RSS/Atom parsing; the parser receives only the secured HTTP response bytes.
+feedparser==6.0.14
+sgmllib3k==1.0.0

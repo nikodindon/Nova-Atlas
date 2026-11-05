@@ -37,3 +37,7 @@ alembic==1.20.1
 Mako==1.4.3
 psycopg==3.3.8
 psycopg-binary==3.3.8
+
+# Sprint 05: feedparser receives bytes only, never a network URL.
+feedparser==6.0.14
+sgmllib3k==1.0.0

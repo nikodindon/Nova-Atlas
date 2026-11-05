@@ -92,3 +92,7 @@ htmlcov/
 /deploy/local/
 compose.env
 compose.*.env
+
+# Private RSS validators, cached entries and interrupted atomic writes
+feed_ingestion_state.json
+.feed_ingestion_state.json*

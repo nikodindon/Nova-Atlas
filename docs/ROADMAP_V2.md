@@ -18,7 +18,7 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | 02 | Compose pour l'existant, secrets et healthchecks | Images et smoke CI isolé ; revue avant déploiement Linux réel |
 | 03 | LiteLLM et profils Ollama Cloud/OpenRouter | PR #11 en revue : alias, tests offline/smoke, capacités et fallback ; budgets persistants différés |
 | 04 | PostgreSQL/Alembic et import JSON/YAML | PR #12 en revue : snapshots vérifiés et dump/restore ; cutover métier en PR complémentaire |
-| 05 | Collecte RSS/Atom, dates, statuts et retries | Erreur temporaire récupérable, HTTP simulé |
+| 05 | Collecte RSS/Atom, dates, statuts et retries | PR #13 en revue : cache conditionnel/santé legacy et concurrence bornée ; aucune bascule SQL |
 | 06 | Source Manager API | CRUD, test, santé, SSRF et import/export des flux historiques |
 | 07 | Découverte de sources | Recherche/prévisualisation/ajout bornés, RSSHub facultatif |
 | 08 | Éditorial | Catégories complètes, regroupement événement, provenance |
@@ -67,3 +67,8 @@ Sprint 04 : socle PostgreSQL/Alembic et import/export de snapshots proposé. La
 bascule effective collecte/publication/lecteurs reste une tranche complémentaire,
 avec transactions de traitement et protocole de cutover à tester. Les fichiers
 restent autoritaires dans cette PR ; voir DATABASE_MIGRATION.md.
+
+Sprint 05 : RSS/Atom, résultats typés, cache conditionnel et santé des flux legacy,
+téléchargements bornés avec limites par hostname effectif. La consolidation
+multi-sources, la découverte et l'interface Source Manager restent aux sprints
+suivants ; voir RSS_INGESTION.md et AUDIT_P1.md. Aucun cutover PostgreSQL.

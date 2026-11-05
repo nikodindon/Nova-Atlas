@@ -4,6 +4,10 @@ No environment proxies, cookies, netrc, authentication, pooling or automatic
 redirects. The only network connect call takes a validated numeric address.
 """
 from dataclasses import dataclass
+from contextlib import contextmanager, nullcontext
+from email.utils import parsedate_to_datetime
+import hashlib
+import math
 import http.client
 import ipaddress
 import queue
@@ -26,10 +30,57 @@ class BlockedURL(FetchError):
 
 class HTTPStatusError(FetchError):
     """Structured status without URL, response body or credentials."""
-    def __init__(self, status_code, retry_after=None):
+    def __init__(self, status_code, retry_after=None, host=None):
         super().__init__('http_status')
         self.status_code = status_code
+        self.host = host
         self.retry_after = retry_after[:128] if isinstance(retry_after, str) else None
+
+
+class HostBudget:
+    """Admission for actual destinations, including redirects. Cannot relax URL policy."""
+    def __init__(self, per_host=1, *, clock=None, default_cooldown=300):
+        if type(per_host) is not int or not 1<=per_host<=2:raise ValueError('Invalid host capacity')
+        self.per_host=per_host;self.clock=clock or time.time;self.default_cooldown=default_cooldown
+        self.guard=threading.RLock();self.semaphores={};self.cooldowns={}
+
+    @staticmethod
+    def identity(host):return hashlib.sha256(host.encode()).hexdigest()
+
+    def defer_key(self, identity, until):
+        with self.guard:self.cooldowns[identity]=max(self.cooldowns.get(identity,0),until)
+
+    def rate_limited(self,host,value):
+        delay=self.default_cooldown
+        try:
+            seconds=float(value)
+            if not math.isfinite(seconds) or seconds<0:raise ValueError()
+            delay=max(delay,seconds)
+        except (ValueError,TypeError):
+            try:
+                date=parsedate_to_datetime(value)
+                if date.tzinfo is None:raise ValueError()
+                delay=max(delay,date.timestamp()-self.clock())
+            except (ValueError,TypeError,OverflowError):pass
+        self.defer_key(self.identity(host),self.clock()+delay)
+
+    def _check(self,host):
+        with self.guard:delay=self.cooldowns.get(self.identity(host),0)-self.clock()
+        if delay>0:raise HTTPStatusError(429,str(delay),host)
+
+    @contextmanager
+    def slot(self,host,deadline,cancel_event=None):
+        with self.guard:semaphore=self.semaphores.setdefault(host,threading.BoundedSemaphore(self.per_host))
+        self._check(host)
+        acquired=False
+        try:
+            while not acquired:
+                if cancel_event is not None and cancel_event.is_set():raise FetchError('cancelled')
+                acquired=semaphore.acquire(timeout=min(.1,remaining(deadline)))
+            self._check(host)
+            yield
+        finally:
+            if acquired:semaphore.release()
 
 
 @dataclass(frozen=True)
@@ -45,6 +96,23 @@ class Limits:
                 and 0 < self.io_timeout <= 30 and 0 < self.max_bytes <= 8 * 1024 * 1024
                 and 0 <= self.max_redirects <= 5):
             raise ValueError('Invalid HTTP limits')
+
+
+def validator_value(value, maximum=1024):
+    return value if isinstance(value, str) and 0 < len(value) <= maximum and all(32 <= ord(c) < 127 for c in value) else None
+
+
+@dataclass(frozen=True)
+class Conditional:
+    url: str
+    etag: str | None = None
+    last_modified: str | None = None
+
+    def __post_init__(self):
+        parse_url(self.url)
+        if ((self.etag is not None and validator_value(self.etag) is None)
+                or (self.last_modified is not None and validator_value(self.last_modified, 128) is None)):
+            raise FetchError('invalid_validator')
 
 
 @dataclass(frozen=True)
@@ -267,7 +335,7 @@ class PinnedConnection(http.client.HTTPConnection):
             raise
 
 
-def _read_body(response, limits, deadline):
+def _read_body(response, limits, deadline, cancel_event=None):
     headers = {key.lower(): value for key, value in response.getheaders()}
     length = headers.get('content-length')
     if length is not None:
@@ -280,6 +348,7 @@ def _read_body(response, limits, deadline):
     body = bytearray()
     wire_size = 0
     while True:
+        if cancel_event is not None and cancel_event.is_set():raise FetchError("cancelled")
         remaining(deadline)
         chunk = response.read1(min(65536, limits.max_bytes - wire_size + 1))
         if not chunk:
@@ -311,11 +380,15 @@ class ExternalHTTPClient:
         self.resolver = resolver or resolve
         self.connection_factory = connection_factory or PinnedConnection
 
-    def get(self, url):
+    def get(self, url, *, conditional=None, accept_not_modified=False, cancel_event=None, host_budget=None):
+        if conditional is not None and not isinstance(conditional, Conditional):raise FetchError("invalid_validator")
+        if host_budget is not None and not isinstance(host_budget,HostBudget):raise FetchError("invalid_host_budget")
+        conditional_url = parse_url(conditional.url).url if conditional else None
         deadline = time.monotonic() + self.limits.total_timeout
         visited = set()
         try:
             for hop in range(self.limits.max_redirects + 1):
+                if cancel_event is not None and cancel_event.is_set():raise FetchError("cancelled")
                 target = parse_url(url)
                 if target.url in visited:
                     raise FetchError('redirect_loop')
@@ -330,38 +403,47 @@ class ExternalHTTPClient:
                 # Fail closed for mixed public/private answers; never just filter the private ones.
                 addresses = list(dict.fromkeys(str(public_address(value)) for value in addresses))
                 remaining(deadline)
-                connection = self.connection_factory(target, addresses[0], self.limits, deadline)
-                watchdog = threading.Timer(remaining(deadline), connection.abort)
-                watchdog.daemon = True
-                watchdog.start()
-                response = None
-                try:
-                    connection.request('GET', target.path, headers={
-                        'Host': target.authority, 'User-Agent': 'Mozilla/5.0 (compatible; AtlasNews/2.0)',
-                        'Accept': 'application/rss+xml, application/atom+xml, text/html, */*;q=0.8',
-                        'Accept-Encoding': 'gzip, identity', 'Connection': 'close',
-                    })
-                    response = connection.getresponse()
-                    headers = {key.lower(): value for key, value in response.getheaders()}
-                    if response.status in (301, 302, 303, 307, 308):
-                        location = headers.get('location')
-                        if not location or hop >= self.limits.max_redirects:
-                            raise FetchError('redirect_limit')
-                        if len(location) > 4096 or any(c.isspace() or ord(c) < 32 for c in location):
-                            raise BlockedURL('invalid_redirect')
-                        url = urljoin(target.url, location)
-                        if target.secure and urlsplit(url).scheme == 'http':
-                            raise BlockedURL('https_downgrade')
-                        continue
-                    if not 200 <= response.status < 300:
-                        raise HTTPStatusError(response.status, headers.get('retry-after'))
-                    content, headers = _read_body(response, self.limits, deadline)
-                    return Response(content, response.status, headers, target.url)
-                finally:
-                    watchdog.cancel()
-                    if response is not None:
-                        response.close()
-                    connection.close()
+                with host_budget.slot(target.host,deadline,cancel_event) if host_budget is not None else nullcontext():
+                    connection = self.connection_factory(target, addresses[0], self.limits, deadline)
+                    watchdog = threading.Timer(remaining(deadline), connection.abort)
+                    watchdog.daemon = True
+                    watchdog.start()
+                    response = None
+                    try:
+                        request_headers={
+                            'Host': target.authority, 'User-Agent': 'Mozilla/5.0 (compatible; AtlasNews/2.0)',
+                            'Accept': 'application/rss+xml, application/atom+xml, text/html, */*;q=0.8',
+                            'Accept-Encoding': 'gzip, identity', 'Connection': 'close',
+                        }
+                        if conditional is not None and target.url == conditional_url:
+                            if conditional.etag:request_headers['If-None-Match']=conditional.etag
+                            if conditional.last_modified:request_headers['If-Modified-Since']=conditional.last_modified
+                        connection.request('GET', target.path, headers=request_headers)
+                        response = connection.getresponse()
+                        headers = {key.lower(): value for key, value in response.getheaders()}
+                        if response.status in (301, 302, 303, 307, 308):
+                            location = headers.get('location')
+                            if not location or hop >= self.limits.max_redirects:
+                                raise FetchError('redirect_limit')
+                            if len(location) > 4096 or any(c.isspace() or ord(c) < 32 for c in location):
+                                raise BlockedURL('invalid_redirect')
+                            url = urljoin(target.url, location)
+                            if target.secure and urlsplit(url).scheme == 'http':
+                                raise BlockedURL('https_downgrade')
+                            continue
+                        if response.status == 304 and accept_not_modified:
+                            return Response(b'', 304, headers, target.url)
+                        if response.status==429 and host_budget is not None:
+                            host_budget.rate_limited(target.host,headers.get('retry-after'))
+                        if not 200 <= response.status < 300:
+                            raise HTTPStatusError(response.status, headers.get('retry-after'),target.host)
+                        content, headers = _read_body(response, self.limits, deadline, cancel_event)
+                        return Response(content, response.status, headers, target.url)
+                    finally:
+                        watchdog.cancel()
+                        if response is not None:
+                            response.close()
+                        connection.close()
         except FetchError:
             raise
         except (OSError, ValueError, http.client.HTTPException, zlib.error):
@@ -369,6 +451,7 @@ class ExternalHTTPClient:
         raise FetchError('redirect_limit')
 
 
-def get(url, *, timeout=30):
+def get(url, *, timeout=30, conditional=None, accept_not_modified=False, cancel_event=None, host_budget=None):
     """Shared entry point for fetch/test/discovery. No header/auth/proxy escape hatches."""
-    return ExternalHTTPClient(Limits(total_timeout=timeout, io_timeout=min(timeout, 10))).get(url)
+    return ExternalHTTPClient(Limits(total_timeout=timeout, io_timeout=min(timeout, 10))).get(url,
+        conditional=conditional, accept_not_modified=accept_not_modified, cancel_event=cancel_event, host_budget=host_budget)

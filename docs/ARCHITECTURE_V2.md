@@ -128,3 +128,12 @@ les producteurs/lecteurs métier gardent legacy comme autorité. Aucune migratio
 startup ni cutover fictif : storage.mode postgres est refusé par main tant que le
 parcours métier n'est pas branché. Voir DATABASE_MIGRATION.md pour droits, dates,
 round-trip, sauvegarde et limites. Audio et verrous POSIX inchangés.
+
+## Livraison incrémentale Sprint 05
+
+HTTP externe sécurisé, XML strict et feedparser sur bytes produisent des entrées
+RSS/Atom typées, sans téléchargement interne au parser. Téléchargements bornés,
+cache conditionnel/état de santé legacy privé et replay 304 après interruption ;
+le journal d'articles et les publications restent séquentiels et autoritaires.
+Pas de canonicalisation destructive, changement des prompts/API ou cutover SQL.
+Voir RSS_INGESTION.md et AUDIT_P1.md pour formats, budgets et limites DNS/dates.

@@ -135,3 +135,14 @@ L'audit XSS/CSP et les défauts scheduler/verrou/dates/reprises/audio restent ou
 Références : [http.client Python 3.12](https://docs.python.org/3.12/library/http.client.html),
 [ssl](https://docs.python.org/3.12/library/ssl.html),
 [ipaddress](https://docs.python.org/3.12/library/ipaddress.html).
+
+## Extension Sprint 05 — validateurs et admission par hostname
+
+external.get accepte désormais un type Conditional fermé (URL exacte, ETag,
+Last-Modified ASCII bornés) et un 304 explicitement demandé par l'ingestion.
+Aucun header arbitraire/auth/cookie/proxy ajouté. Les validateurs ne sont envoyés
+qu'à leur ressource exacte, y compris dans une chaîne de redirects ; chaque hop
+reste résolu/validé/fixé à la socket. Les appels d'article ordinaires continuent de
+refuser 304. HostBudget borne chaque destination réelle et applique les 429 avant
+libération du créneau ; il ne modifie ni parse_url, DNS, IP, ports ni TLS.
+Le parsing XML/DTD est maintenant dans feed_parser ; voir RSS_INGESTION.md.
