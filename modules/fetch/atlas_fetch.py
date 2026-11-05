@@ -767,6 +767,8 @@ class ArticleFetcher:
             content = self._fetch_content(item['link'], raise_errors=True,
                 host_budget=getattr(getattr(self, '_ingestion', None), 'host_budget', None),
                 cancel_event=getattr(self, '_feed_stop_event', None))
+            if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+                raise ArticleAttemptError('collection_cancelled')
             if not content.strip():
                 raise ArticleAttemptError('empty_extraction')
             from modules.utils.helpers import clean_for_tts
@@ -774,7 +776,8 @@ class ArticleFetcher:
             if not summary.strip() or summary.lstrip().startswith('[') or len(summary) > 16000:
                 raise ArticleAttemptError('invalid_summary')
             try:
-                title = self._translate_title(item['title'], force=False) or item['title']
+                stopping = getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set()
+                title = item['title'] if stopping else (self._translate_title(item['title'], force=False) or item['title'])
             except Exception:
                 title = item['title']
             article = {'hash': h, 'timestamp': self._now().isoformat(), 'category': category,
@@ -784,7 +787,11 @@ class ArticleFetcher:
             if not valid_article(article):
                 raise ArticleAttemptError('invalid_article')
         except Exception as exc:
-            self._failure(rec, exc)
+            if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+                rec.update(status='retryable', attempts=max(0,rec['attempts']-1),reason='collection_cancelled',next_attempt_at=0,updated_at=self._now().timestamp())
+                self._save_state()
+            else:
+                self._failure(rec, exc)
             return False
         rec.update(prepared=article, target_day=self._today_file().name[:8])
         self._save_state()
@@ -865,6 +872,7 @@ class ArticleFetcher:
             if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
                 break
             for queue in queues.values():
+                if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():break
                 if queue:
                     item, category = queue.pop(0)
                     count += bool(self._process_item(item, category, seen, existing_hashes, articles))

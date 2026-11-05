@@ -6,7 +6,9 @@ import os
 from deploy.smoke import run
 
 CODE=r'''
-import http.client,json,socket,threading,tempfile
+import http.client,json,socket,threading,tempfile,faulthandler
+from http.client import HTTPConnection
+faulthandler.dump_traceback_later(30,exit=True)
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from modules.http import external as http
@@ -29,8 +31,8 @@ class Handler(BaseHTTPRequestHandler):
    self.send_response(304);self.send_header('ETag',tag);self.end_headers();return
   self.send_response(200);self.send_header('Content-Type','text/plain');self.send_header('ETag',tag);self.send_header('Last-Modified','Wed, 04 Nov 2026 10:00:00 GMT');self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
 server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
-worker=threading.Thread(target=server.serve_forever);worker.start()
-class LoopbackTransport(http.client.HTTPConnection):
+worker=threading.Thread(target=server.serve_forever)
+class LoopbackTransport(HTTPConnection):
  def __init__(self,target,address,limits,deadline):
   assert address=='93.184.216.34'
   super().__init__('127.0.0.1',server.server_port,timeout=limits.io_timeout)
@@ -42,6 +44,7 @@ class LoopbackTransport(http.client.HTTPConnection):
 client=http.ExternalHTTPClient(resolver=lambda *a:['93.184.216.34'],connection_factory=LoopbackTransport)
 real_get=http.get
 http.get=lambda url,timeout=30,**kwargs:client.get(url,**kwargs)
+worker.start()
 try:
  with tempfile.TemporaryDirectory(dir='/tmp') as tmp:
   root=Path(tmp);atlas_fetch.init_ollama=lambda config:None
@@ -66,7 +69,7 @@ try:
   else:raise AssertionError('private redirect accepted')
   assert not any(path=='/private' for path,_ in requests)
 finally:
- http.get=real_get;server.shutdown();worker.join();server.server_close()
+ http.get=real_get;server.shutdown();worker.join();server.server_close();faulthandler.cancel_dump_traceback_later()
 assert not any(t.name.startswith('FeedHTTP') for t in threading.enumerate())
 print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers and private redirect rejection. No external source/model.')
 '''

@@ -54,6 +54,9 @@ class FeedState:
             if data.get('version')!=1 or not isinstance(data.get('records'),dict) or len(data['records'])>515:raise ValueError()
             for identity,record in data['records'].items():
                 if len(identity)!=64 or any(c not in '0123456789abcdef' for c in identity) or not isinstance(record,dict):raise ValueError()
+                if set(record)-{'last_attempt','status','error','http_status','duration','warnings','policy','host','last_success','failures','next_attempt_at','last_count','last_good_fetch','response_url','etag','last_modified','entries','latest_published_at','host_until','rate_host','retry_until'}:raise ValueError()
+                for name in ('policy','host','rate_host'):
+                    if name in record and (not isinstance(record[name],str) or len(record[name])!=64):raise ValueError()
                 for name in ('last_attempt','next_attempt_at','host_until','retry_until','last_good_fetch','last_success'):
                     if name in record and (type(record[name]) not in (int,float) or not math.isfinite(record[name])):raise ValueError()
                 if type(record.get('failures',0)) is not int or not 0<=record.get('failures',0)<=10000:raise ValueError()
@@ -122,7 +125,7 @@ class FeedIngestor:
         record=dict(self.state.records.get(key(url),{}))
         if record.get('policy')!=self.policy:
             for name in ('etag','last_modified','entries','response_url','policy'):record.pop(name,None)
-            record['next_attempt_at']=0
+            if record.get('status') in ('success','empty','not_modified'):record['next_attempt_at']=0
         return record
 
     def download(self,url):

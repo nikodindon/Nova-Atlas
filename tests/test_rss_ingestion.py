@@ -236,3 +236,33 @@ def test_empty_feed_cannot_reset_last_known_publication_date(service,monkeypatch
     service.fetch(URL);known=service.state.records[key(URL)]['latest_published_at'];service.fetch(URL)
     assert service.state.records[key(URL)]['last_count']==0
     assert service.state.records[key(URL)]['latest_published_at']==known
+
+@pytest.mark.parametrize('version',['0.92','0.93','0.94'])
+def test_additional_rss_09x_variants(version):
+    xml=body().replace(b'version="2.0"',('version="'+version+'"').encode())
+    assert parse_feed(xml,URL,URL).status=='success'
+
+
+def test_netscape_rss090_rdf():
+    xml=b'<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://my.netscape.com/rdf/simple/0.9/"><channel><title>Old</title><link>https://example.invalid/</link></channel><item><title>Old entry</title><link>https://example.invalid/old</link></item></rdf:RDF>'
+    assert parse_feed(xml,URL,URL).status=='success'
+
+@pytest.mark.parametrize('guid,permalink,expected',[
+    ('https://example.invalid/id','false','invalid_feed'),('urn:id:one','true','invalid_feed'),('https://example.invalid/id','true','success')])
+def test_guid_is_not_invented_as_an_article_url(guid,permalink,expected):
+    xml=f'<rss version="2.0"><channel><item><title>News</title><guid isPermaLink="{permalink}">{guid}</guid></item></channel></rss>'.encode()
+    assert parse_feed(xml,URL,URL).status==expected
+
+
+def test_parser_policy_reload_does_not_cancel_security_backoff(service,monkeypatch):
+    transport=Mock(side_effect=http.BlockedURL('non_public_address'));monkeypatch.setattr(http,'get',transport)
+    service.fetch(URL)
+    changed=FeedIngestor(service.state.path,config={'max_age_days':7},clock=service.clock)
+    assert changed.fetch(URL).reason=='scheduled_later' and transport.call_count==1
+
+
+def test_minimal_journal_provenance_does_not_duplicate_html_bodies():
+    item=parse_feed(body(),URL,URL).entries[0].legacy()
+    assert item['ingestion']['entry_id']=='urn:stable:20'
+    assert item['ingestion']['source_key']==key(URL)
+    assert not {'summary_raw','content_raw','title','link','feed_url'}&set(item['ingestion'])

@@ -1,5 +1,6 @@
 """Bounded RSS/Atom parser, no network/path interpretation by feedparser."""
 from dataclasses import dataclass,field,asdict
+import hashlib
 from datetime import datetime,timezone
 from email.utils import parsedate_to_datetime
 import io
@@ -64,7 +65,12 @@ class FeedEntry:
 
     def legacy(self):
         # Private journal only. The public article serializer keeps its existing fields.
-        return {'title':self.title,'link':self.link,'pub_date':self.published_raw,'ingestion':self.to_dict()}
+        provenance=self.to_dict()
+        for name in ('title','link','summary_raw','content_raw','feed_url'):provenance.pop(name)
+        provenance['source_key']=hashlib.sha256(self.feed_url.encode()).hexdigest()
+        # Bodies stay only in the bounded feed cache; avoid duplicating large RSS HTML in every retry record.
+        provenance['author']=provenance['author'][:512];provenance['source']=provenance['source'][:512]
+        return {'title':self.title,'link':self.link,'pub_date':self.published_raw,'ingestion':provenance}
 
 
 @dataclass(frozen=True)
