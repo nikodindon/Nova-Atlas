@@ -287,3 +287,18 @@ def test_literal_private_source_uses_backoff_without_network(service,monkeypatch
     assert service.fetch_many(['http://127.0.0.1/feed'])['http://127.0.0.1/feed'].status=='blocked_by_security'
     assert service.fetch_many(['http://127.0.0.1/feed'])['http://127.0.0.1/feed'].reason=='scheduled_later'
     transport.assert_not_called()
+
+@pytest.mark.parametrize('link',[
+    'HTTPS://News.Example/%7EUser?a=1&utm=2#Section',
+    'https://news.example/x?a=%2f&b=2',
+    'https://news.example/été?utm_source=é',
+])
+def test_absolute_link_spelling_is_preserved_for_historical_hashes(link):
+    xml=('<rss version="2.0"><channel><item><title>News</title><guid isPermaLink="false">'+link.replace('&','&amp;')+'</guid><link>'+link.replace('&','&amp;')+'</link></item></channel></rss>').encode()
+    entry=parse_feed(xml,URL,URL).entries[0]
+    assert entry.link==link and entry.legacy()['link']==link and entry.entry_id==link
+
+
+def test_non_url_guid_cannot_be_joined_into_an_invented_permalink():
+    xml=b'<rss version="2.0"><channel><item><title>News</title><guid>12345</guid></item></channel></rss>'
+    assert parse_feed(xml,URL,URL).status=='invalid_feed'

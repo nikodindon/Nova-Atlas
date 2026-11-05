@@ -96,6 +96,8 @@ n'autorisent pas une extraction. Un GUID RSS permalink HTTP valide peut fournir 
 lien selon le parser ; un GUID non-permalink seul ne doit pas être inventé comme URL.
 Schémas dangereux, URLs malformées/avec credentials et IP privées littérales refusés.
 DNS et chaque redirect d'article restent validés au téléchargement par external.
+Les liens absolus et les ID/GUID sont lus dans le XML sans les normalisations
+implicites de feedparser/urljoin : même la casse du schéma est conservée.
 Pas de suppression de paramètres de tracking, réécriture de fragment, changement
 d'URL canonique ou fusion de contenus. L'URL absolue initiale reste l'identité de
 l'article même si l'extraction suit une redirection sécurisée.

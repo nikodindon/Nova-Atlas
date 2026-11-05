@@ -175,8 +175,8 @@ incluent ce nouveau job ; la bascule métier SQL reste explicitement hors livrai
 Socle dev@1cf5352 : 1 034 tests. Six reproductions exécutées avant correction :
 contrat RSS, Atom ignoré, 304, réseau confondu avec vide, XML malformé et date avec
 offset différent. Toutes échouaient au nouveau contrat typé sur l'ancien parser.
-Suite locale finale Python 3.12 : **1 118 réussis, 0 échec, 0 ignoré** en 34,21 s,
-soit 84 nouveaux cas ; la caractérisation Atom vérifie désormais son ingestion.
+Suite locale finale Python 3.12 : **1 122 réussis, 0 échec, 0 ignoré** en 34,62 s,
+soit 88 nouveaux cas ; la caractérisation Atom vérifie désormais son ingestion.
 
 Fixtures RSS 0.90/0.91/0.92/0.93/0.94/1.0/2.0, Atom 0.3/1.0, CDATA/namespaces,
 dates fiables/ambiguës, HTML hostile, requêtes conditionnelles, persistance,
@@ -191,3 +191,7 @@ avant chaque requête/redirect. 200/304, reprise cache après restart, déduplic
 absence de nouvelles générations et rejet du redirect privé. Échéance 30 secondes
 et nettoyage du faux serveur. Aucun transport dérogatoire sélectionnable en prod.
 Smokes LiteLLM/PostgreSQL et Chromium conservés ; aucune source RSS Internet réelle.
+
+Les liens absolus et GUID conservent leur orthographe XML exacte (casse du schéma,
+Unicode, encodage, query et fragment), afin de ne pas changer les hashes historiques.
+Un GUID non URL ne peut pas être résolu en un permalink inventé.

@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime,timezone
 from email.utils import parsedate_to_datetime
 import io
-from urllib.parse import urljoin
+from urllib.parse import urljoin,urlsplit
 import feedparser
 from bs4 import BeautifulSoup
 from lxml import etree
@@ -90,10 +90,10 @@ class FeedResult:
     rate_host: str = ""
 
 
-def _raw_date(element,names):
+def _raw_date(element,names,maximum=1024):
     for node in element:
         if isinstance(node.tag,str) and etree.QName(node).localname.lower() in names:
-            return ''.join(node.itertext()).strip()[:1024]
+            return ''.join(node.itertext()).strip()[:maximum]
     return ''
 
 
@@ -132,15 +132,30 @@ def parse_feed(body,feed_url,response_url,*,retrieved_at=None,max_bytes=4*1024*1
     entries=[];bad=0;truncated=0
     for entry,node in zip(parsed,nodes):
         title=_plain(dict.get(entry,'title',''))
-        candidates=[l.get('href','') for l in entry.get('links',[]) if l.get('rel','alternate')=='alternate' and l.get('type','text/html') in ('text/html','application/xhtml+xml','')]
-        if not candidates:candidates=[dict.get(entry,'link','')]
-        if not candidates[0] and data['version'].startswith('rss') and entry.get('guidislink'):candidates=[dict.get(entry,'id','')]
+        candidates=[]
+        rss=data['version'].startswith('rss')
+        for child in node:
+            if not isinstance(child.tag,str) or etree.QName(child).localname!='link':continue
+            if child.get('rel','alternate')!='alternate':continue
+            if child.get('type','text/html').split(';',1)[0].lower() not in ('text/html','application/xhtml+xml',''):continue
+            raw_link=child.get('href') or ''.join(child.itertext()).strip()
+            if raw_link:candidates.append((raw_link,child.base or node.base or response_url))
+        if not candidates and rss:
+            for child in node:
+                if isinstance(child.tag,str) and etree.QName(child).localname=='guid' and child.get('isPermaLink','true').lower()=='true':
+                    raw_guid=''.join(child.itertext()).strip()
+                    try:
+                        if urlsplit(raw_guid).scheme in ('http','https'):candidates.append((raw_guid,node.base or response_url))
+                    except ValueError:continue
         link=''
-        for candidate in candidates:
-            if not candidate:continue
-            proposed=urljoin(node.base or response_url,candidate.strip())
-            try:parse_url(proposed)
-            except BlockedURL:continue
+        for candidate,base in candidates:
+            candidate=candidate.strip()
+            # An absolute URI is already the historical identity. urljoin/feedparser
+            # may lowercase its scheme, silently changing the MD5 used by legacy seen.
+            try:
+                proposed=candidate if urlsplit(candidate).scheme else urljoin(base,candidate)
+                parse_url(proposed)
+            except (ValueError,BlockedURL):continue
             link=proposed;break
         if not title or not link or len(title)>4096 or len(link)>4096:bad+=1;continue
         pub=_raw_date(node,{'published','pubdate','issued'})
@@ -149,7 +164,8 @@ def parse_feed(body,feed_url,response_url,*,retrieved_at=None,max_bytes=4*1024*1
         published_at,published_status=source_date(pub);updated_at,updated_status=source_date(updated)
         summary=dict.get(entry,'summary','');content='\n'.join(c.get('value','') for c in entry.get('content',[]))
         if len(summary)>16000 or len(content)>16000:truncated+=1
-        entries.append(FeedEntry(feed_url=feed_url,entry_id=str(dict.get(entry,'id',''))[:4096],title=title,link=link,
+        entry_id=_raw_date(node,{'id','guid'},4096) or node.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about','')[:4096]
+        entries.append(FeedEntry(feed_url=feed_url,entry_id=entry_id,title=title,link=link,
             published_raw=pub,published_at=published_at,updated_raw=updated,updated_at=updated_at,
             author=str(entry.get('author',''))[:1024],source=str(data.get('feed',{}).get('title',''))[:1024],
             category=str(entry.get('tags',[{}])[0].get('term',''))[:200] if entry.get('tags') else '',
