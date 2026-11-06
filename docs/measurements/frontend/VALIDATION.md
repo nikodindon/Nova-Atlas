@@ -1,8 +1,8 @@
 # Validation Sprint 12
 
 - Prérequis : PR19 fusionnée dans dev (8d5e2b5), huit contrôles précédents réussis.
-- Suite Python complète : **1563 passed**, aucun échec/skip, 71,59 secondes localement.
-  Deux tests supplémentaires reproduisent puis verrouillent le parsing tmpfs corrigé.
+- Suite Python complète : **1565 passed**, aucun échec/skip, 68,21 secondes localement.
+  Inclut deux tests reproduisant puis verrouillant le parsing tmpfs corrigé.
   Inclut les scénarios Chromium historiques et les tests de protections antérieures.
 - Frontend : **33 tests unitaires/composants** ; **10 scénarios Chromium** desktop/mobile.
 - TypeScript/Svelte : zéro erreur et zéro avertissement ; ESLint réussi.
@@ -29,3 +29,9 @@ par les virgules. Deux reproductions échouaient avant citation de la chaîne co
 26 tests backend/frontend ciblés passent après correction. La CI du nouveau commit
 doit confirmer le démarrage réel. La déconnexion exige aussi une réponse confirmée
 de Flask et expose sinon un message explicite, sans annoncer une réussite.
+
+Le smoke a ensuite révélé les caches FastCGI/uWSGI/SCGI par défaut de nginx,
+incompatibles avec le rootfs read-only. Tous sont déplacés dans /tmp ; nginx -t
+réussit dans un conteneur non-root read-only sans réseau ni volume après reproduction
+de l’erreur, et les neuf tests du contrat de déploiement passent. Les logs CI
+sont désormais conservés et filtrés avant destruction des seules fixtures du smoke.

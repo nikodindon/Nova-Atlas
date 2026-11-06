@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from deploy.init import initialize
-from deploy.smoke import ROOT, run, _REDACTIONS
+from deploy.smoke import ROOT, run, _REDACTIONS, diagnostic
 
 
 def main():
@@ -66,6 +66,9 @@ def main():
             assert all(secret not in logs for secret in _REDACTIONS)
             run(command+['stop','frontend','frontend-gateway'])
             print('Frontend smoke PASS: pinned images; non-root/read-only; nginx same-origin; actual Flask JSON/CSRF/session/logout; Node SSR; nonce CSP; restart; no News/Radio/LLM/TTS/external source.')
+        except Exception:
+            diagnostic(run(command+['logs','--no-color','web','frontend','frontend-gateway'],check=False).stdout)
+            raise
         finally:run(command+['down','--volumes','--remove-orphans'],check=False)
 
 if __name__=='__main__':main()

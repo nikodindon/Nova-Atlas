@@ -43,6 +43,8 @@ def test_nginx_discards_client_forwarded_headers_and_preserves_flask_routes():
     for route in ('api/','admin','assets/','media/','stream/','config','radio-studio'):
         assert route in nginx
     assert 'client_max_body_size 64k' in nginx
+    for cache in ('client_body','proxy','fastcgi','uwsgi','scgi'):
+        assert f'/tmp/{cache}' in nginx
 
 def test_existing_business_services_are_not_overridden():
     assert set(OVERLAY['services'])=={'web','frontend','frontend-gateway'}
