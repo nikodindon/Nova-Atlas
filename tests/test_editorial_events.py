@@ -242,7 +242,7 @@ def test_midnight_paris_and_leap_day_retention(tmp_path):
     assert set(result['manifest'])=={'20280229_articles.json','20280301_articles.json'}
 
 
-@pytest.mark.parametrize('mutation',[lambda d:d.pop('status'),lambda d:d.pop('generated_at'),lambda d:d.update(version=2),lambda d:d.update(algorithm='unknown'),lambda d:d['events'][0].update(independent_confirmation=True),lambda d:d['events'][0].update(latest_published_at='2026-11-06T12:00:00'),lambda d:d['events'][0].pop('title')])
+@pytest.mark.parametrize('mutation',[lambda d:d['events'][0].update(articles=[42]),lambda d:d['events'][0].update(articles={'invalid':42}),lambda d:d['events'][0]['articles'][0].update(published_at='bad-date'),lambda d:d.pop('status'),lambda d:d.pop('generated_at'),lambda d:d.update(version=2),lambda d:d.update(algorithm='unknown'),lambda d:d['events'][0].update(independent_confirmation=True),lambda d:d['events'][0].update(latest_published_at='2026-11-06T12:00:00'),lambda d:d['events'][0].pop('title')])
 def test_semantically_corrupt_index_is_preserved(index,mutation):
     result=index.rebuild();index.rebuild(apply=True,expected=result['input_sha']);raw=json.loads(index.path.read_text());mutation(raw);index.path.write_text(json.dumps(raw));before=index.path.read_bytes()
     with pytest.raises(IndexError):index.rebuild(apply=True,expected=result['input_sha'])

@@ -241,9 +241,9 @@ et les titres multilignes sont normalisés en noms utilisables sans contrôles.
 
 ## Sprint 08 — Événements éditoriaux
 
-Validation locale Python 3.12 : **1 368 réussis, 0 échec, 0 ignoré**, en 56,73 s.
+Validation locale Python 3.12 : **1 371 réussis, 0 échec, 0 ignoré**, en 55,41 s.
 Les 1 300 tests précédents sont conservés, inventaire des routes publiques étendu.
-68 nouveaux cas : deux reproductions initialement rouges, contraintes négatives,
+71 nouveaux cas : deux reproductions initialement rouges, contraintes négatives,
 complétude des groupes, langues/traductions, dates, concurrence multiprocessus,
 crash/index corrompu/overrides et provenance, API/catégories/consommateurs opt-in.
 Huit scénarios Chromium locaux, dont rendu hostile d'un titre d'événement opérateur,
@@ -261,3 +261,6 @@ Aucun réseau, modèle, TTS ou données de production réels dans les nouveaux t
 
 Smoke CLI temporaire exécuté : dry-run sans fichiers dérivés puis application
 avec fingerprint revu, articles conservés. Métadonnées d’index manquantes refusées.
+
+Le refus de couvertures mal typées et de dates corrompues dans un index autrement
+JSON-valide est également couvert ; aucune réécriture de réparation automatique.

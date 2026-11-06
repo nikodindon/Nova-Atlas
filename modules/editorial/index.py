@@ -103,7 +103,6 @@ class EventIndex:
                     if event.get(field) is not None:
                         stamp=datetime.fromisoformat(event[field])
                         if stamp.tzinfo is None:raise ValueError()
-                public_event(event)
                 if type(event.get('article_count')) is not int or type(event.get('domain_count')) is not int or not 0<=event['domain_count']<=event['article_count']:raise ValueError()
                 if event.get('algorithm')!=ALGORITHM or event.get('status') not in ('single','grouped','human_association'):raise ValueError()
                 for field in ('sources','domains','article_hashes','secondary_categories','disagreements','reasons'):
@@ -111,11 +110,15 @@ class EventIndex:
                 if not isinstance(event['category'],str) or len(event['category'])>100:raise ValueError()
                 if not isinstance(event['articles'],list) or not 1<=len(event['articles'])<=500 or event['article_count']!=len(event['articles']):raise ValueError()
                 for article in event['articles']:
+                    if not isinstance(article,dict):raise ValueError()
                     if not re.fullmatch('[0-9a-f]{64}',article['id']):raise ValueError()
                     from modules.editorial.events import public_link
                     if article.get('link') is not None and public_link(article['link'])!=article['link']:raise ValueError()
-                    for field,maximum in (('title',1000),('original_title',1000),('summary',4000),('source',200),('category',100000)):
+                    for field,maximum in (('title',1000),('original_title',1000),('summary',4000),('source',200),('category',100),('published_raw',1024),('observed_raw',100)):
                         if not isinstance(article.get(field),str) or len(article[field])>maximum:raise ValueError()
+                    for field in ('published_at','observed_at','first_seen_at','fetched_at','processed_at'):
+                        if article.get(field) is not None and datetime.fromisoformat(article[field]).tzinfo is None:raise ValueError()
+                public_event(event)
                 if not isinstance(event['title'],str) or len(event['title'])>1000 or event['independent_confirmation'] is not False:raise ValueError()
             if not isinstance(data.get('manifest'),dict) or not isinstance(data.get('diagnostics'),list):raise ValueError()
         except (ValueError,KeyError,TypeError):raise IndexError('invalid_index') from None
