@@ -170,9 +170,9 @@ class StudioJournal:
             row.update(status='generating',generation_started_at=self.now(),attempts=row['attempts']+1,run_id=self.run_id);self.event(row,'generation_started')
         self.transaction(save)
     def fail(self,identity,reason='generation_failed'):
-        if reason not in ('generation_failed','interrupted','not_enough_articles','publication_invalid','admission_failed'):reason='generation_failed'
+        if reason not in ('generation_failed','interrupted','not_enough_articles','publication_invalid','admission_failed','previous_generation_active'):reason='generation_failed'
         def save(data):
-            row=data['jobs'][identity];row.update(status='recovery_required' if row['publication'] else 'interrupted' if reason=='interrupted' else 'skipped' if reason=='not_enough_articles' else 'failed',reason=reason,generation_finished_at=row['generation_finished_at'] or self.now());self.event(row,reason)
+            row=data['jobs'][identity];row.update(status='recovery_required' if row['publication'] else 'interrupted' if reason=='interrupted' else 'skipped' if reason in ('not_enough_articles','previous_generation_active') else 'failed',reason=reason,generation_finished_at=row['generation_finished_at'] or self.now());self.event(row,reason)
         self.transaction(save)
     def metrics(self,identity,phase,**values):
         allowed={'words','segments','retries','tts_seconds','audio_seconds'}
@@ -275,7 +275,10 @@ class StudioJournal:
     def begin_run(self):
         self.run_id=uuid.uuid4().hex
         self.transaction(lambda data:data.update(runtime_id=self.run_id))
-        return self.reconcile()
+        try:
+            with lease(self.root/'generation.lock'):return self.reconcile()
+        except StudioConflict:
+            self.transaction(lambda data:data.update(reconcile_requested=True));return []
     def snapshot(self):
         data,version=self.load()
         rows=sorted(data['jobs'].values(),key=lambda r:r['created_at'],reverse=True)
@@ -328,8 +331,10 @@ class RadioStudio:
                     self.journal.attach(identity,path);self.enqueue(identity);return path
                 except Exception:self.journal.fail(identity);return None
         except StudioConflict:
-            if identity:self.journal.fail(identity,'not_enough_articles')
-            else:self.journal.admit(slot)
+            if identity:self.journal.fail(identity,'previous_generation_active')
+            else:
+                row=self.journal.admit(slot)
+                if row and row['status']=='admitted':self.journal.fail(row['id'],'previous_generation_active')
             return None
     def tick(self):
         data,_=self.journal.load()

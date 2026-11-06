@@ -122,7 +122,8 @@ publication mais avant attach : réconciliation vérifie le nom attendu, MP3/re�
 empreinte, puis ready. Pas de scan qui abonne arbitrairement des fichiers anciens
 à un job. Les MP3 historiques sont conservés ; sans reçu valide, jamais admis.
 
-Au redémarrage : un nouveau runtime marque les générations sans publication
+Au redémarrage, si une génération Web détient encore la lease, la réconciliation
+est différée et son job reste generating. Sinon un nouveau runtime marque les générations sans publication
 interrupted, retrouve les publications complètes et marque les admissions/lectures
 anciennes recovery_required. Aucun rejeu automatique des jobs prêts ou ambigus.
 La boucle Android conserve son principe historique explicite : dernier bulletin

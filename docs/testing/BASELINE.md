@@ -307,7 +307,7 @@ production modifié. Plan non suivi conservé, SHA256 identique.
 Base après fusion autorisée PR18 : `dev@c3e5895` (huit CI réussies).
 Trois reproductions initiales en échec : MP3 supprimé après échec de passage,
 admission non durable et publication sans notification non rattachable.
-Suite complète finale : **1536 passed, 0 failed, 0 skipped**, dont **10 scénarios
+Suite complète finale : **1539 passed, 0 failed, 0 skipped**, dont **10 scénarios
 Chromium**. Tests de journal/outbox, DST, vrais processus locaux dédiés pour
 admission et mort du détenteur flock, MP3/reçus, transport/bridge simulés et sécurité.
 

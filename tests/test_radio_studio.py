@@ -350,3 +350,50 @@ def test_android_idle_silence_paced_one_second_without_flooding_pipe():
     android._send_silence_loop()
     android._write_to_pipe.assert_called_once_with(b'one-second-frame')
     android._current_done.wait.assert_called_once_with(timeout=1)
+
+
+def test_radio_restart_does_not_mark_active_web_flash_interrupted(journal):
+    row=journal.admit('manual:20261106_143000:abcdef012345',kind='flash');journal.start(row['id'])
+    with lease(journal.root/'generation.lock'):
+        restarted=StudioJournal(journal.root.parent,journal.queue);restarted.begin_run()
+        state=restarted.load()[0]
+        assert state['jobs'][row['id']]['status']=='generating' and state['reconcile_requested'] is True
+
+
+def test_lease_conflict_is_not_misreported_as_insufficient_articles(journal):
+    primary,android=consumers(journal.queue);studio=RadioStudio(journal,primary,android,threading.Event())
+    builder=SimpleNamespace(bulletins_cfg={'min_articles':0},build=Mock())
+    with lease(journal.root/'generation.lock'):assert studio.generate('2026-11-06T14:30',[],builder) is None
+    row=next(iter(journal.load()[0]['jobs'].values()))
+    assert row['status']=='skipped' and row['reason']=='previous_generation_active'
+    builder.build.assert_not_called()
+
+
+def test_main_opt_in_uses_existing_scheduler_and_temp_storage(tmp_path,monkeypatch):
+    import main
+    from modules.radio import bulletin_generator,streamer
+    from unittest.mock import Mock
+    class EndProbe(Exception):pass
+    times=iter([datetime(2026,11,6,6,55,tzinfo=ZoneInfo('Europe/Paris'))])
+    class Clock:
+        @staticmethod
+        def now(tz=None):
+            try:return next(times)
+            except StopIteration:raise EndProbe()
+    class FakeThread:
+        def __init__(self,**kwargs):self.name=kwargs.get('name')
+        def start(self):pass
+        def join(self):pass
+        def is_alive(self):return False
+    primary,android=Mock(),Mock();builder=Mock()
+    monkeypatch.setattr(main,'datetime',Clock);monkeypatch.setattr(main,'setup_logging',Mock())
+    monkeypatch.setattr(main.threading,'Thread',FakeThread)
+    monkeypatch.setattr(streamer,'Streamer',Mock(return_value=primary));monkeypatch.setattr(streamer,'AndroidStreamer',Mock(return_value=android))
+    monkeypatch.setattr(bulletin_generator,'BulletinGenerator',Mock(return_value=builder))
+    monkeypatch.setattr(bulletin_generator,'load_bulletins_config',Mock(return_value={'post_hours':[7]}))
+    stop=threading.Event();monkeypatch.setattr(stop,'wait',lambda delay:False)
+    config={'radio_studio':{'enabled':True},'paths':{'data_dir':str(tmp_path/'data'),'audio_queue':str(tmp_path/'queue'),'music':str(tmp_path/'music')}}
+    with pytest.raises(EndProbe):main.run_radio(config,stop_event=stop)
+    state=StudioJournal(tmp_path/'data',tmp_path/'queue').load()[0]
+    assert len(state['jobs'])==1 and next(iter(state['jobs'].values()))['slot']=='2026-11-06T07:00'
+    builder.build.assert_not_called();primary.run.assert_not_called();primary.stop.assert_called_once();android.stop.assert_called_once()
