@@ -172,3 +172,13 @@ Radio/éditions : sélection événementielle explicitement opt-in, provenance e
 respectés, validation/audio inchangées. Registre commun des catégories configurées
 et inconnues ; rapports/éditions ne filtrent plus les catégories supplémentaires.
 LLM atlas-verify préparé uniquement comme interface désactivée. Voir EDITORIAL_EVENTS.md.
+
+### Sprint 09 : médias optionnels
+
+`modules/media` sépare découverte, preuve de droits, Commons fixe, worker raster,
+manifest privé et projection locale. Articles et index événementiel restent les
+sources de contexte, sans champs historiques réécrits. Téléchargement disabled
+par défaut ; illustration générique CC BY 4.0 sous revue explicite uniquement.
+Le volume POSIX data partagé contient les originaux privés, dérivés et verrous.
+Aucun nouvel accès externe navigateur : CSP img-src self conservée.
+Voir [NEWS_IMAGES.md](NEWS_IMAGES.md) pour les limites juridiques et opérationnelles.

@@ -78,7 +78,7 @@ def browser_page(app,monkeypatch):
 
 def test_hostile_content_csp_theme_filters_and_persistent_audio(browser_page):
     page,errors,requests,injections=browser_page
-    assert page.locator('#live-grid img,#live-grid script,#live-grid svg').count()==0
+    assert page.locator('#live-grid img:not(.news-image img),#live-grid script,#live-grid svg').count()==0
     assert page.evaluate('window.pwned') is None
     page.locator('[data-action="theme"]').click()
     assert page.locator('body.light').count()==1
@@ -260,7 +260,7 @@ def test_editorial_events_provenance_hostile_title_and_audio(browser_page,app):
     page.reload();page.locator('#editorial-events summary').click()
     assert page.locator('#editorial-events').inner_text().count('Confirmation factuelle indépendante non établie')==1
     assert page.locator('#editorial-events article').count()==1 and page.locator('#editorial-events article a').count()==2
-    assert page.locator('#editorial-events img,#editorial-events script').count()==0
+    assert page.locator('#editorial-events img:not(.news-image img),#editorial-events script').count()==0
     assert page.evaluate('window.pwned') is None
     response=page.evaluate("async()=>await (await fetch('/api/events')).json()")
     assert response['events'][0]['independent_confirmation'] is False and 'locations' not in str(response)
@@ -268,3 +268,28 @@ def test_editorial_events_provenance_hostile_title_and_audio(browser_page,app):
     page.locator('.topbar-nav a[href="/archives"]').click();page.wait_for_url('**/archives')
     page.go_back();page.wait_for_url('**/live');page.wait_for_selector('#editorial-events summary')
     assert page.evaluate('window.savedEventAudio===window._novaAudio && !window._novaAudio.paused')
+
+
+def test_image_review_public_local_image_csp_and_audio(browser_page,app):
+    from tests.test_news_images import image,candidate
+    from modules.media.worker import prepare
+    page,errors,requests,injections=browser_page
+    service=app.extensions['atlas_media'];service.store.mode='approved_only';service.store.runner=prepare
+    app.extensions['atlas_paths']['_config']['media']={'mode':'approved_only'}
+    target=service.targets()[0];identity=service.store.add(candidate(),target,trusted=True)
+    service.store.prepare(identity,image(),expected=service.store.load()[1])
+    page.goto('https://atlas.invalid/admin/login')
+    page.locator('[name="username"]').fill('admin-test');page.locator('[name="password"]').fill('synthetic-test-password')
+    page.evaluate("async()=>{const form=document.querySelector('form');await fetch(form.action,{method:'POST',body:new FormData(form),redirect:'manual'});}")
+    page.goto('https://atlas.invalid/config/feeds/page')
+    card=page.locator('[data-media="'+identity+'"]');card.wait_for()
+    assert card.locator('img').evaluate('(img)=>img.complete && img.naturalWidth>0')
+    card.locator('.media-ack').check();card.locator('[data-media-action="approve"]').click()
+    page.wait_for_function("()=>document.querySelector('#media-records').textContent.includes('approved')")
+    page.goto('https://atlas.invalid/live');page.wait_for_selector('.news-image img')
+    assert page.locator('.news-image img').evaluate_all('(images)=>images.some(img=>img.src.includes("/media/images/")&&img.complete&&img.naturalWidth>0)')
+    assert 'CC BY 4.0' in page.locator('.news-image').all_text_contents()[0] or page.locator('.news-image').filter(has_text='CC BY 4.0').count()>0
+    page.locator('[data-action="radio-toggle"]').click();page.evaluate('window.savedAudio=window._novaAudio')
+    page.locator('.topbar-nav a[href="/archives"]').click();page.wait_for_url('**/archives')
+    assert page.evaluate('window.savedAudio===window._novaAudio && !window._novaAudio.paused')
+    assert page.evaluate('window.pwned') is None

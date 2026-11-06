@@ -41,6 +41,7 @@ class FeedEntry:
     retrieved_at: datetime | None = None
     published_status: str = 'missing'
     updated_status: str = 'missing'
+    images: tuple = ()
 
     def to_dict(self):
         data=asdict(self)
@@ -56,6 +57,11 @@ class FeedEntry:
                 value=datetime.fromisoformat(data[key])
                 if value.tzinfo is None:raise ValueError('naive cache date')
                 data[key]=value.astimezone(timezone.utc)
+        if not isinstance(data.get('images',[]),(list,tuple)) or len(data.get('images',[]))>5:raise ValueError('invalid image candidates')
+        for image in data.get('images',[]):
+            from modules.media.candidates import image_url
+            if not isinstance(image,dict) or set(image)!={'url','method'} or image_url(image.get('url'),'https://invalid.example/')!=image.get('url') or image.get('method') not in ('media:thumbnail','media:content','enclosure','itunes:image','atom:image'):raise ValueError('invalid image candidate')
+        data['images']=tuple(data.get('images',()))
         entry=cls(**data)
         if any(not isinstance(getattr(entry,k),str) or len(getattr(entry,k))>limit for k,limit in (
             ('title',4096),('link',4096),('feed_url',4096),('entry_id',4096),('published_raw',1024),('updated_raw',1024),
@@ -174,7 +180,8 @@ def parse_feed(body,feed_url,response_url,*,retrieved_at=None,max_bytes=4*1024*1
             author=str(entry.get('author',''))[:1024],source=str(data.get('feed',{}).get('title',''))[:1024],
             category=str(entry.get('tags',[{}])[0].get('term',''))[:200] if entry.get('tags') else '',
             summary_raw=summary[:16000],content_raw=content[:16000],retrieved_at=now,
-            published_status=published_status,updated_status=updated_status))
+            published_status=published_status,updated_status=updated_status,
+            images=__import__('modules.media.candidates',fromlist=['rss_images']).rss_images(node,response_url)))
     invalid_dates=sum(e.published_status=='invalid' or e.updated_status=='invalid' for e in entries)
     ambiguous_dates=sum(e.published_status=='ambiguous_local' or e.updated_status=='ambiguous_local' for e in entries)
     if invalid_dates:warnings.append('invalid_dates:'+str(invalid_dates))

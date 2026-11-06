@@ -288,7 +288,7 @@ def test_new_routes_default_to_private(app, client):
 
 
 def test_all_registered_routes_classified(app):
-    public = {'/api/events','/api/events/<event_id>', '/', '/archives', '/index.html', '/live', '/live.html', '/stream/<path:mount>',
+    public = {'/api/media','/media/images/<approval>/<int:size>.jpg','/api/events','/api/events/<event_id>', '/', '/archives', '/index.html', '/live', '/live.html', '/stream/<path:mount>',
               '/api/preferences', '/api/articles', '/api/subscription/status',
               '/editions/<path:filename>', '/<path:filename>', '/admin/login', '/assets/<name>'}
     private = set(PRIVATE_GET + PRIVATE_POST)
@@ -298,6 +298,7 @@ def test_all_registered_routes_classified(app):
     private -= {'/config/feeds/add','/config/feeds/remove','/config/feeds/reset','/config/feeds/move','/config/feeds/toggle','/config/feeds/category'}
     private |= {'/config/feeds/<action>','/api/admin/sources','/api/admin/sources/<identity>','/api/admin/sources/actions/<action>','/api/admin/sources/stats','/api/admin/sources/export','/api/admin/sources/import','/api/admin/sources/test'}
     private |= {'/api/admin/discovery/<mode>','/api/admin/discovery/status','/api/admin/discovery/preview','/api/admin/discovery/cancel'}
+    private |= {'/api/admin/media','/api/admin/media/targets','/api/admin/media/search','/api/admin/media/discover','/api/admin/media/cancel','/api/admin/media/<identity>/<action>','/api/admin/media/<identity>/preview/<int:size>.jpg'}
     assert {r.rule for r in app.url_map.iter_rules()} == public | private
 
 

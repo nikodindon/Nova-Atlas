@@ -352,3 +352,9 @@ couvertures sans remplacer les articles ni les déclarer vérifiées. Index priv
 reconstructible en dry-run, API `/api/events`, détail dans le direct et corrections
 opérateur séparées. La sélection événementielle radio/éditions est désactivée par
 défaut ; aucune reconstruction ou requête LLM supplémentaire au démarrage.
+
+Les illustrations sont désormais optionnelles : fallback local hors ligne par défaut,
+candidats RSS/HTML et recherche Commons manuelle, revue des droits, miniatures locales
+et approbation explicite. Première politique : illustrations génériques CC BY 4.0
+uniquement ; aucune photographie documentaire automatique ni hotlink externe.
+Configuration et limites : [NEWS_IMAGES](docs/NEWS_IMAGES.md).

@@ -275,6 +275,7 @@ class ArticleFetcher:
 
     def _apply_config(self, config: dict):
         """Applique (ou reapplique) la config — appelé au __init__ et au reload."""
+        self.config=config
         paths = config.get("paths", {})
         self.data_dir  = Path(paths.get("articles_dir", "data/articles"))
         self.seen_file = Path(paths.get("data_dir", "data")) / "seen_hashes.json"
@@ -368,10 +369,13 @@ class ArticleFetcher:
     # ── Article content ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None) -> str:
+    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None, image_sink=None) -> str:
         try:
             r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP, host_budget=host_budget, cancel_event=cancel_event)
             r.raise_for_status()
+            if image_sink is not None:
+                try:image_sink(r.content,r.url)
+                except Exception:logging.getLogger('nova.fetch').warning('Optional image metadata capture unavailable')
             soup = BeautifulSoup(r.text, "html.parser")
             for tag in soup(["script","style","nav","header","footer",
                               "aside","form","iframe","noscript"]):
@@ -766,9 +770,13 @@ class ArticleFetcher:
         self._save_state()
         generation_started = False
         try:
+            image_args={}
+            if getattr(self,'config',{}).get('media',{}).get('mode','disabled')!='disabled':
+                from modules.media.capture import capture
+                image_args['image_sink']=lambda body,url:capture(self.seen_file.parent,body,url,h,self.config)
             content = self._fetch_content(item['link'], raise_errors=True,
                 host_budget=getattr(getattr(self, '_ingestion', None), 'host_budget', None),
-                cancel_event=getattr(self, '_feed_stop_event', None))
+                cancel_event=getattr(self, '_feed_stop_event', None),**image_args)
             if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
                 raise ArticleAttemptError('collection_cancelled')
             if not content.strip():

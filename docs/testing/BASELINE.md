@@ -264,3 +264,21 @@ avec fingerprint revu, articles conservés. Métadonnées d’index manquantes r
 
 Le refus de couvertures mal typées et de dates corrompues dans un index autrement
 JSON-valide est également couvert ; aucune réécriture de réparation automatique.
+
+## Sprint 09 — Images, droits et attribution
+
+Base dev après fusion PR16 : `627871116c36c4e703419add2d23ca788eea0bfa`.
+Deux reproductions initiales échouaient (candidat RSS perdu, modèle de droits absent).
+Validation locale finale : **1435 passed, 0 failed, 0 skipped** en 59,11 s,
+commande `python -m pytest -q`, dont **9 scénarios Chromium**. Tous les appels
+externes sont interdits par la fixture globale ; seules les applications locales
+Chromium dédiées sont autorisées pour le navigateur. Pillow travaille sur de
+petites images synthétiques créées par les tests, aucune banque d'images réelle.
+
+`compileall` Python, `node --check` sur tous les scripts, test CSRF Node,
+`pip check` et `git diff --check` réussis. Le fichier plan non suivi est conservé
+avec la même empreinte SHA256. Les smokes Docker/RSS (incluant le vrai worker
+image), LiteLLM et PostgreSQL sont exécutés dans les contrôles CI isolés de la PR.
+Mesures synthétiques : `docs/measurements/news-images-synthetic.json` ; décodage
+25,7–60,2 ms, miniatures 26,9–30,5 ms, RSS maximum worker 46,8–55,8 MiB,
+646/2230 octets pour les deux aplats JPEG. Pas une mesure de couverture réelle.

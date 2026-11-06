@@ -110,10 +110,10 @@ class FeedIngestor:
         self.cancel_event=None
         self.host_budget=http.HostBudget(self.options['feed_per_host'],clock=lambda:self.now().timestamp(),default_cooldown=self.options['feed_retry_base_seconds'])
         embargo_records=list(self.state.records.values())
-        if self.state.path is not None and self.state.path.name in ('feed_ingestion_state.json','source_test_state.json','discovery_feed_state.json'):
+        if self.state.path is not None and self.state.path.name in ('feed_ingestion_state.json','source_test_state.json','discovery_feed_state.json','media_http_state.json'):
             # Admin tests own a separate journal, but their server embargoes also
             # constrain the next News cycle. Never merge/write its entries/cache.
-            for name in ('feed_ingestion_state.json','source_test_state.json','discovery_feed_state.json'):
+            for name in ('feed_ingestion_state.json','source_test_state.json','discovery_feed_state.json','media_http_state.json'):
                 if name==self.state.path.name:continue
                 auxiliary=self.state.path.with_name(name)
                 if auxiliary.exists():embargo_records.extend(FeedState(auxiliary).records.values())

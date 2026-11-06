@@ -73,3 +73,17 @@ sur la presse réelle. Benchmark local 500 couvertures ~2,91 s ; groupes ≤50.
 Limites : lexical FR/EN, dates fiables requises, index snapshot explicite (pas de
 synchronisation instantanée), sous-dossiers historiques signalés comme non encore
 adaptés, revue humaine et corpus représentatif à prévoir. Aucune activation cloud.
+
+## Sprint 09 — Illustrations et droits
+
+| Surface | Risque / reproduction | Correction et limite |
+|---|---|---|
+| FeedEntry | media:thumbnail perdu | Candidats facultatifs bornés, vieux caches lisibles ; JSON articles inchangé |
+| OG/HTML/RSS | Confusion accessibilité/licence | Droits inconnus, jamais de publication automatique |
+| Commons | Métadonnées HTML, licence ambiguë, ressource mutable | Endpoint fixe, CC BY 4.0 uniquement, révision/SHA1/taille, attribution et revue ; droits de tiers non garantis |
+| Images externes | SSRF, fichiers actifs et bombes | Client épinglé existant, worker Pillow borné, raster JPEG local sans EXIF |
+| Approbation | Changement de licence/contexte | Binding exact, expiration 24 h, invalide après changement ; pas de vérification réseau permanente |
+| Stockage/export | Partiel, corruption et copies révoquées | Manifest atomique/POSIX, binaires immuables, export d'arbre atomique ; copies déjà distribuées hors contrôle |
+| UI | Légendes hostiles et hotlinks | textContent/autoescape, CSP img-src self, revue auth/CSRF, radio persistante Chromium |
+
+Voir NEWS_IMAGES.md pour les plafonds et exclusions. Aucun jeu de données réel lu.
