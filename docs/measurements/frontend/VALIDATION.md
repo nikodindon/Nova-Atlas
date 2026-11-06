@@ -1,7 +1,7 @@
 # Validation Sprint 12
 
 - Prérequis : PR19 fusionnée dans dev (8d5e2b5), huit contrôles précédents réussis.
-- Suite Python complète : **1565 passed**, aucun échec/skip, 68,21 secondes localement.
+- Suite Python complète locale avant la dernière non-régression de pagination : **1565 passed**, aucun échec/skip, 68,21 secondes localement.
   Inclut deux tests reproduisant puis verrouillant le parsing tmpfs corrigé.
   Inclut les scénarios Chromium historiques et les tests de protections antérieures.
 - Frontend : **33 tests unitaires/composants** ; **10 scénarios Chromium** desktop/mobile.
@@ -41,3 +41,8 @@ de port n’était pas joignable depuis l’hôte sur le bridge exclusivement in
 Le smoke local complet a été interrompu faute d’espace durant les builds ; seuls
 ses images/caches identifiés ont été retirés, sans prune globale ni volume utilisateur.
 Préflight local 4 Gio ajouté ; validation complète de la chaîne confiée à la CI.
+
+La projection des images est paginée avant lecture du manifeste : une page de taille 1
+consultait auparavant trois droits sur trois fixtures ; la reproduction échouait,
+puis 27 tests ciblés passent après correction. Le compte total final est vérifié par
+le job pytest de la PR. Aucun fichier article ni contrat JSON historique modifié.

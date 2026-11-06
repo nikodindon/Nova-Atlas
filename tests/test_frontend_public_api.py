@@ -92,3 +92,16 @@ def test_public_document_complexity_is_bounded(client,app):
     paths=app.extensions['atlas_paths']
     (paths['reports']/'20261106_report.md').write_text('\n\n'.join('paragraph' for _ in range(2100)))
     assert get(client,'/api/public/documents/20261106/report').status_code==503
+
+
+def test_images_are_projected_only_for_requested_page(app,client,monkeypatch):
+    from modules.media.store import MediaStore,FALLBACK
+    paths,day,_=content(app)
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps([article(i,when=datetime.now(timezone.utc)) for i in range(3)]))
+    calls=[]
+    def image(self,target):calls.append(target);return FALLBACK
+    monkeypatch.setattr(MediaStore,'public_for',image)
+    response=get(client,'/api/public/articles?date='+day+'&per_page=1')
+    assert response.status_code==200 and response.json['total']==3
+    assert len(calls)==1
+    assert '_image_target' not in response.text

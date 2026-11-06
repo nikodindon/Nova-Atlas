@@ -64,9 +64,9 @@ def install_public_api(app,paths,config):
             if isinstance(value,dict) and value.get('migrated'):continue
             try:
                 c=Coverage.from_article(value)
-                image=store.public_for(target_for_article(value))
+                image_target=target_for_article(value)
                 result.append({'id':c.id,'hash':c.article_hash,'title':c.title,'original_title':c.original_title,'summary':c.summary,'link':c.link,'source':c.source,'category':c.category,
-                    'published_raw':c.published_raw,'published_at':c.published_at,'publication_status':c.publication_status,'observed_raw':c.observed_raw,'observed_at':c.observed_at,'language':c.language,'image':image})
+                    'published_raw':c.published_raw,'published_at':c.published_at,'publication_status':c.publication_status,'observed_raw':c.observed_raw,'observed_at':c.observed_at,'language':c.language,'_image_target':image_target})
             except (ValueError,TypeError,KeyError):continue
         return sorted(result,key=lambda r:r['published_at'] or r['observed_at'] or r['observed_raw'],reverse=True)
     @app.after_request
@@ -99,7 +99,11 @@ def install_public_api(app,paths,config):
         options(('date','page','per_page','category'));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
         rows=articles(day)
         if request.args.get('category'):rows=[r for r in rows if r['category']==request.args['category']]
-        return respond(date=day,articles=rows[(page-1)*size:page*size],total=len(rows),page=page,per_page=size)
+        page_rows=[]
+        for row in rows[(page-1)*size:page*size]:
+            target=row.pop('_image_target')
+            page_rows.append({**row,'image':store.public_for(target)})
+        return respond(date=day,articles=page_rows,total=len(rows),page=page,per_page=size)
     @app.get('/api/public/archives')
     @guarded
     def public_archives():

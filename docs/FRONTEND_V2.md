@@ -56,7 +56,9 @@ paramètres inconnus, répétés ou excessifs refusés. Articles : `id`, `hash`,
 naïve reste brute, sans fuseau inventé. Jour courant explicite Europe/Paris.
 
 Lecture plafonnée : articles 4 MiB / 2000 enregistrements par jour, document 512 KiB,
-4000 nœuds / profondeur 16, archives 10000 fichiers par répertoire. Fichiers spéciaux,
+4000 nœuds / profondeur 16, archives 10000 fichiers par répertoire. La projection
+des images et de leurs droits ne porte que sur la page demandée (50 au maximum),
+après tri et filtrage, jamais sur tout l’historique du jour. Fichiers spéciaux,
 symlinks et données corrompues sont refusés ; aucune écriture ni réparation automatique.
 Les documents passent par le sanitizer Markdown existant puis une projection typée,
 pas un scraping de pages Flask. Svelte affiche les textes, jamais `{@html}`.
