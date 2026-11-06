@@ -24,6 +24,13 @@ class FetchError(Exception):
     """Safe diagnostic code only: never include an untrusted URL or credentials."""
 
 
+class TransportError(FetchError):
+    """Legacy safe message retained; callers may inspect a closed error category."""
+    def __init__(self,kind):
+        super().__init__('transport_error')
+        self.kind=kind if kind in ('timeout','tls_error') else 'network_error'
+
+
 class BlockedURL(FetchError):
     pass
 
@@ -81,6 +88,20 @@ class HostBudget:
             yield
         finally:
             if acquired:semaphore.release()
+
+
+class RequestBudget:
+    """A caller's shared deadline and actual-hop quotas; cannot relax SSRF."""
+    def __init__(self, seconds=25, requests=12, per_host=8):
+        if not 1<=seconds<=60 or not 1<=requests<=20 or not 1<=per_host<=12:raise ValueError('Invalid request budget')
+        self.deadline=time.monotonic()+seconds;self.maximum=requests;self.per_host=per_host
+        self.count=0;self.hosts={};self.lock=threading.Lock()
+
+    def take(self,host):
+        with self.lock:
+            remaining(self.deadline)
+            if self.count>=self.maximum or self.hosts.get(host,0)>=self.per_host:raise FetchError('request_budget')
+            self.count+=1;self.hosts[host]=self.hosts.get(host,0)+1
 
 
 @dataclass(frozen=True)
@@ -380,16 +401,20 @@ class ExternalHTTPClient:
         self.resolver = resolver or resolve
         self.connection_factory = connection_factory or PinnedConnection
 
-    def get(self, url, *, conditional=None, accept_not_modified=False, cancel_event=None, host_budget=None):
+    def get(self, url, *, conditional=None, accept_not_modified=False, cancel_event=None, host_budget=None, request_budget=None):
         if conditional is not None and not isinstance(conditional, Conditional):raise FetchError("invalid_validator")
         if host_budget is not None and not isinstance(host_budget,HostBudget):raise FetchError("invalid_host_budget")
         conditional_url = parse_url(conditional.url).url if conditional else None
         deadline = time.monotonic() + self.limits.total_timeout
+        if request_budget is not None:
+            if not isinstance(request_budget,RequestBudget):raise FetchError("invalid_request_budget")
+            deadline=min(deadline,request_budget.deadline)
         visited = set()
         try:
             for hop in range(self.limits.max_redirects + 1):
                 if cancel_event is not None and cancel_event.is_set():raise FetchError("cancelled")
                 target = parse_url(url)
+                if request_budget is not None:request_budget.take(target.host)
                 if target.url in visited:
                     raise FetchError('redirect_loop')
                 visited.add(target.url)
@@ -446,12 +471,16 @@ class ExternalHTTPClient:
                         connection.close()
         except FetchError:
             raise
+        except (socket.timeout,TimeoutError):
+            raise TransportError('timeout') from None
+        except ssl.SSLError:
+            raise TransportError('tls_error') from None
         except (OSError, ValueError, http.client.HTTPException, zlib.error):
             raise FetchError('transport_error') from None
         raise FetchError('redirect_limit')
 
 
-def get(url, *, timeout=30, conditional=None, accept_not_modified=False, cancel_event=None, host_budget=None):
+def get(url, *, timeout=30, conditional=None, accept_not_modified=False, cancel_event=None, host_budget=None, request_budget=None):
     """Shared entry point for fetch/test/discovery. No header/auth/proxy escape hatches."""
     return ExternalHTTPClient(Limits(total_timeout=timeout, io_timeout=min(timeout, 10))).get(url,
-        conditional=conditional, accept_not_modified=accept_not_modified, cancel_event=cancel_event, host_budget=host_budget)
+        conditional=conditional, accept_not_modified=accept_not_modified, cancel_event=cancel_event, host_budget=host_budget, request_budget=request_budget)

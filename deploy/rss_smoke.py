@@ -25,7 +25,9 @@ class Handler(BaseHTTPRequestHandler):
   requests.append((self.path,self.headers.get('If-None-Match')))
   if self.path=='/redirect':
    self.send_response(302);self.send_header('Location','http://127.0.0.1/private');self.end_headers();return
-  payload=RSS if self.path=='/rss' else ATOM
+  if self.path not in ('/rss','/atom','/site'):
+   self.send_response(404);self.end_headers();return
+  payload=b'<html><head><link rel="alternate" type="application/rss+xml" href="/rss"></head></html>' if self.path=='/site' else RSS if self.path=='/rss' else ATOM
   tag='"rss-v1"' if self.path=='/rss' else '"atom-v1"'
   if self.headers.get('If-None-Match')==tag:
    self.send_response(304);self.send_header('ETag',tag);self.end_headers();return
@@ -78,6 +80,13 @@ try:
   assert preview['duplicates']==2 and preview['additions']==0
   manager.mutate('enable',{'id':rss_id})
   assert len(atlas_fetch._load_rss_sources()['tech'])==2
+  from modules.discovery.source_discovery import Discovery
+  def discovery_transport(url,**kwargs):
+   kwargs.pop('timeout',None);return client.get(url,**kwargs)
+  before=feeds.read_bytes()
+  found=Discovery(manager,transport=discovery_transport).run('site','http://news.invalid/site')
+  assert any(c['url']=='http://news.invalid/rss' and c['format']=='rss20' for c in found['candidates'])
+  assert found['requests']<=12 and feeds.read_bytes()==before
   try:client.get('http://news.invalid/redirect',accept_not_modified=True)
   except http.BlockedURL:pass
   else:raise AssertionError('private redirect accepted')
@@ -85,7 +94,7 @@ try:
 finally:
  http.get=real_get;server.shutdown();worker.join();server.server_close();faulthandler.cancel_dump_traceback_later()
 assert not any(t.name.startswith('FeedHTTP') for t in threading.enumerate())
-print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers, Source Manager atomic disable/reload/export and private redirect rejection. No external source/model.')
+print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers, Source Manager atomic disable/reload/export, static source discovery and private redirect rejection. No external source/model.')
 '''
 
 

@@ -89,6 +89,9 @@ class FeedResult:
     deferred: bool = False
     rate_host: str = ""
     format: str = ""
+    feed_title: str = ""
+    description: str = ""
+    language: str | None = None
 
 
 def _raw_date(element,names,maximum=1024):
@@ -179,4 +182,6 @@ def parse_feed(body,feed_url,response_url,*,retrieved_at=None,max_bytes=4*1024*1
     if bad:warnings.append('invalid_entries:'+str(bad))
     if truncated:warnings.append('raw_content_truncated:'+str(truncated))
     if nodes and not entries:return invalid('no_usable_entries')
-    return FeedResult('success' if entries else 'empty',tuple(entries),warnings=tuple(warnings),response_url=response_url,retrieved_at=now,format=data['version'])
+    return FeedResult('success' if entries else 'empty',tuple(entries),warnings=tuple(warnings),response_url=response_url,retrieved_at=now,format=data['version'],feed_title=_plain(data.get('feed',{}).get('title',''))[:300],
+        description=_plain(data.get('feed',{}).get('subtitle',data.get('feed',{}).get('description','')))[:500],
+        language=str(data.get('feed',{}).get('language',''))[:40] or None)

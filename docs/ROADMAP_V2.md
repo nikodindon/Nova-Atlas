@@ -19,8 +19,8 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | 03 | LiteLLM et profils Ollama Cloud/OpenRouter | PR #11 en revue : alias, tests offline/smoke, capacités et fallback ; budgets persistants différés |
 | 04 | PostgreSQL/Alembic et import JSON/YAML | PR #12 en revue : snapshots vérifiés et dump/restore ; cutover métier en PR complémentaire |
 | 05 | Collecte RSS/Atom, dates, statuts et retries | PR #13 fusionnée : cache conditionnel/santé legacy et concurrence bornée ; aucune bascule SQL |
-| 06 | Source Manager API | PR #14 en revue : YAML autoritaire, mutations concurrentes, test RSS/Atom, santé et import/export YAML/OPML |
-| 07 | Découverte de sources | Recherche/prévisualisation/ajout bornés, RSSHub facultatif |
+| 06 | Source Manager API | PR #14 fusionnée : YAML autoritaire, mutations concurrentes, test RSS/Atom, santé et import/export YAML/OPML |
+| 07 | Découverte de sources | PR #15 en revue : site statique, SearXNG public opt-in, preview et ajout volontaire ; RSSHub/LAN reportés |
 | 08 | Éditorial | Catégories complètes, regroupement événement, provenance |
 | 09 | Images | Métadonnées, licence/attribution et fallback vérifiés |
 | 10 | Laboratoire TTS | Corpus français identique, benchmark Ryzen/i5 et choix motivé |
@@ -76,3 +76,8 @@ suivants ; voir RSS_INGESTION.md et AUDIT_P1.md. Aucun cutover PostgreSQL.
 Sprint 06 : service SourceManager partagé, API privée versionnée et adaptateurs historiques,
 UI Flask/CSP, preview signée et écritures POSIX atomiques. Aucun cutover SQL ni découverte.
 Voir SOURCE_MANAGER.md ; tests hors ligne et smokes CI avant revue/fusion.
+
+Sprint 07 : découverte par site puis recherche thématique facultative, vérification
+RSS/Atom commune, budgets HTTP par hop, cache court privé et navigation radio persistante.
+Sources autoritaires dans YAML, ajout exclusivement SourceManager explicite/versionné.
+Voir SOURCE_DISCOVERY.md ; ni crawler généraliste ni réseau de production en test.

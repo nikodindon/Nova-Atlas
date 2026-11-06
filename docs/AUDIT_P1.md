@@ -33,3 +33,22 @@ mono-processus, fenêtre d'observation (pas de sonde automatique), un backup seu
 refus complet plutôt que diagnostic ligne par ligne d'un import invalide. Grammaire
 YAML volontairement restreinte ; tokens opaques non identifiables universellement.
 La découverte et le modèle opérationnel SQL restent à livrer ; voir SOURCE_MANAGER.md.
+
+## Sprint 07 — Découverte et nouvelles sorties HTTP
+
+| Surface | Risque / reproduction | Mesure et preuve |
+|---|---|---|
+| Test RSS sur une URL HTML | Rejet correct mais aucun lien de flux détecté | Deux reproductions initialement rouges pour alternate relatif/HTTP Link ; HTML seul jamais validé |
+| Liens et chemins conventionnels | Faux positifs ou crawl incontrôlé | Candidats typés puis parser commun, liens bornés, cinq chemins au plus, pas de pages internes ordinaires |
+| DNS/redirect d'un candidat | SSRF et rebinding | Client existant épinglé ; mêmes refus IPv4/IPv6/privés ; tests transport réel simulé |
+| Budget multiplié par redirect | Fan-out et dépassement temporel | RequestBudget par opération décompte chaque hop avant DNS/connexion, deadline partagée |
+| HTML/metadata hostile | XSS dans preview et navigation | Texte nettoyé/DOM textContent, scripts statiques connus, CSP inchangée, Chromium |
+| Découverte comme abonnement | Écriture implicite/perte de version | Aucun mutate dans le moteur ; POST sources explicite/versionné, 409 couvert |
+| Fournisseur de recherche | Proxy arbitraire/LAN ou fuite de clés | Endpoint SearXNG public HTTPS fixe opérateur, aucun credential ni paramètre client endpoint, pas de fallback |
+| Monitoring/quotas concurrents | Écrasement du journal News ou 429 ignoré | Journal propre et verrou partagé des tests, embargos lus entre producteurs, admission durable avant réseau |
+| Réponse tardive après navigation | Mise à jour du mauvais écran/perte radio | Références de composant isolées, init idempotente, même objet Audio ; test Chromium tardif |
+
+Limites : SearXNG privé et RSSHub reportés, détection non exhaustive des sites
+nécessitant JS/auth, metadonnées éditeur non certifiées, quotas POSIX locaux et
+parseur borné plutôt qu'interruption CPU à la milliseconde. DNS libc conserve les
+limites héritées. Pas de fusion canonique automatique, découverte sociale ou cutover SQL.

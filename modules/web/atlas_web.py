@@ -1022,6 +1022,8 @@ def build_config_page(paths: dict) -> str:
 
 FEEDS_PAGE_JS = """
 <style>
+  #discovery-results { overflow-wrap:anywhere; }
+  #source-discovery input { min-width:0;max-width:100%; }
   .feeds-grid { display: grid; gap: 14px; margin-top: 16px; }
   .feed-cat { background: #1a1d23; border: 1px solid #2a2e36; border-radius: 8px;
               padding: 12px 14px; }
@@ -1087,6 +1089,18 @@ FEEDS_PAGE_JS = """
   <button class="feed-btn" type="submit">+ Catégorie</button>
 </form>
 
+<section id="source-discovery" style="margin-top:24px;">
+<h2>Découvrir des sources</h2>
+<p>Exploration statique bornée, sans ajout automatique. Recherche thématique disponible uniquement avec SearXNG configuré.</p>
+<form id="discovery-form" class="add-form">
+<select id="discovery-mode" aria-label="Mode de découverte"><option value="site">Site</option><option value="search">Sujet (SearXNG)</option></select>
+<input id="discovery-input" placeholder="https://example.org" required aria-label="URL ou thème">
+<button id="discovery-start" type="submit" class="feed-btn">Découvrir</button>
+<button id="discovery-cancel" type="button" class="feed-btn" disabled>Annuler</button></form>
+<p id="discovery-progress" aria-live="polite"></p>
+<label>Résultats <select id="discovery-filter"><option value="">Tous</option><option value="verified">Vérifiés</option><option value="new">Nouveaux vérifiés</option></select></label>
+<div id="discovery-results" class="feeds-grid"></div><pre id="discovery-preview" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>
+</section>
 <div class="toast" id="toast"></div>
 
 
@@ -1094,44 +1108,14 @@ FEEDS_PAGE_JS = """
 
 
 def build_feeds_page(paths: dict) -> str:
-    """Page HTML de gestion des flux RSS (UI niveau 1)."""
+    """Source Manager in the existing persistent radio/navigation shell."""
     from modules.web.web_security import html_template as Template
-    return Template("""<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <title>{{ brand }} — Gestion des flux</title>
-  <link rel="stylesheet" href="/style.css">
-  <style>{{ css }}</style>
-</head>
-<body>
-  <header style="display:flex;justify-content:space-between;align-items:center;
-                 padding:12px 20px;background:#0d1014;border-bottom:1px solid #2a2e36;">
-    <h1 style="margin:0;font-size:18px;">{{ brand }} — Flux RSS</h1>
-    <nav>
-      <a href="/" style="color:#6ea8fe;text-decoration:none;margin-right:14px;">← Accueil</a>
-      <a href="/config/yaml" style="color:#6ea8fe;text-decoration:none;">Config YAML</a>
-    </nav>
-  </header>
-  <main style="max-width:1100px;margin:0 auto;padding:20px;">
-    <h2 style="font-size:22px;margin:0 0 12px 0;">Gestion des flux RSS</h2>
-    <p style="color:#888;font-size:13px;margin:0 0 16px 0;">
-      Ajouter, supprimer, désactiver ou réorganiser les flux RSS utilisés par Nova-Atlas.
-      Les modifications sont sauvegardées dans <code>config/feeds.yaml</code> et
-      prises en compte au prochain cycle de fetch.
-    </p>
-    {{ extra_js }}
-  </main>
-</body>
-</html>""").render(
-        **_branding(paths),
-        global_script="",  # Pas besoin du global sur cette page
-        icecast_url="",
-        css="",
-        extra_js=Markup(FEEDS_PAGE_JS + '<script defer src="/assets/feeds.js"></script>'),
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
-        flash_button_js=FLASH_BUTTON_JS,
-    )
+    start=INDEX_TEMPLATE.index('<div class="page">')
+    end=INDEX_TEMPLATE.index('<footer>')
+    template=INDEX_TEMPLATE[:start].replace('— Archives</title>','— Sources</title>')+'<div class="page"><div id="source-manager"><h1>Sources et découverte RSS/Atom</h1>'+FEEDS_PAGE_JS+'</div></div>'+INDEX_TEMPLATE[end:]
+    return Template(template).render(**_branding(paths),global_script=Markup(GLOBAL_SCRIPT),
+        icecast_url=_get_icecast_url(paths),css=Markup(BASE_CSS),breaking_banner='',
+        flash_button_html='',flash_button_js='',today_file=None,year=datetime.now().year)
 
 
 # ─── PAGE PRÉFÉRENCES (filtre par catégorie) ─────────────────────────────────
@@ -1434,6 +1418,8 @@ def create_app(config: dict, *, root: Path = None):
 
     from modules.web.source_api import install_source_api
     install_source_api(app, paths)
+    from modules.web.discovery_api import install_discovery_api
+    install_discovery_api(app, paths, config)
 
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():
@@ -2126,7 +2112,7 @@ LIVE_CSS_EXTRA = """
 # ─── SCRIPT GLOBAL (player radio + theme + live refresh) ─────────────────────
 # Injecté dans chaque template juste avant </body>
 
-GLOBAL_SCRIPT = '<script src="/assets/csrf.js"></script><script defer src="/assets/web.js"></script><script defer src="/assets/flash.js"></script>'
+GLOBAL_SCRIPT = '<script src="/assets/csrf.js"></script><script defer src="/assets/feeds.js"></script><script defer src="/assets/web.js"></script><script defer src="/assets/flash.js"></script>'
 
 REPORT_TEMPLATE = """<!DOCTYPE html>
 <html lang="fr"><head>
@@ -2151,7 +2137,7 @@ REPORT_TEMPLATE = """<!DOCTYPE html>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
     <a href="/{{ today_file }}">{{ ui.nav_chronicle }}</a>
     <a href="/archives">{{ ui.nav_archives }}</a>
-    <a href="/config">⚙</a>
+    <a href="/config/feeds/page">Sources</a><a href="/config">⚙</a>
   </div>
 </nav>
 {{ breaking_banner }}
@@ -2265,7 +2251,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
     {% if today_file %}<a href="/{{ today_file }}">{{ ui.nav_chronicle }}</a>{% endif %}
     <a href="/archives">{{ ui.nav_archives }}</a>
-    <a href="/config">⚙</a>
+    <a href="/config/feeds/page">Sources</a><a href="/config">⚙</a>
   </div>
 </nav>
 {{ breaking_banner }}
@@ -2320,7 +2306,7 @@ EDITION_TEMPLATE = """<!DOCTYPE html>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
     <a href="/{{ today_report }}">{{ ui.nav_chronicle }}</a>
     <a href="/archives">{{ ui.nav_archives }}</a>
-    <a href="/config">⚙</a>
+    <a href="/config/feeds/page">Sources</a><a href="/config">⚙</a>
   </div>
 </nav>
 {{ breaking_banner }}
@@ -2419,7 +2405,7 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
     <a href="/live" style="color:var(--accent)"><span class="live-dot"></span>{{ ui.nav_live }}</a>
     {% if today_file %}<a href="/{{ today_file }}">{{ ui.nav_chronicle }}</a>{% endif %}
     <a href="/archives">{{ ui.nav_archives }}</a>
-    <a href="/config">⚙</a>
+    <a href="/config/feeds/page">Sources</a><a href="/config">⚙</a>
   </div>
 </nav>
 {{ breaking_banner }}
