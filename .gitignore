@@ -118,3 +118,7 @@ editorial-events.lock
 editorial-selection.lock
 editorial_selection_*.json
 .editorial_selection_*.json*
+
+# Optional TTS lab: operator-created models and private audio/listening experiments
+.tts-lab/
+.venv-tts-lab/

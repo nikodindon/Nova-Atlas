@@ -182,3 +182,13 @@ par défaut ; illustration générique CC BY 4.0 sous revue explicite uniquement
 Le volume POSIX data partagé contient les originaux privés, dérivés et verrous.
 Aucun nouvel accès externe navigateur : CSP img-src self conservée.
 Voir [NEWS_IMAGES.md](NEWS_IMAGES.md) pour les limites juridiques et opérationnelles.
+
+### Sprint 10 : laboratoire TTS isolé
+
+`modules/tts_lab` ne participe à aucun parcours métier. Corpus français fixe,
+contrat moteur/modèle/voix/paramètres, worker borné, adaptateurs fixture/Piper CPU/
+Edge opt-in, formats natifs puis PCM de comparaison, rapports et écoute aveugle.
+Aucun poids/framework lourd dans les dépendances de production ; aucune publication
+radio ou sélection de moteur automatique. Le bridge futur devra conserver manifeste,
+MP3 et reçus du Sprint 01F. Voir [TTS_BENCHMARK.md](TTS_BENCHMARK.md) : mesures de
+banc synthétique seulement, résultats vocaux/4 Go GPU/qualité humaine non mesurés.
