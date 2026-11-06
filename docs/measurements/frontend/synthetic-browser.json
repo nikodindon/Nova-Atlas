@@ -1,0 +1,10 @@
+{
+  "environment": "Local Chromium, 1440x1000, synthetic mock Flask through loopback gateway; cold browser; single run, not a benchmark distribution",
+  "elapsed_to_player_ms": 319,
+  "document_bytes": 17634,
+  "dom_content_loaded_ms": 214,
+  "resource_requests": 19,
+  "javascript_transfer_bytes": 46605,
+  "lighthouse": "not measured",
+  "container_memory_cpu": "not measured"
+}

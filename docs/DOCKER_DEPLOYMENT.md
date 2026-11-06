@@ -361,3 +361,11 @@ sous le même UID non-root, en subprocess borné, sans credentials hérités.
 partagé existant ; aucun volume, service, GPU ou port supplémentaire.
 Sauvegarder ce manifeste et ses binaires ensemble. Le mode est `disabled` par
 défaut ; activation et politique de droits : [NEWS_IMAGES.md](NEWS_IMAGES.md).
+
+## Frontend SvelteKit optionnel
+
+L’overlay `docker-compose.frontend.yml` ajoute Node et un gateway nginx non-root sur
+loopback:5173, sans secrets ni volumes privés. Le profil de base reste inchangé.
+Utiliser `--profile web --profile frontend`, jamais `full` pour une simple prévisualisation.
+Réseau privé, pairs proxies exacts, HTTPS et rollback détaillés dans
+[FRONTEND_V2.md](FRONTEND_V2.md). Aucun déploiement exécuté par le sprint.

@@ -22,6 +22,8 @@
 !deploy/icecast-entrypoint.sh
 !deploy/icecast-health.sh
 !deploy/Dockerfile.icecast
+!deploy/frontend/
+!deploy/frontend/**
 **/__pycache__/
 **/*.pyc
 **/.env*

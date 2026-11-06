@@ -1381,6 +1381,8 @@ def create_app(config: dict, *, root: Path = None):
     install_media_api(app, paths, config)
     from modules.web.studio_api import install_studio_api
     install_studio_api(app,paths,config)
+    from modules.web.public_api import install_public_api
+    install_public_api(app,paths,config)
 
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():

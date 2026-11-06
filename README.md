@@ -1,8 +1,8 @@
 # Nova-Atlas
 
-> **État Sprints 01 / 02 (novembre 2026)** : le socle actuel est Python/Flask,
+> **État V2 (novembre 2026)** : le socle actuel est Python/Flask,
 > stockage JSON/YAML, Ollama CLI ou llama-server, Edge TTS/FFmpeg/Icecast.
-> Les pages sont générées et servies par Flask ; la V2 n'est pas encore livrée.
+> Flask reste disponible ; une tranche SvelteKit facultative est proposée au Sprint 12.
 > Sprint 01A ajoute une administration Flask fermée par défaut :
 > [initialisation et connexion](docs/SECRETS_AND_ADMIN.md).
 > Les descriptions ci-dessous restent historiques et ne garantissent pas la
@@ -368,3 +368,11 @@ Le [Radio Studio](docs/RADIO_STUDIO.md), désactivé par défaut, ajoute un cale
 et des jobs durables, une outbox par canal, une supervision privée et une reprise
 explicite des publications. Edge et les reçus MP3 restent les références ; aucune
 promesse de diffusion exactement-une-fois ou de réception à partir d'un pipe local.
+
+## Frontend V2 facultatif — Sprint 12
+
+Une première tranche SvelteKit SSR est disponible en opt-in : actualités, événements,
+archives et lecteur persistant entre pages natives. Flask reste le backend et
+l’autorité des sessions ; les mutations administratives restent dans ses outils.
+Voir [FRONTEND_V2.md](docs/FRONTEND_V2.md) pour les contrats, tests, profils Compose,
+HTTPS et rollback sans migration. Aucun basculement automatique.

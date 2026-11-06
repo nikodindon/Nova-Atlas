@@ -122,3 +122,12 @@ editorial_selection_*.json
 # Optional TTS lab: operator-created models and private audio/listening experiments
 .tts-lab/
 .venv-tts-lab/
+
+# Optional SvelteKit workspace
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/test-results/
+frontend/playwright-report/
+frontend/.env*
+!frontend/.env.example

@@ -1,0 +1,70 @@
+# Opt-in overlay: docker compose -f docker-compose.yml -f docker-compose.frontend.yml --profile web --profile frontend up -d
+services:
+  web:
+    environment:
+      ATLAS_TRUSTED_PROXIES: ${ATLAS_FRONTEND_GATEWAY_IP:-172.30.42.2},${ATLAS_FRONTEND_IP:-172.30.42.3}
+    networks:
+      backend: {}
+      egress: {}
+      frontend_api:
+        ipv4_address: ${ATLAS_FRONTEND_BACKEND_IP:-172.30.42.4}
+  frontend:
+    profiles: [frontend]
+    image: ${ATLAS_FRONTEND_IMAGE:-nova-atlas-frontend:12-foundation}
+    build: {context: ./frontend, dockerfile: Dockerfile}
+    user: '1000:1000'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=32m,mode=1777]
+    environment:
+      FLASK_ORIGIN: http://web:5055
+      ATLAS_PUBLIC_SCHEME: ${ATLAS_PUBLIC_SCHEME:-https}
+      PROTOCOL_HEADER: x-forwarded-proto
+    networks:
+      frontend_api:
+        ipv4_address: ${ATLAS_FRONTEND_IP:-172.30.42.3}
+    depends_on: {web: {condition: service_healthy}}
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    mem_limit: 384m
+    cpus: 1.0
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+  frontend-gateway:
+    profiles: [frontend]
+    image: ${ATLAS_FRONTEND_GATEWAY_IMAGE:-nova-atlas-frontend-gateway:12-foundation}
+    build: {context: ., dockerfile: deploy/frontend/Dockerfile}
+    user: '101:101'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,noexec,nosuid,size=32m,mode=1777]
+    environment:
+      ATLAS_PUBLIC_SCHEME: ${ATLAS_PUBLIC_SCHEME:-https}
+    ports: ['127.0.0.1:${ATLAS_FRONTEND_PORT:-5173}:8080']
+    networks:
+      frontend_api:
+        ipv4_address: ${ATLAS_FRONTEND_GATEWAY_IP:-172.30.42.2}
+    depends_on: {frontend: {condition: service_healthy}}
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    mem_limit: 64m
+    cpus: 0.5
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/healthz]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+networks:
+  frontend_api:
+    internal: true
+    ipam:
+      config: [{subnet: '${ATLAS_FRONTEND_SUBNET:-172.30.42.0/28}'}]

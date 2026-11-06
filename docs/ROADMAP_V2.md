@@ -86,3 +86,9 @@ Sprint 08 : index événementiel explicite et reconstructible, API de lecture, c
 annoté synthétique, catégories configurées/observées et provenance des consommateurs
 opt-in. Les faits ne sont pas déclarés vérifiés par consensus de sources.
 Voir EDITORIAL_EVENTS.md pour scores, contraintes, corrections, limites et rollback.
+
+Sprint 12 : première tranche verticale SvelteKit opt-in livrée pour revue : pages
+publiques SSR, événements, archives/documents, images autorisées et lecteur persistant.
+Hub admin + sources/Radio Studio en consultation, authentification Flask inchangée.
+Migration complète des écrans administratifs et revue accessibilité manuelle reportées ;
+aucun cutover automatique. Voir FRONTEND_V2.md.
