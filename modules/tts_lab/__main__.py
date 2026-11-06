@@ -20,7 +20,7 @@ def main():
     try:
         if args.action=='report':
             from modules.tts_lab.report import comparison
-            print(comparison([json.loads(checked(p).read_text()) for p in args.results]));return 0
+            print(comparison([json.loads(checked(p).read_text()) for p in args.results]),end='');return 0
         if args.action=='blind':
             from modules.tts_lab.listening import blind
             print(json.dumps(blind(args.results,args.output,seed=args.seed)));return 0

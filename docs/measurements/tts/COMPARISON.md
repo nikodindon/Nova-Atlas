@@ -27,4 +27,3 @@ Les lignes ne sont pas fusionnées entre machines, modèles ou voix. Aucun passa
 Piper est le premier candidat CPU à tester ; Kokoro est un candidat qualité à examiner ensuite. Aucun vainqueur mesuré sur Ryzen/i5, aucune compatibilité 4 Go VRAM ni offloading démontrés.
 Conserver Edge dans la radio actuelle pour ce sprint. Sa diffusion publique et sa dépendance réseau restent à examiner. Aucun secours local qualifié tant que les essais réels et la revue des voix ne sont pas terminés.
 Un audio décodable ou un RTF bas ne prouve pas que le texte a été prononcé intégralement. Pas d’ASR ni écoute automatique.
-
