@@ -101,10 +101,10 @@ def install_admin_security(app):
         # Explicit public endpoints. Any newly added endpoint is privileged by default.
         public = {'homepage', 'index', 'live', 'api_articles', 'api_events','api_event_detail','media_public','media_image',
                   'api_subscription_status', 'api_get_preferences', 'stream_proxy',
-                  'serve_edition', 'serve_page', 'admin_login', 'web_asset'}
+                  'serve_edition', 'serve_page', 'admin_login','auth_bootstrap','public_site','public_articles','public_archives','public_document','public_events','public_event_detail', 'web_asset'}
         if request.endpoint is None:
             return None
-        if (request.endpoint not in public or request.endpoint == 'admin_login') and (
+        if (request.endpoint not in public or request.endpoint in ('admin_login','auth_bootstrap')) and (
                 app.config['SESSION_COOKIE_SECURE'] and not request.is_secure):
             return denied(403, 'HTTPS requis pour l’administration')
         if request.endpoint not in public:
@@ -179,6 +179,13 @@ def install_admin_security(app):
             sessions[session['sid']] = clock() + 3600
             csrf()
         return redirect('/config/yaml', code=303)
+
+    @app.get('/api/auth/login')
+    def auth_bootstrap():
+        response=jsonify(configured=configured,csrf_token=csrf() if configured else None)
+        response.headers['Cache-Control']='no-store'
+        response.vary.add('Cookie')
+        return response,200 if configured else 503
 
     @app.post('/admin/logout')
     def admin_logout():

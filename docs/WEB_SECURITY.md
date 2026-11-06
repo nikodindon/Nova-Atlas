@@ -176,3 +176,10 @@ collecteur, client LLM ou pipeline radio. Pas de promesse d'absence universelle 
 XSS hors des surfaces inventoriées et testées ; conserver les tests et revoir toute
 nouvelle insertion HTML, ressource ou route. L'incident de clé historique reste une
 action de révocation du propriétaire, sans secret affiché ni révocation revendiquée.
+
+## Interface SvelteKit opt-in
+
+Le Sprint 12 utilise les nonces d’hydratation SvelteKit, un rendu textuel typé des
+documents et des liens/médias filtrés. Authentification et CSRF restent Flask.
+Le gateway écrase les en-têtes proxies entrants ; seuls ses pairs fixes sont autorisés.
+Voir [FRONTEND_V2.md](FRONTEND_V2.md) pour la CSP, les contrats et les limites de cache.

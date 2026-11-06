@@ -288,7 +288,7 @@ def test_new_routes_default_to_private(app, client):
 
 
 def test_all_registered_routes_classified(app):
-    public = {'/api/media','/media/images/<approval>/<int:size>.jpg','/api/events','/api/events/<event_id>', '/', '/archives', '/index.html', '/live', '/live.html', '/stream/<path:mount>',
+    public = {'/api/auth/login','/api/public/site','/api/public/articles','/api/public/archives','/api/public/documents/<day>/<kind>','/api/public/events','/api/public/events/<identity>','/api/media','/media/images/<approval>/<int:size>.jpg','/api/events','/api/events/<event_id>', '/', '/archives', '/index.html', '/live', '/live.html', '/stream/<path:mount>',
               '/api/preferences', '/api/articles', '/api/subscription/status',
               '/editions/<path:filename>', '/<path:filename>', '/admin/login', '/assets/<name>'}
     private = set(PRIVATE_GET + PRIVATE_POST)
