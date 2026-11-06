@@ -28,7 +28,8 @@ def display_url(value):
 def plain(value,limit=300):
     soup=BeautifulSoup(str(value)[:4000],'html.parser')
     for node in soup(['script','style']):node.decompose()
-    return soup.get_text(' ',strip=True)[:limit]
+    text=' '.join(soup.get_text(' ',strip=True).split())
+    return ''.join(c for c in text if not unicodedata.category(c).startswith('C'))[:limit]
 
 
 def query(value):
@@ -105,6 +106,14 @@ def header_candidates(value,base):
         result=candidate(match[1],base,'http_link',params.get('title',''))
         if result:results.append(result)
     return results
+
+
+def ranking(row):
+    """Same deterministic ordering for fresh and cached, rejoined memberships."""
+    criteria=row['criteria']
+    return (criteria[0]!='verified',criteria[1]!='declared',criteria[2]!='theme_match',
+        -(datetime.fromisoformat(row['latest_published_at']).timestamp() if row['latest_published_at'] else 0),
+        bool(row['existing']),row['url'])
 
 
 class SearchBackend(Protocol):
@@ -242,6 +251,6 @@ class Discovery:
             match=bool(mode=='search' and any(word.casefold() in c.title.casefold() for word in value.split()))
             criteria=(('verified' if valid else 'unverified'),('declared' if c.method in ('html_alternate','http_link') else c.method),('theme_match' if match else 'no_theme_evidence'),('dated' if c.latest_published_at else 'date_unknown'),('existing' if membership else 'new'))
             rows.append(replace(c,existing=membership,criteria=criteria))
-        rows.sort(key=lambda c:(c.criteria[0]!='verified',c.criteria[1]!='declared',c.criteria[2]!='theme_match',-(datetime.fromisoformat(c.latest_published_at).timestamp() if c.latest_published_at else 0),bool(c.existing),c.url))
+        rows.sort(key=lambda c:ranking(c.public()))
         return {'candidates':[c.public() for c in rows[:self.options['results']]],'version':doc.version,'warnings':self.warnings,
             'cancelled':self.cancel.is_set(),'requests':self.budget.count,'verified':self.verified,'limits':self.options}

@@ -191,3 +191,12 @@ def test_safe_transport_diagnostics_distinguish_timeout_and_tls(manager,kind):
     row=e.run('site','https://site.invalid/')['candidates'][0]
     assert row['state']=='temporarily_unavailable' and row['reason']==kind
     assert str(http.TransportError(kind))=='transport_error'
+
+
+def test_multiline_title_can_be_added_as_a_source_name(manager):
+    rss=RSS.replace(b'Journal technique',b'Journal\n\t technique')
+    e,_=engine(manager,{'https://site.invalid/feed':rss})
+    row=e.run('site','https://site.invalid/feed')['candidates'][0]
+    assert row['title']=='Journal technique'
+    manager.mutate('add',{'url':row['url'],'category':'tech','name':row['title']})
+    assert manager.read().sources[-1].name=='Journal technique'

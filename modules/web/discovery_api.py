@@ -10,7 +10,7 @@ import threading
 import time
 from flask import request,jsonify
 from modules.core.source_manager import SourceError,read_file,atomic_write,digest,source_url
-from modules.discovery.source_discovery import Discovery,SearXNG,query
+from modules.discovery.source_discovery import Discovery,SearXNG,query,ranking
 
 
 def install_discovery_api(app,paths,config):
@@ -59,7 +59,7 @@ def install_discovery_api(app,paths,config):
                         if row.get(field):source_url(row[field])
                     for field in ('samples','warnings','existing','criteria'):
                         if not isinstance(row.get(field),list):raise ValueError()
-                    if len(row['samples'])>3 or len(row['existing'])>512 or len(row['warnings'])>100 or len(row['criteria'])>10:raise ValueError()
+                    if len(row['samples'])>3 or len(row['existing'])>512 or len(row['warnings'])>100 or len(row['criteria'])!=5:raise ValueError()
             return result
         except (ValueError,TypeError,KeyError,RecursionError):raise SourceError('Cache découverte invalide ; original préservé') from None
 
@@ -121,7 +121,8 @@ def install_discovery_api(app,paths,config):
             # Membership/config version are always live, even on a cached network result.
             doc=manager.read();result=dict(result);rows=[]
             for row in result['candidates']:
-                row=dict(row);row['existing']=[{'id':s.id,'category':s.category,'enabled':s.enabled} for s in doc.sources if s.url==row['url']];rows.append(row)
+                row=dict(row);row['existing']=[{'id':s.id,'category':s.category,'enabled':s.enabled} for s in doc.sources if s.url==row['url']];row['criteria']=[*row['criteria'][:-1],'existing' if row['existing'] else 'new'];rows.append(row)
+            rows.sort(key=ranking)
             result.update(candidates=rows,version=doc.version)
             return jsonify(status='ok',cached=cached,**result)
 

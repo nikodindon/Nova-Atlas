@@ -20,7 +20,7 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | 04 | PostgreSQL/Alembic et import JSON/YAML | PR #12 en revue : snapshots vérifiés et dump/restore ; cutover métier en PR complémentaire |
 | 05 | Collecte RSS/Atom, dates, statuts et retries | PR #13 fusionnée : cache conditionnel/santé legacy et concurrence bornée ; aucune bascule SQL |
 | 06 | Source Manager API | PR #14 fusionnée : YAML autoritaire, mutations concurrentes, test RSS/Atom, santé et import/export YAML/OPML |
-| 07 | Découverte de sources | En revue : site statique, SearXNG public opt-in, preview et ajout volontaire ; RSSHub/LAN reportés |
+| 07 | Découverte de sources | PR #15 en revue : site statique, SearXNG public opt-in, preview et ajout volontaire ; RSSHub/LAN reportés |
 | 08 | Éditorial | Catégories complètes, regroupement événement, provenance |
 | 09 | Images | Métadonnées, licence/attribution et fallback vérifiés |
 | 10 | Laboratoire TTS | Corpus français identique, benchmark Ryzen/i5 et choix motivé |

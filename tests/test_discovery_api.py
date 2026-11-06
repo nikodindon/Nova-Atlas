@@ -46,6 +46,7 @@ def test_discovery_preview_then_explicit_add_with_conflict(client,app):
     assert cached['cached'] and len(calls)==count
     assert next(c for c in cached['candidates'] if c['id']==row['id'])['existing'][0]['category']=='tech'
     assert cached['version']!=result['version']
+    assert next(c for c in cached['candidates'] if c['id']==row['id'])['criteria'][-1]=='existing'
 
 
 def test_discovery_limits_persisted_and_no_cache_html(client,app):
