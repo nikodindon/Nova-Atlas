@@ -1029,6 +1029,9 @@ FEEDS_PAGE_JS = """
                  text-transform: uppercase; letter-spacing: 0.5px; }
   .feed-item { display: flex; align-items: center; gap: 6px; padding: 4px 0;
                border-bottom: 1px solid #232830; }
+  .feed-item { flex-wrap: wrap; }
+  .feed-observation { width:100%; font-size:12px; overflow-wrap:anywhere; }
+  .add-form { flex-wrap:wrap; }
   .feed-item:last-child { border-bottom: none; }
   .feed-url { flex: 1; font-family: monospace; font-size: 12px; color: #d4d4d4;
               word-break: break-all; }
@@ -1061,7 +1064,23 @@ FEEDS_PAGE_JS = """
   <div style="margin-left: auto;"><a href="/config/feeds" class="feed-btn">JSON brut</a></div>
 </div>
 
+<form id="source-filter" class="add-form">
+  <input id="source-search" placeholder="Rechercher un nom ou une URL" aria-label="Recherche">
+  <select id="source-category" aria-label="Catégorie"><option value="">Toutes les catégories</option></select>
+  <select id="source-health" aria-label="Santé"><option value="">Tous les états</option>
+  <option>healthy</option><option>unchanged</option><option>empty</option><option>degraded</option><option>temporarily_unavailable</option><option>permanently_unavailable</option><option>blocked_by_security</option><option>never_checked</option><option>disabled</option></select>
+  <button type="submit" class="feed-btn">Filtrer</button>
+</form>
 <div id="feeds-container" class="feeds-grid">Chargement…</div>
+<div class="add-form"><button id="source-prev" class="feed-btn">Précédent</button><span id="source-pagination"></span><button id="source-next" class="feed-btn">Suivant</button></div>
+<form id="source-test-form" class="add-form"><input id="source-test-url" placeholder="https://source.example/rss" required aria-label="URL à tester"><button type="submit" class="feed-btn">Tester sans ajouter</button></form>
+<pre id="source-test-result" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>
+<details><summary>Import / export</summary>
+<p><a href="/api/admin/sources/export?format=yaml">Exporter YAML</a> · <a href="/api/admin/sources/export?format=opml">Exporter OPML</a></p>
+<form id="source-import-form"><select id="source-import-format" aria-label="Format"><option value="yaml">YAML</option><option value="opml">OPML</option></select>
+<textarea id="source-import-content" maxlength="1048576" rows="5" aria-label="Liste à importer" style="width:100%;"></textarea>
+<button type="submit" class="feed-btn">Prévisualiser</button><button id="source-import-apply" type="button" class="feed-btn" disabled>Appliquer les ajouts</button></form>
+<pre id="source-import-result" style="white-space:pre-wrap;"></pre></details>
 
 <form id="new-cat-form" class="add-form" style="margin-top: 20px;">
   <input id="new-cat-name" placeholder="Nouvelle catégorie…" required>
@@ -1413,189 +1432,8 @@ def create_app(config: dict, *, root: Path = None):
     # POST /config/feeds/remove   → retire un flux (body: category, url)
     # POST /config/feeds/reset    → recharge depuis le disque (force)
 
-    @app.route("/config/feeds", methods=["GET"])
-    def feeds_list():
-        try:
-            from modules.core.feeds_loader import load_feeds
-            feeds_path = paths["feeds_file"]
-            feeds = load_feeds(feeds_path)
-            # Aussi compter les désactivés (commentés) pour affichage
-            with open(feeds_path, "r", encoding="utf-8") as f:
-                text = f.read()
-            n_active = sum(len(v) for v in feeds.values())
-            n_disabled = text.count("# [SPRINT0]") + sum(
-                1 for line in text.splitlines()
-                if line.lstrip().startswith("- # ")
-            )
-            return jsonify({
-                "status": "ok",
-                "feeds": public_feeds(feeds),
-                "stats": {
-                    "categories": len(feeds),
-                    "active": n_active,
-                    "disabled": n_disabled,
-                },
-            })
-        except Exception as e:
-            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
-
-    @app.route("/config/feeds/add", methods=["POST"])
-    def feeds_add():
-        try:
-            data = request.get_json(force=True)
-            category = (data.get("category") or "").strip()
-            url      = (data.get("url") or "").strip()
-            if not category or not url:
-                return jsonify({"status": "error",
-                                "msg": "category et url requis"}), 400
-            if not url.startswith(("http://", "https://")):
-                return jsonify({"status": "error",
-                                "msg": "URL doit commencer par http(s)://"}), 400
-            from modules.http.external import parse_url, BlockedURL
-            try:
-                parse_url(url)  # No DNS/network here; collection revalidates and pins the destination.
-            except BlockedURL:
-                return jsonify(status="error", msg="URL externe interdite ou invalide"), 400
-            from modules.core.feeds_loader import load_feeds, save_feeds, add_feed
-            feeds_path = paths["feeds_file"]
-            feeds = load_feeds(feeds_path)
-            if not add_feed(feeds, category, url):
-                return jsonify({"status": "error",
-                                "msg": f"URL déjà présente dans {category}"}), 409
-            save_feeds(feeds_path, feeds)
-            # Invalide la cache pour que le prochain fetch prenne en compte
-            from modules.fetch.atlas_fetch import invalidate_feeds_cache
-            invalidate_feeds_cache()
-            return jsonify({"status": "ok",
-                            "msg": f"Flux ajouté à {category}",
-                            "category": category, "url": url})
-        except Exception as e:
-            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
-
-    @app.route("/config/feeds/remove", methods=["POST"])
-    def feeds_remove():
-        try:
-            data = request.get_json(force=True)
-            category = (data.get("category") or "").strip()
-            url      = (data.get("url") or "").strip()
-            if not category or not url:
-                return jsonify({"status": "error",
-                                "msg": "category et url requis"}), 400
-            from modules.core.feeds_loader import load_feeds, save_feeds, remove_feed
-            feeds_path = paths["feeds_file"]
-            feeds = load_feeds(feeds_path)
-            if not remove_feed(feeds, category, url):
-                return jsonify({"status": "error",
-                                "msg": f"URL pas trouvée dans {category}"}), 404
-            save_feeds(feeds_path, feeds)
-            from modules.fetch.atlas_fetch import invalidate_feeds_cache
-            invalidate_feeds_cache()
-            return jsonify({"status": "ok",
-                            "msg": f"Flux retiré de {category}",
-                            "category": category, "url": url})
-        except Exception as e:
-            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
-
-    @app.route("/config/feeds/reset", methods=["POST"])
-    def feeds_reset():
-        """Force le rechargement du cache (utile après édition manuelle du YAML)."""
-        from modules.fetch.atlas_fetch import invalidate_feeds_cache
-        invalidate_feeds_cache()
-        return jsonify({"status": "ok", "msg": "Cache feeds invalidé"})
-
-    @app.route("/config/feeds/move", methods=["POST"])
-    def feeds_move():
-        """Déplace un flux d'un cran dans sa catégorie (up|down)."""
-        try:
-            data = request.get_json(force=True)
-            category = (data.get("category") or "").strip()
-            url      = (data.get("url") or "").strip()
-            direction = (data.get("direction") or "").strip()
-            if direction not in ("up", "down"):
-                return jsonify({"status": "error",
-                                "msg": "direction doit être 'up' ou 'down'"}), 400
-            from modules.core.feeds_loader import (
-                load_feeds, save_feeds, move_feed
-            )
-            feeds_path = paths["feeds_file"]
-            feeds = load_feeds(feeds_path)
-            if not move_feed(feeds, category, url, direction):
-                return jsonify({"status": "error",
-                                "msg": "déplacement impossible (au bord ou pas trouvé)"}), 409
-            save_feeds(feeds_path, feeds)
-            from modules.fetch.atlas_fetch import invalidate_feeds_cache
-            invalidate_feeds_cache()
-            return jsonify({"status": "ok", "direction": direction})
-        except Exception as e:
-            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
-
-    @app.route("/config/feeds/toggle", methods=["POST"])
-    def feeds_toggle():
-        """Toggle l'état d'un flux (actif ↔ désactivé).
-        Si l'URL est active → la désactive (passe en [SPRINT0]).
-        Si l'URL est désactivée → la ré-active (re-vient en actif)."""
-        try:
-            data = request.get_json(force=True)
-            category = (data.get("category") or "").strip()
-            url      = (data.get("url") or "").strip()
-            if not category or not url:
-                return jsonify({"status": "error",
-                                "msg": "category et url requis"}), 400
-            from modules.core.feeds_loader import (
-                load_feeds, save_feeds, add_feed, remove_feed
-            )
-            feeds_path = paths["feeds_file"]
-            feeds = load_feeds(feeds_path)
-            if url in feeds.get(category, []):
-                # Active → désactiver
-                if not remove_feed(feeds, category, url):
-                    return jsonify({"status": "error",
-                                    "msg": "URL pas trouvée"}), 500
-                save_feeds(feeds_path, feeds)
-                from modules.fetch.atlas_fetch import invalidate_feeds_cache
-                invalidate_feeds_cache()
-                return jsonify({"status": "ok", "msg": f"{url} désactivé",
-                                "new_state": "disabled"})
-            else:
-                # Désactivée ou pas du tout → essayer de l'activer
-                # (re-lecture du source pour voir si elle est en disabled)
-                from modules.core.feeds_loader import _parse_disabled_feeds
-                text = feeds_path.read_text(encoding="utf-8") if feeds_path.exists() else ""
-                disabled, _ = _parse_disabled_feeds(text)
-                if url in disabled.get(category, []):
-                    if not add_feed(feeds, category, url):
-                        return jsonify({"status": "error",
-                                        "msg": "impossible d'activer"}), 500
-                    save_feeds(feeds_path, feeds)
-                    from modules.fetch.atlas_fetch import invalidate_feeds_cache
-                    invalidate_feeds_cache()
-                    return jsonify({"status": "ok", "msg": f"{url} ré-activé",
-                                    "new_state": "active"})
-                return jsonify({"status": "error",
-                                "msg": "URL pas trouvée (ni active ni désactivée)"}), 404
-        except Exception as e:
-            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
-
-    @app.route("/config/feeds/category", methods=["POST"])
-    def feeds_add_category():
-        """Crée une nouvelle catégorie vide."""
-        try:
-            data = request.get_json(force=True)
-            category = (data.get("category") or "").strip()
-            if not category:
-                return jsonify({"status": "error", "msg": "category requise"}), 400
-            from modules.core.feeds_loader import (
-                load_feeds, save_feeds, add_category
-            )
-            feeds_path = paths["feeds_file"]
-            feeds = load_feeds(feeds_path)
-            if not add_category(feeds, category):
-                return jsonify({"status": "error",
-                                "msg": f"Catégorie {category} existe déjà"}), 409
-            save_feeds(feeds_path, feeds)
-            return jsonify({"status": "ok", "category": category})
-        except Exception as e:
-            return jsonify({"status": "error", "msg": "Opération impossible"}), 500
+    from modules.web.source_api import install_source_api
+    install_source_api(app, paths)
 
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():

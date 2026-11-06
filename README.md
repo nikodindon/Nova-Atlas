@@ -333,3 +333,10 @@ conditionnel et état de santé privé, sans PostgreSQL obligatoire. Voir
 [RSS_INGESTION.md](docs/RSS_INGESTION.md) pour formats, limites et configuration.
 Après mise à jour d'une installation Python historique, réinstaller ses dépendances
 pour disposer de feedparser épinglé ; les prompts et contrats publics restent inchangés.
+
+Le [Source Manager](docs/SOURCE_MANAGER.md) est disponible dans `/config/feeds/page`
+après connexion administrateur : sources actives/désactivées, santé observée,
+tests RSS/Atom explicites, versions concurrentes et import/export YAML/OPML.
+`config/feeds.yaml` reste autoritaire ; aucun téléchargement à l'ouverture de la page,
+aucune découverte ou bascule PostgreSQL. Les fichiers privés de limitation des tests
+et les verrous doivent partager le stockage POSIX local des conteneurs.

@@ -63,7 +63,8 @@ def _load_rss_sources(feeds_path: str | Path = None) -> dict:
         return {}
 
     try:
-        mtime = path.stat().st_mtime_ns
+        info = path.stat()
+        mtime = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
     except OSError:
         return {}
 
