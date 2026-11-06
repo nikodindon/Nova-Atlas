@@ -238,3 +238,29 @@ Aucune collecte Internet, modèle, TTS ou donnée réelle utilisés.
 
 Les critères de classement et appartenances d’un cache sont recalculés après ajout,
 et les titres multilignes sont normalisés en noms utilisables sans contrôles.
+
+## Sprint 08 — Événements éditoriaux
+
+Validation locale Python 3.12 : **1 371 réussis, 0 échec, 0 ignoré**, en 55,41 s.
+Les 1 300 tests précédents sont conservés, inventaire des routes publiques étendu.
+71 nouveaux cas : deux reproductions initialement rouges, contraintes négatives,
+complétude des groupes, langues/traductions, dates, concurrence multiprocessus,
+crash/index corrompu/overrides et provenance, API/catégories/consommateurs opt-in.
+Huit scénarios Chromium locaux, dont rendu hostile d'un titre d'événement opérateur,
+liens des deux couvertures et navigation avec le même objet audio simulé.
+
+Corpus annoté de 24 paires synthétiques : précision 6/6, rappel 6/8, zéro fausse
+fusion sur 12 négatifs, quatre ambiguïtés laissées séparées. Ce n'est pas une
+mesure globale sur la presse réelle. Rapport et benchmark 500 couvertures dans
+EDITORIAL_QUALITY.json ; voir EDITORIAL_EVENTS.md pour biais et limites.
+
+Compilation main/modules/deploy/tests, JS syntaxe/CSRF et diff-check requis. Smoke
+Docker/RSS étendu à l'index dérivé et à la sélection opt-in sur articles synthétiques,
+avec comparaison des octets source avant/après ; LiteLLM/PostgreSQL inchangés.
+Aucun réseau, modèle, TTS ou données de production réels dans les nouveaux tests.
+
+Smoke CLI temporaire exécuté : dry-run sans fichiers dérivés puis application
+avec fingerprint revu, articles conservés. Métadonnées d’index manquantes refusées.
+
+Le refus de couvertures mal typées et de dates corrompues dans un index autrement
+JSON-valide est également couvert ; aucune réécriture de réparation automatique.

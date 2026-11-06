@@ -248,3 +248,23 @@ def test_discovery_preview_add_and_radio_persistent_navigation(browser_page,app)
     page.locator('.topbar-nav a[href="/live"]').click();page.wait_for_url('**/live');page.evaluate('window.releaseDiscovery()')
     page.wait_for_function("()=>window.oldDiscovery.querySelector('#discovery-progress').textContent.includes('aucun ajout automatique')")
     assert page.evaluate('window.savedAudio===window._novaAudio && !window._novaAudio.paused')
+
+
+def test_editorial_events_provenance_hostile_title_and_audio(browser_page,app):
+    from tests.test_editorial_api import prepare
+    page,errors,requests,injections=browser_page
+    index,result=prepare(app);identity=result['events'][0]['articles'][0]['id']
+    patch={'titles':{identity:'<img src=x onerror="window.pwned=1"> Événement 日本語'}}
+    preview=index.update_overrides(patch);index.update_overrides(patch,apply=True,expected=preview['current_sha'],reason='synthetic title')
+    index.rebuild(apply=True,expected=result['input_sha'])
+    page.reload();page.locator('#editorial-events summary').click()
+    assert page.locator('#editorial-events').inner_text().count('Confirmation factuelle indépendante non établie')==1
+    assert page.locator('#editorial-events article').count()==1 and page.locator('#editorial-events article a').count()==2
+    assert page.locator('#editorial-events img,#editorial-events script').count()==0
+    assert page.evaluate('window.pwned') is None
+    response=page.evaluate("async()=>await (await fetch('/api/events')).json()")
+    assert response['events'][0]['independent_confirmation'] is False and 'locations' not in str(response)
+    page.locator('[data-action="radio-toggle"]').click();page.evaluate('window.savedEventAudio=window._novaAudio')
+    page.locator('.topbar-nav a[href="/archives"]').click();page.wait_for_url('**/archives')
+    page.go_back();page.wait_for_url('**/live');page.wait_for_selector('#editorial-events summary')
+    assert page.evaluate('window.savedEventAudio===window._novaAudio && !window._novaAudio.paused')

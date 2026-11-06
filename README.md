@@ -346,3 +346,9 @@ un site, sans crawler ni LLM. La recherche thématique utilise uniquement un
 SearXNG public HTTPS explicitement configuré, facultatif. Prévisualisation puis
 ajout volontaire avec contrôle de version ; aucun abonnement automatique.
 Voir [SOURCE_DISCOVERY.md](docs/SOURCE_DISCOVERY.md) pour quotas, sécurité et limites.
+
+Les [événements éditoriaux](docs/EDITORIAL_EVENTS.md) associent prudemment plusieurs
+couvertures sans remplacer les articles ni les déclarer vérifiées. Index privé
+reconstructible en dry-run, API `/api/events`, détail dans le direct et corrections
+opérateur séparées. La sélection événementielle radio/éditions est désactivée par
+défaut ; aucune reconstruction ou requête LLM supplémentaire au démarrage.

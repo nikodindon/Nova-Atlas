@@ -20,8 +20,8 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | 04 | PostgreSQL/Alembic et import JSON/YAML | PR #12 en revue : snapshots vérifiés et dump/restore ; cutover métier en PR complémentaire |
 | 05 | Collecte RSS/Atom, dates, statuts et retries | PR #13 fusionnée : cache conditionnel/santé legacy et concurrence bornée ; aucune bascule SQL |
 | 06 | Source Manager API | PR #14 fusionnée : YAML autoritaire, mutations concurrentes, test RSS/Atom, santé et import/export YAML/OPML |
-| 07 | Découverte de sources | PR #15 en revue : site statique, SearXNG public opt-in, preview et ajout volontaire ; RSSHub/LAN reportés |
-| 08 | Éditorial | Catégories complètes, regroupement événement, provenance |
+| 07 | Découverte de sources | PR #15 fusionnée : site statique, SearXNG public opt-in, preview et ajout volontaire ; RSSHub/LAN reportés |
+| 08 | Éditorial | PR #16 en revue : index dérivé, regroupements conservateurs, provenance et corrections ; sélection radio/éditions opt-in |
 | 09 | Images | Métadonnées, licence/attribution et fallback vérifiés |
 | 10 | Laboratoire TTS | Corpus français identique, benchmark Ryzen/i5 et choix motivé |
 | 11 | Radio Studio | Segments complets, calendrier unique, continuité après panne |
@@ -81,3 +81,8 @@ Sprint 07 : découverte par site puis recherche thématique facultative, vérifi
 RSS/Atom commune, budgets HTTP par hop, cache court privé et navigation radio persistante.
 Sources autoritaires dans YAML, ajout exclusivement SourceManager explicite/versionné.
 Voir SOURCE_DISCOVERY.md ; ni crawler généraliste ni réseau de production en test.
+
+Sprint 08 : index événementiel explicite et reconstructible, API de lecture, corpus
+annoté synthétique, catégories configurées/observées et provenance des consommateurs
+opt-in. Les faits ne sont pas déclarés vérifiés par consensus de sources.
+Voir EDITORIAL_EVENTS.md pour scores, contraintes, corrections, limites et rollback.

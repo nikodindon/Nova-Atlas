@@ -99,7 +99,7 @@ def install_admin_security(app):
     @app.before_request
     def authorize():
         # Explicit public endpoints. Any newly added endpoint is privileged by default.
-        public = {'homepage', 'index', 'live', 'api_articles',
+        public = {'homepage', 'index', 'live', 'api_articles', 'api_events','api_event_detail',
                   'api_subscription_status', 'api_get_preferences', 'stream_proxy',
                   'serve_edition', 'serve_page', 'admin_login', 'web_asset'}
         if request.endpoint is None:

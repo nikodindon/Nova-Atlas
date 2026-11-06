@@ -52,3 +52,24 @@ Limites : SearXNG privé et RSSHub reportés, détection non exhaustive des site
 nécessitant JS/auth, metadonnées éditeur non certifiées, quotas POSIX locaux et
 parseur borné plutôt qu'interruption CPU à la milliseconde. DNS libc conserve les
 limites héritées. Pas de fusion canonique automatique, découverte sociale ou cutover SQL.
+
+## Sprint 08 — Rapprochements éditoriaux et catégories
+
+| Surface | Risque reproduit | Mesure / validation |
+|---|---|---|
+| get_breaking_news | Deux mots communs associaient deux faits distincts sur une personnalité | Index dérivé, comparaison conservatrice avec dates/nombres/actions, fallback borné ; reproduction rouge puis verte |
+| dedup_articles_by_similarity | Préfixe de résumé commun supprimait une actualité différente | Égalité exacte des records seulement ; aucun fait supprimé sur une ressemblance |
+| Regroupement transitif | A–B et B–C fusionnent A–C à tort | Tous les membres doivent être compatibles ; ambiguïté séparée ; test de chaîne |
+| Dates/sources | Confusion date d'indexation/publication/événement et consensus | Dates aware séparées, inconnues NULL, independent_confirmation=false systématique |
+| Corrections | Rebuild effaçant une décision humaine | Overrides séparés, version et raison, contraintes transitives validées, IDs hors fenêtre signalés |
+| Fichiers dérivés | Index partiel/corrompu ou concurrence | Stable flock + verrou producteur, revalidation input, fsync/replace, tests crash/deux processus, aucun JSON source modifié |
+| Catégories | CAT_ORDER/CATEGORY_ORDER excluaient les catégories ajoutées | Registre configuré + observé, ordre de repli historique, rapports/éditions et flashs custom |
+| Radio/éditions | Nouvelle sélection contournant l'intégrité ou la provenance | Opt-in seulement, manifestes privés, overrides relus ; publication synthétique et segment manquant refusé |
+| API/UI | Fuite de journaux, HTML hostile ou arrêt radio | Projection explicite, Jinja échappé, API lecture seule, huit scénarios Chromium incluant événements |
+
+Corpus : 24 paires synthétiques annotées, 6 vrais groupes proposés/0 fausse fusion,
+2 groupes manqués et 4 ambiguïtés non regroupées. Ce jeu n'établit aucune qualité
+sur la presse réelle. Benchmark local 500 couvertures ~2,91 s ; groupes ≤50.
+Limites : lexical FR/EN, dates fiables requises, index snapshot explicite (pas de
+synchronisation instantanée), sous-dossiers historiques signalés comme non encore
+adaptés, revue humaine et corpus représentatif à prévoir. Aucune activation cloud.

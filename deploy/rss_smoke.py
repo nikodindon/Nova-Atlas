@@ -87,6 +87,23 @@ try:
   found=Discovery(manager,transport=discovery_transport).run('site','http://news.invalid/site')
   assert any(c['url']=='http://news.invalid/rss' and c['format']=='rss20' for c in found['candidates'])
   assert found['requests']<=12 and feeds.read_bytes()==before
+  from modules.editorial.index import EventIndex
+  from modules.editorial.selection import opt_in
+  from datetime import datetime,timezone
+  import hashlib
+  article_file=next((root/'articles').glob('*_articles.json'))
+  temporary_articles=json.loads(article_file.read_text());now=datetime.now(timezone.utc).isoformat()
+  for i in range(2):
+   url='https://editorial'+str(i)+'.invalid/article'
+   temporary_articles.append({'hash':hashlib.md5(url.encode()).hexdigest(),'title':'Le ministre Martin annonce sa démission du gouvernement français','summary':'Le ministre Martin annonce sa démission du gouvernement français après un vote au Parlement. Les élus commentent cette démission.','source':'Média '+str(i),'link':url,'category':'personnalisee','timestamp':now,'pub_date':now})
+  article_file.write_text(json.dumps(temporary_articles));unchanged=article_file.read_bytes()
+  event_index=EventIndex(root/'articles',root);derived=event_index.rebuild()
+  assert any(e['article_count']==2 and e['domain_count']==2 for e in derived['events'])
+  event_index.rebuild(apply=True,expected=derived['input_sha'])
+  assert article_file.read_bytes()==unchanged and event_index.load()['status']=='ready'
+  assert opt_in(temporary_articles,{}) is temporary_articles
+  assert len(opt_in(temporary_articles,{'paths':{'data_dir':str(root)},'editorial_events':{'enabled':True}}))==3
+
   try:client.get('http://news.invalid/redirect',accept_not_modified=True)
   except http.BlockedURL:pass
   else:raise AssertionError('private redirect accepted')
@@ -94,7 +111,7 @@ try:
 finally:
  http.get=real_get;server.shutdown();worker.join();server.server_close();faulthandler.cancel_dump_traceback_later()
 assert not any(t.name.startswith('FeedHTTP') for t in threading.enumerate())
-print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers, Source Manager atomic disable/reload/export, static source discovery and private redirect rejection. No external source/model.')
+print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers, Source Manager atomic disable/reload/export, static source discovery, derived editorial events and private redirect rejection. No external source/model.')
 '''
 
 

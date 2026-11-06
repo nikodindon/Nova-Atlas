@@ -47,6 +47,7 @@ class ReportGenerator:
 
     def _apply_config(self, config: dict):
         paths = config.get("paths", {})
+        self.feeds_file=Path(paths.get('feeds_file','config/feeds.yaml'))
         self.articles_dir = Path(paths.get("articles_dir", "data/articles"))
         self.reports_dir  = Path(paths.get("reports_dir",  "data/reports"))
         self.reports_dir.mkdir(parents=True, exist_ok=True)
@@ -175,7 +176,8 @@ class ReportGenerator:
         intro = self._generate_intro(date_fr, all_summaries, len(articles))
 
         sections = {}
-        for cat in CATEGORY_ORDER:
+        from modules.editorial.categories import ordered_categories
+        for cat in ordered_categories(articles,self.feeds_file,CATEGORY_ORDER):
             if cat in by_cat and by_cat[cat]:
                 self.log.info(f"Section {cat} ({len(by_cat[cat])} articles)...")
                 sections[cat] = self._generate_section(cat, by_cat[cat], date_fr)
@@ -190,7 +192,8 @@ class ReportGenerator:
             "", "---", "",
             intro, "",
         ]
-        for cat in CATEGORY_ORDER:
+        from modules.editorial.categories import ordered_categories
+        for cat in ordered_categories(articles,self.feeds_file,CATEGORY_ORDER):
             if cat in sections and sections[cat]:
                 label = CATEGORY_LABELS.get(cat, cat)
                 lines += [f"## {label}", "", sections[cat], ""]
