@@ -22,8 +22,8 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | 06 | Source Manager API | PR #14 fusionnée : YAML autoritaire, mutations concurrentes, test RSS/Atom, santé et import/export YAML/OPML |
 | 07 | Découverte de sources | PR #15 fusionnée : site statique, SearXNG public opt-in, preview et ajout volontaire ; RSSHub/LAN reportés |
 | 08 | Éditorial | PR #16 fusionnée : index dérivé, regroupements conservateurs, provenance et corrections ; sélection radio/éditions opt-in |
-| 09 | Images | Candidats RSS/HTML, Commons manuel, CC BY 4.0 sous revue, worker borné et fallback ; documentaire/autres licences reportés |
-| 10 | Laboratoire TTS | Corpus français identique, benchmark Ryzen/i5 et choix motivé |
+| 09 | Images | PR #17 fusionnée ; candidats RSS/HTML, Commons manuel, CC BY 4.0 sous revue, worker borné et fallback ; documentaire/autres licences reportés |
+| 10 | Laboratoire TTS | Corpus fixe, worker/adaptateurs optionnels et écoute aveugle ; banc synthétique validé, mesures vocales Ryzen/i5/GPU et choix définitif non réalisés |
 | 11 | Radio Studio | Segments complets, calendrier unique, continuité après panne |
 | 12 | SvelteKit | Parcours public/studio/admin, auth, lecteur persistant, accessibilité |
 | 13 | Release candidate | Installation seconde machine, charge, sécurité, droits, restauration |

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "source": "user-declared target hardware, not benchmark observations",
+  "profiles": {
+    "A": {"cpu":"Ryzen 5 1600 AF","ram_gib":32,"gpu":"GTX 1650 Super","vram_gib":4,"os":"Linux Mint","tts_cpu_results":null,"tts_gpu_results":null},
+    "B": {"cpu":"Core i5-8300H","ram_gib":16,"gpu":"GTX 1050 mobile","vram_gib":4,"os":"Linux Mint","tts_cpu_results":null,"tts_gpu_results":null}
+  }
+}

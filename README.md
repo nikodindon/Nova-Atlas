@@ -358,3 +358,8 @@ candidats RSS/HTML et recherche Commons manuelle, revue des droits, miniatures l
 et approbation explicite. Première politique : illustrations génériques CC BY 4.0
 uniquement ; aucune photographie documentaire automatique ni hotlink externe.
 Configuration et limites : [NEWS_IMAGES](docs/NEWS_IMAGES.md).
+
+Le [laboratoire TTS](docs/TTS_BENCHMARK.md) compare un corpus français fixe dans un
+environnement séparé : fixtures hors ligne, Piper CPU facultatif, baseline Edge sous
+activation explicite. Aucun modèle téléchargé ni changement de la radio par défaut.
+Les mesures vocales et l'écoute restent à effectuer avant toute sélection de moteur.

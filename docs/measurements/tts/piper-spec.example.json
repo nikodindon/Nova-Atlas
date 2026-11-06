@@ -1,0 +1,15 @@
+{
+  "engine": "piper",
+  "model": "fr_FR-siwis-medium",
+  "version": "REPLACE_WITH_MODEL_REPOSITORY_COMMIT",
+  "voice": "siwis",
+  "language": "fr-FR",
+  "code_version": "1.8.0",
+  "parameters": {},
+  "files": {
+    "model": {"path": "/ABSOLUTE/PRIVATE/tts-models/fr_FR-siwis-medium.onnx", "sha256": "REPLACE_WITH_SHA256"},
+    "config": {"path": "/ABSOLUTE/PRIVATE/tts-models/fr_FR-siwis-medium.onnx.json", "sha256": "REPLACE_WITH_SHA256"}
+  },
+  "license_reviewed": false,
+  "license_reference": "https://huggingface.co/rhasspy/piper-voices/blob/main/fr/fr_FR/siwis/medium/MODEL_CARD"
+}

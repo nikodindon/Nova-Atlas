@@ -1,0 +1,12 @@
+{
+  "engine": "edge",
+  "model": "edge-online",
+  "version": "remote-unversioned",
+  "voice": "fr-FR-HenriNeural",
+  "language": "fr-FR",
+  "code_version": "7.3.1",
+  "parameters": {},
+  "files": {},
+  "license_reviewed": false,
+  "license_reference": "https://www.microsoft.com/en-us/servicesagreement"
+}

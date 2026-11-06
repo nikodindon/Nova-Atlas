@@ -282,3 +282,22 @@ image), LiteLLM et PostgreSQL sont exécutés dans les contrôles CI isolés de 
 Mesures synthétiques : `docs/measurements/news-images-synthetic.json` ; décodage
 25,7–60,2 ms, miniatures 26,9–30,5 ms, RSS maximum worker 46,8–55,8 MiB,
 646/2230 octets pour les deux aplats JPEG. Pas une mesure de couverture réelle.
+
+## Sprint 10 — Laboratoire TTS
+
+Base après fusion autorisée PR17 : `99f4e039f8732ef363a99685d23e703a21abf1fe`.
+Suite complète locale : **1479 passed, 0 failed, 0 skipped** en 60,84 s, dont les
+neuf scénarios Chromium conservés. 44 tests du laboratoire couvrent les contrats,
+corpus, dépendances, erreurs, annulation/timeout, fichiers et mesures ; les
+adaptateurs vocaux sont simulés. Après finalisation des textes de fin de corpus,
+les 44 tests ciblés ont été réexécutés avec succès.
+
+Essai réel du banc : 15 passages de tonalités synthétiques (50/150/400/800/1500
+mots d'entrée ×3), processus CPU isolé, FFmpeg/FFprobe locaux. Le type
+synthetic_fixture exclut ses timings de tout classement vocal. Aucun moteur de
+parole réel, poids ou accès Edge. Résultats bruts : measurements/tts/fixture-cpu.json.
+
+Compilation Python, syntaxe JavaScript, test CSRF Node et git diff --check réussis.
+La CI Docker ajoute deploy.tts_lab_smoke, network=none, sans poids ni framework
+optionnel ; tous les smokes précédents restent conservés. Aucun fichier radio de
+production modifié. Plan non suivi conservé, SHA256 identique.

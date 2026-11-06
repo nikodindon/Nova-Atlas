@@ -1,0 +1,4 @@
+# OPTIONAL, dedicated Python 3.12 environment only; never in production Docker locks.
+# Install explicitly after license review. No weights downloaded by this requirement.
+# Resolve/freeze transitive packages for each real experiment; versions are recorded.
+piper-tts==1.8.0
