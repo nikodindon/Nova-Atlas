@@ -2,8 +2,9 @@
 
 - Prérequis : PR19 fusionnée dans dev (8d5e2b5), huit contrôles précédents réussis.
 - Suite Python complète : **1563 passed**, aucun échec/skip, 71,59 secondes localement.
+  Deux tests supplémentaires reproduisent puis verrouillent le parsing tmpfs corrigé.
   Inclut les scénarios Chromium historiques et les tests de protections antérieures.
-- Frontend : **31 tests unitaires/composants** ; **10 scénarios Chromium** desktop/mobile.
+- Frontend : **33 tests unitaires/composants** ; **10 scénarios Chromium** desktop/mobile.
 - TypeScript/Svelte : zéro erreur et zéro avertissement ; ESLint réussi.
 - Build de production, budget client, compilation Python, syntaxe JS historique,
   helper CSRF, configuration Compose et diff Git vérifiés.
@@ -22,3 +23,9 @@ préservée en navigation. Aucun service producteur démarré localement.
 Les tests audio navigateur simulent HTMLMediaElement ; aucun résultat ne constitue
 une mesure de qualité ou disponibilité Icecast. Administration native limitée à la
 consultation, mutations dans Flask. Pas de revue manuelle complète avec lecteur d'écran.
+
+Le premier smoke frontend CI a détecté une liste YAML tmpfs incorrectement séparée
+par les virgules. Deux reproductions échouaient avant citation de la chaîne complète ;
+26 tests backend/frontend ciblés passent après correction. La CI du nouveau commit
+doit confirmer le démarrage réel. La déconnexion exige aussi une réponse confirmée
+de Flask et expose sinon un message explicite, sans annoncer une réussite.

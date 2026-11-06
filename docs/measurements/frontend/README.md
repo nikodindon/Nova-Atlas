@@ -1,6 +1,6 @@
 # Mesures Sprint 12
 
-Build initial vérifié localement (Node 22.22.2), toutes routes : 58 356 octets JS
+Build initial vérifié localement (Node 22.22.2), toutes routes : 58 502 octets JS
 gzip, 3 129 octets CSS gzip. Refaire `cd frontend && node tests/budget.mjs` après build.
 Le budget CI est 100 KiB JS / 15 KiB CSS gzip, pas un budget par page.
 

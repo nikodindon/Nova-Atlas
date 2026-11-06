@@ -7,6 +7,7 @@
   let { children, data }: { children: Snippet; data: { locale: Locale } } = $props();
   let t = $derived(messages(data.locale));
   let denied = $state(false);
+  let logoutError = $state(false);
   async function check() {
     try {
       await sessionToken();
@@ -26,13 +27,15 @@
   async function signout() {
     try {
       await logout();
-    } finally {
       denied = true;
       await goto('/connexion', { replaceState: true });
+    } catch {
+      logoutError = true;
     }
   }
 </script>
 
+{#if logoutError}<p role="alert">{t.logoutError}</p>{/if}
 <div class="toolbar">
   <a href="/administration">{t.admin}</a><a href="/administration/sources">{t.sources}</a><a
     href="/administration/radio">{t.radioStudio}</a

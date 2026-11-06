@@ -47,3 +47,10 @@ def test_nginx_discards_client_forwarded_headers_and_preserves_flask_routes():
 def test_existing_business_services_are_not_overridden():
     assert set(OVERLAY['services'])=={'web','frontend','frontend-gateway'}
     assert set(OVERLAY['services']['web'])=={'environment','networks'}
+
+
+@pytest.mark.parametrize('name',['frontend','frontend-gateway'])
+def test_tmpfs_options_remain_one_absolute_mount(name):
+    mounts=OVERLAY['services'][name]['tmpfs']
+    assert len(mounts)==1
+    assert mounts[0].startswith('/tmp:') and 'noexec,nosuid' in mounts[0]

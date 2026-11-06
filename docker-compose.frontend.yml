@@ -16,7 +16,7 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    tmpfs: [/tmp:rw,noexec,nosuid,size=32m,mode=1777]
+    tmpfs: ['/tmp:rw,noexec,nosuid,size=32m,mode=1777']
     environment:
       FLASK_ORIGIN: http://web:5055
       ATLAS_PUBLIC_SCHEME: ${ATLAS_PUBLIC_SCHEME:-https}
@@ -44,7 +44,7 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    tmpfs: [/tmp:rw,noexec,nosuid,size=32m,mode=1777]
+    tmpfs: ['/tmp:rw,noexec,nosuid,size=32m,mode=1777']
     environment:
       ATLAS_PUBLIC_SCHEME: ${ATLAS_PUBLIC_SCHEME:-https}
     ports: ['127.0.0.1:${ATLAS_FRONTEND_PORT:-5173}:8080']

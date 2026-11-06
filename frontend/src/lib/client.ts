@@ -13,10 +13,11 @@ export async function sessionToken(): Promise<string> {
 }
 export async function logout(): Promise<void> {
   const token = await sessionToken();
-  await fetch('/admin/logout', {
+  const response = await fetch('/admin/logout', {
     method: 'POST',
     headers: { 'X-CSRF-Token': token },
     credentials: 'same-origin',
     redirect: 'manual',
   });
+  if (response.type !== 'opaqueredirect' && response.status !== 303) throw new Error('logout_failed');
 }
