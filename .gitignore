@@ -102,3 +102,9 @@ feeds.yaml.lock
 source-tests.lock
 source_test_state.json
 .source_test_state.json*
+
+# Private bounded discovery previews/admissions and feed validator state
+source_discovery.json
+.source_discovery.json*
+discovery_feed_state.json
+.discovery_feed_state.json*

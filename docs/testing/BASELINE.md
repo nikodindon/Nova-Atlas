@@ -216,3 +216,22 @@ smoke RSS vérifie désormais aussi désactivation/rechargement atomique et expo
 Le round-trip HTTP d’un export >64 Kio est testé : seule la route d’import, après
 authentification et CSRF, autorise un JSON ≤2 Mio (document ≤1 Mio). Les autres
 routes gardent leur limite 64 Kio. Reçus forgés et contenu modifié refusés.
+
+## Sprint 07 — Découverte des sources
+
+Validation locale finale Python 3.12 : **1 299 réussis, 0 échec, 0 ignoré**, en 51,75 s.
+Les 1 226 tests précédents restent présents, inventaire des routes privées étendu.
+73 nouveaux cas couvrent le moteur, API, budgets HTTP, deux reproductions initialement
+rouges (alternate relatif et HTTP Link), métadonnées inconnues, SearXNG simulé et
+un septième scénario Chromium complet. Pas de nouveau test ignoré.
+
+Chromium : Live → Sources, découverte → preview → ajout explicite, retour Live,
+back et réponse différée après navigation ; même objet audio et pas de violation
+CSP/erreur JS. Toutes les requêtes sont remplies par le client Flask et les
+transports synthétiques ; aucun site visité par un navigateur explorateur.
+
+Compilation main/modules/deploy/tests, syntaxe de tous les assets JavaScript,
+`node tests/test_csrf.cjs` et `git diff --check` réussis. Probe embarquée Docker/RSS
+compilée et étendue à la découverte statique via serveur local et transport de test
+explicite ; smokes Docker/RSS, LiteLLM et PostgreSQL requis dans la CI jetable.
+Aucune collecte Internet, modèle, TTS ou donnée réelle utilisés.

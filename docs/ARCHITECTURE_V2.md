@@ -147,3 +147,15 @@ L'état de santé du collecteur reste indépendant et lu seul par Web. Le journa
 tests ponctuels est séparé ; ses embargos hôte contraignent le prochain cycle News.
 Sources autoritaires dans YAML ; snapshots SQL inchangés, aucune écriture métier SQL.
 Voir SOURCE_MANAGER.md pour contrats, concurrence, formats et limites.
+
+## Sprint 07 — Découverte statique bornée
+
+Discovery détecte les déclarations HTML/HTTP Link et quelques chemins conventionnels,
+puis réutilise FeedIngestor/parse_feed et le client HTTP épinglé. RequestBudget
+partage deadline et nombre de hops entre tous les téléchargements ; exploration
+séquentielle sous le verrou des opérations de sources. Cache privé court, aucune
+écriture YAML ni article depuis la découverte. Ajout explicite via SourceManager.
+SearXNG public HTTPS facultatif à endpoint opérateur fixe ; transport LAN et RSSHub
+opérationnel reportés. Le cadre de navigation existant conserve le lecteur audio
+et initialise des composants statiques connus, sans exécuter le HTML reçu.
+Voir SOURCE_DISCOVERY.md pour contrats, budgets, embargos et rollback.

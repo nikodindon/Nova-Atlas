@@ -340,3 +340,9 @@ tests RSS/Atom explicites, versions concurrentes et import/export YAML/OPML.
 `config/feeds.yaml` reste autoritaire ; aucun téléchargement à l'ouverture de la page,
 aucune découverte ou bascule PostgreSQL. Les fichiers privés de limitation des tests
 et les verrous doivent partager le stockage POSIX local des conteneurs.
+
+La section **Découvrir des sources** du gestionnaire vérifie les flux annoncés par
+un site, sans crawler ni LLM. La recherche thématique utilise uniquement un
+SearXNG public HTTPS explicitement configuré, facultatif. Prévisualisation puis
+ajout volontaire avec contrôle de version ; aucun abonnement automatique.
+Voir [SOURCE_DISCOVERY.md](docs/SOURCE_DISCOVERY.md) pour quotas, sécurité et limites.

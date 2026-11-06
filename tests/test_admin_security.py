@@ -297,6 +297,7 @@ def test_all_registered_routes_classified(app):
     private.update({'/api/flash/status/<job_id>', '/audio/flash_<job_id>.mp3'})
     private -= {'/config/feeds/add','/config/feeds/remove','/config/feeds/reset','/config/feeds/move','/config/feeds/toggle','/config/feeds/category'}
     private |= {'/config/feeds/<action>','/api/admin/sources','/api/admin/sources/<identity>','/api/admin/sources/actions/<action>','/api/admin/sources/stats','/api/admin/sources/export','/api/admin/sources/import','/api/admin/sources/test'}
+    private |= {'/api/admin/discovery/<mode>','/api/admin/discovery/status','/api/admin/discovery/preview','/api/admin/discovery/cancel'}
     assert {r.rule for r in app.url_map.iter_rules()} == public | private
 
 

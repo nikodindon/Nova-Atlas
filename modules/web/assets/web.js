@@ -55,7 +55,7 @@ async function preferences(){
 }
 function publicURL(value){
  try{const url=new URL(value,location.href);return url.origin===location.origin&&
-  (/^\/(?:live(?:\.html)?|archives|index\.html)?$/.test(url.pathname)||/^\/\d{8}_report\.html$/.test(url.pathname)||/^\/editions\/\d{8}_(matin|midi|soir)\.html$/.test(url.pathname))?url:null;}catch(_){return null;}
+  (url.pathname==='/config/feeds/page'||/^\/(?:live(?:\.html)?|archives|index\.html)?$/.test(url.pathname)||/^\/\d{8}_report\.html$/.test(url.pathname)||/^\/editions\/\d{8}_(matin|midi|soir)\.html$/.test(url.pathname))?url:null;}catch(_){return null;}
 }
 function inertDocument(html){
  const doc=new DOMParser().parseFromString(html,'text/html');
@@ -95,7 +95,7 @@ function startLive(){
   }catch(_){}finally{startLive();}
  },120000);
 }
-function initPage(){theme();syncPlayer();filters();preferences();startLive();}
+function initPage(){theme();syncPlayer();filters();preferences();startLive();if(window.NovaSources)window.NovaSources();}
 document.addEventListener('click',event=>{
  const button=event.target.closest('[data-action]');
  if(button){switch(button.dataset.action){

@@ -212,3 +212,39 @@ def test_source_manager_test_import_health_and_hostile_names(browser_page,monkey
     assert status==200
     page.reload();page.wait_for_function("()=>document.querySelector('#feeds-container').textContent.includes('<img')")
     assert page.locator('#feeds-container img').count()==0 and page.evaluate('window.pwned') is None
+
+
+def test_discovery_preview_add_and_radio_persistent_navigation(browser_page,app):
+    from modules.discovery.source_discovery import Discovery
+    from tests.test_source_discovery import transport,HTML,RSS
+    page,errors,requests,injections=browser_page
+    calls=[];fake=transport({'https://site.invalid/':HTML,'https://site.invalid/feed':RSS},calls)
+    app.extensions['atlas_discovery']['factory']=lambda manager,**kwargs:Discovery(manager,transport=fake,**kwargs)
+    page.goto('https://atlas.invalid/admin/login');page.locator('[name="username"]').fill('admin-test');page.locator('[name="password"]').fill('synthetic-test-password')
+    page.evaluate("async()=>{const form=document.querySelector('form');await fetch(form.action,{method:'POST',body:new FormData(form),redirect:'manual'});}")
+    page.goto('https://atlas.invalid/live');page.locator('[data-action="radio-toggle"]').click();page.evaluate('window.savedAudio=window._novaAudio')
+    page.locator('.topbar-nav a[href="/config/feeds/page"]').click();page.wait_for_url('**/config/feeds/page');page.wait_for_selector('#discovery-form')
+    assert page.evaluate('window.savedAudio===window._novaAudio && !window._novaAudio.paused')
+    page.locator('#discovery-input').fill('https://site.invalid/');page.locator('#discovery-start').click()
+    page.wait_for_function("()=>document.querySelector('#discovery-progress').textContent.includes('aucun ajout automatique')")
+    assert len(app.extensions['atlas_source_manager'].read().sources)==1
+    page.locator('#discovery-filter').select_option('verified');card=page.locator('#discovery-results article').first
+    assert card.locator('h3').text_content()=='Journal technique'
+    card.locator('button[data-preview]').click();page.wait_for_function("()=>document.getElementById('discovery-preview').textContent.includes('Actualite')")
+    assert page.locator('#discovery-results img,#discovery-preview img').count()==0
+    page.set_viewport_size({'width':390,'height':844})
+    card.locator('select').select_option('tech');card.locator('button[data-add]').click()
+    page.wait_for_function("()=>document.getElementById('discovery-progress').textContent.includes('Source ajoutée explicitement')")
+    assert len(app.extensions['atlas_source_manager'].read().sources)==2
+    page.locator('.topbar-nav a[href="/live"]').click();page.wait_for_url('**/live')
+    assert page.evaluate('window.savedAudio===window._novaAudio && !window._novaAudio.paused')
+    page.go_back();page.wait_for_url('**/config/feeds/page');page.wait_for_selector('#discovery-form')
+    assert page.evaluate('window.savedAudio===window._novaAudio && !window._novaAudio.paused')
+    assert page.evaluate('window.pwned') is None and len(calls)<=8
+    # A response arriving after navigation updates only the detached component.
+    page.evaluate("""()=>{window.oldDiscovery=document.getElementById('source-discovery');const original=window.fetch;window.fetch=(url,opts)=>{const promise=original(url,opts);if(String(url).endsWith('/api/admin/discovery/site'))return promise.then(response=>new Promise(resolve=>window.releaseDiscovery=()=>resolve(response)));return promise;};}""")
+    page.locator('#discovery-input').fill('https://site.invalid/');page.locator('#discovery-start').click()
+    page.wait_for_function('()=>typeof window.releaseDiscovery==="function"')
+    page.locator('.topbar-nav a[href="/live"]').click();page.wait_for_url('**/live');page.evaluate('window.releaseDiscovery()')
+    page.wait_for_function("()=>window.oldDiscovery.querySelector('#discovery-progress').textContent.includes('aucun ajout automatique')")
+    assert page.evaluate('window.savedAudio===window._novaAudio && !window._novaAudio.paused')

@@ -55,7 +55,9 @@ class FeedState:
             if type(data.get('version')) is not int or data.get('version')!=1 or not isinstance(data.get('records'),dict) or len(data['records'])>515:raise ValueError()
             for identity,record in data['records'].items():
                 if len(identity)!=64 or any(c not in '0123456789abcdef' for c in identity) or not isinstance(record,dict):raise ValueError()
-                if set(record)-{'last_attempt','status','error','http_status','duration','warnings','policy','host','last_success','failures','next_attempt_at','last_count','last_good_fetch','response_url','etag','last_modified','entries','latest_published_at','host_until','rate_host','retry_until'}:raise ValueError()
+                if set(record)-{'last_attempt','status','error','http_status','duration','warnings','policy','host','last_success','failures','next_attempt_at','last_count','last_good_fetch','response_url','etag','last_modified','entries','latest_published_at','host_until','rate_host','retry_until','format','feed_title','description','language'}:raise ValueError()
+                for name,maximum in (('format',20),('feed_title',300),('description',500),('language',40)):
+                    if record.get(name) is not None and (not isinstance(record[name],str) or len(record[name])>maximum):raise ValueError()
                 for name in ('policy','host','rate_host'):
                     if name in record and (not isinstance(record[name],str) or len(record[name])!=64):raise ValueError()
                 for name in ('last_attempt','next_attempt_at','host_until','retry_until','last_good_fetch','last_success'):
@@ -101,18 +103,20 @@ def synchronized(method):
 
 
 class FeedIngestor:
-    def __init__(self,path=None,*,config=None,clock=None):
-        self._lock=threading.RLock()
+    def __init__(self,path=None,*,config=None,clock=None,http_get=None):
+        self._lock=threading.RLock();self.http_get=http_get
         self.options=options(config or {});self.state=FeedState(path);self.clock=clock or (lambda:datetime.now(timezone.utc))
         self.policy=key(json.dumps({'parser':1,'limit':self.options['max_articles_per_feed'],'age':self.options['max_age_days']}))
         self.cancel_event=None
         self.host_budget=http.HostBudget(self.options['feed_per_host'],clock=lambda:self.now().timestamp(),default_cooldown=self.options['feed_retry_base_seconds'])
         embargo_records=list(self.state.records.values())
-        if self.state.path is not None and self.state.path.name=='feed_ingestion_state.json':
+        if self.state.path is not None and self.state.path.name in ('feed_ingestion_state.json','source_test_state.json','discovery_feed_state.json'):
             # Admin tests own a separate journal, but their server embargoes also
             # constrain the next News cycle. Never merge/write its entries/cache.
-            auxiliary=self.state.path.with_name('source_test_state.json')
-            if auxiliary.exists():embargo_records.extend(FeedState(auxiliary).records.values())
+            for name in ('feed_ingestion_state.json','source_test_state.json','discovery_feed_state.json'):
+                if name==self.state.path.name:continue
+                auxiliary=self.state.path.with_name(name)
+                if auxiliary.exists():embargo_records.extend(FeedState(auxiliary).records.values())
         for rec in embargo_records:
             if rec.get('host_until',0)>self.now().timestamp() and rec.get('rate_host',rec.get('host')):
                 self.host_budget.defer_key(rec.get('rate_host',rec['host']),rec['host_until'])
@@ -149,12 +153,13 @@ class FeedIngestor:
             conditional=None
             if prior.get('response_url') and (prior.get('etag') or prior.get('last_modified')):
                 conditional=http.Conditional(prior['response_url'],prior.get('etag'),prior.get('last_modified'))
-            response=http.get(url,timeout=self.options['feed_timeout'],conditional=conditional,accept_not_modified=True,cancel_event=self.cancel_event,host_budget=self.host_budget)
+            response=(self.http_get or http.get)(url,timeout=self.options['feed_timeout'],conditional=conditional,accept_not_modified=True,cancel_event=self.cancel_event,host_budget=self.host_budget)
             status=response.status_code;headers=response.headers;response_url=response.url
             if status==304:
                 entries=tuple(FeedEntry.from_dict(v) for v in prior.get('entries',[]))
                 return FeedResult('not_modified',entries,reason='' if 'entries' in prior else 'cache_miss',http_status=304,
-                    response_url=response_url,retrieved_at=now,duration=time.monotonic()-started)
+                    response_url=response_url,retrieved_at=now,duration=time.monotonic()-started,format=prior.get('format',''),
+                    feed_title=prior.get('feed_title',''),description=prior.get('description',''),language=prior.get('language'))
             if status!=200:raise http.HTTPStatusError(status,headers.get('retry-after'))
             parsed=parse_feed(response.content,url,response_url,retrieved_at=now)
             if parsed.status=='invalid_feed':return replace(parsed,http_status=status,duration=time.monotonic()-started)
@@ -178,7 +183,8 @@ class FeedIngestor:
             return FeedResult('temporarily_unavailable' if temporary else 'permanently_unavailable',reason='http_'+str(status),http_status=status,
                 retrieved_at=now,duration=time.monotonic()-started,retry_after=retry_after(exc.retry_after,now.timestamp()),rate_host=key(exc.host) if exc.host else '')
         except http.FetchError as exc:
-            reason=str(exc) if str(exc) in ('dns_timeout','dns_busy','deadline','cancelled','response_too_large','transport_error','truncated_response','dns_error') else 'http_transport'
+            if isinstance(exc,http.TransportError):return FeedResult('temporarily_unavailable',reason=exc.kind,retrieved_at=now,duration=time.monotonic()-started)
+            reason=str(exc) if str(exc) in ('dns_timeout','dns_busy','deadline','cancelled','response_too_large','transport_error','truncated_response','dns_error','request_budget') else 'http_transport'
             return FeedResult('temporarily_unavailable',reason=reason,retrieved_at=now,duration=time.monotonic()-started)
         except Exception:
             return FeedResult('invalid_feed',reason='parser_or_cache_error',retrieved_at=now,duration=time.monotonic()-started)
@@ -197,6 +203,8 @@ class FeedIngestor:
             if result.status!='not_modified':
                 record.update(last_good_fetch=now,response_url=result.response_url,etag=result.etag,last_modified=result.last_modified,
                               entries=[e.to_dict() for e in result.entries])
+                if self.state.path is not None and self.state.path.name=='discovery_feed_state.json':
+                    record.update(format=result.format,feed_title=result.feed_title,description=result.description,language=result.language)
                 dates=[e.published_at for e in result.entries if e.published_at is not None]
                 record['latest_published_at']=max(dates).isoformat() if dates else record.get('latest_published_at')
         else:

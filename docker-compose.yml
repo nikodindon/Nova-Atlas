@@ -36,6 +36,7 @@ services:
     environment:
       <<: *environment
       ATLAS_ROLE: web
+      ATLAS_SEARXNG_URL: ${ATLAS_SEARXNG_URL:-}
     ports:
       - "127.0.0.1:${ATLAS_WEB_PORT:-5055}:5055"
     secrets: [admin_username, admin_password_hash, session_secret, icecast_source_password]
