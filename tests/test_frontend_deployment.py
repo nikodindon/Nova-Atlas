@@ -20,6 +20,9 @@ def test_frontend_has_no_published_node_port():
     assert 'ports' not in OVERLAY['services']['frontend']
     assert OVERLAY['services']['frontend-gateway']['ports'][0].startswith('127.0.0.1:')
     assert OVERLAY['networks']['frontend_api']['internal']
+    assert 'frontend_edge' in OVERLAY['services']['frontend-gateway']['networks']
+    assert 'frontend_edge' not in OVERLAY['services']['frontend']['networks']
+    assert 'frontend_edge' not in OVERLAY['services']['web']['networks']
 
 def test_exact_proxy_peers_and_fixed_api_origin():
     web=OVERLAY['services']['web']
@@ -46,9 +49,15 @@ def test_nginx_discards_client_forwarded_headers_and_preserves_flask_routes():
     for cache in ('client_body','proxy','fastcgi','uwsgi','scgi'):
         assert f'/tmp/{cache}' in nginx
 
-def test_existing_business_services_are_not_overridden():
+def test_existing_business_services_are_not_overridden(monkeypatch):
     assert set(OVERLAY['services'])=={'web','frontend','frontend-gateway'}
     assert set(OVERLAY['services']['web'])=={'environment','networks'}
+    from deploy.frontend_smoke import main
+    from types import SimpleNamespace
+    monkeypatch.delenv('GITHUB_ACTIONS',raising=False)
+    with pytest.raises(SystemExit,match='explicit --local-fixtures'):main()
+    monkeypatch.setattr('deploy.frontend_smoke.shutil.disk_usage',lambda _:SimpleNamespace(free=0))
+    with pytest.raises(SystemExit,match='4 GiB'):main(allow_local=True)
 
 
 @pytest.mark.parametrize('name',['frontend','frontend-gateway'])

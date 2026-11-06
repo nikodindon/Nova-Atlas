@@ -49,6 +49,7 @@ services:
       ATLAS_PUBLIC_SCHEME: ${ATLAS_PUBLIC_SCHEME:-https}
     ports: ['127.0.0.1:${ATLAS_FRONTEND_PORT:-5173}:8080']
     networks:
+      frontend_edge: {}
       frontend_api:
         ipv4_address: ${ATLAS_FRONTEND_GATEWAY_IP:-172.30.42.2}
     depends_on: {frontend: {condition: service_healthy}}
@@ -68,3 +69,5 @@ networks:
     internal: true
     ipam:
       config: [{subnet: '${ATLAS_FRONTEND_SUBNET:-172.30.42.0/28}'}]
+
+  frontend_edge: {} # Gateway only: host port ingress, no private application service.

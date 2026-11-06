@@ -35,3 +35,9 @@ incompatibles avec le rootfs read-only. Tous sont déplacés dans /tmp ; nginx -
 réussit dans un conteneur non-root read-only sans réseau ni volume après reproduction
 de l’erreur, et les neuf tests du contrat de déploiement passent. Les logs CI
 sont désormais conservés et filtrés avant destruction des seules fixtures du smoke.
+
+Un réseau frontend_edge réservé au gateway complète le réseau privé : la publication
+de port n’était pas joignable depuis l’hôte sur le bridge exclusivement internal.
+Le smoke local complet a été interrompu faute d’espace durant les builds ; seuls
+ses images/caches identifiés ont été retirés, sans prune globale ni volume utilisateur.
+Préflight local 4 Gio ajouté ; validation complète de la chaîne confiée à la CI.

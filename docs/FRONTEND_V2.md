@@ -138,7 +138,13 @@ puis `npm start`. Les pages publiques SSR fonctionnent ; les chemins navigateur
 same-origin décrit ci-dessous. Le mode dev ne lit pas automatiquement un `.env` privé.
 Les tests navigateur utilisent `tests/start.mjs`, faux Flask synthétique et proxy local,
 jamais un serveur utilisateur. La fixture JPEG est une géométrie générée pour ce sprint.
-Les commandes de benchmark ne lancent aucun producteur.
+Les commandes de benchmark ne lancent aucun producteur. Le smoke Docker peut être
+exécuté explicitement par `python -m deploy.frontend_smoke --local-fixtures` : nouveaux
+répertoires /tmp, noms de projet et tags d’images uniques, sans données utilisateur ni
+News/Radio. Sans ce flag, il refuse une exécution hors CI. Les images de test sont
+retirées après arrêt de ce seul projet. Prévoir au minimum 4 Gio libres sur le
+stockage temporaire et davantage pour les images/cache du daemon Docker ; le mode
+local refuse de commencer si cette réserve minimale manque.
 
 ## Compose et reverse proxy
 
@@ -153,7 +159,9 @@ docker compose --env-file deploy/local/compose.env -f docker-compose.yml \
 ```
 
 Le gateway écoute **127.0.0.1:5173**, Node n'a aucun port publié. Réseau
-`frontend_api` interne : gateway .2, Node .3, Flask .4 sur 172.30.42.0/28. Modifier
+`frontend_api` interne : gateway .2, Node .3, Flask .4 sur 172.30.42.0/28.
+Un réseau d’entrée `frontend_edge`, réservé au gateway, permet la publication du port
+loopback ; ni Node ni Flask ne rejoignent ce réseau. Modifier
 ensemble `ATLAS_FRONTEND_SUBNET`, `ATLAS_FRONTEND_GATEWAY_IP`, `ATLAS_FRONTEND_IP`,
 `ATLAS_FRONTEND_BACKEND_IP` si conflit de sous-réseau. Seuls ces deux pairs exacts
 sont déclarés proxies de confiance Flask dans l'overlay. Ne pas élargir à tous Docker.
@@ -204,3 +212,9 @@ base. Aucun export, migration ou restauration de données nécessaire : aucun pr
 ni format de stockage n'a changé. Conserver les volumes et secrets existants ; ne pas
 utiliser `down -v` sur une installation réelle. Les nouvelles API sont additives et
 peuvent rester présentes lorsque l'interface historique est utilisée.
+
+Limite observée pendant le smoke : la génération des anciens exports statiques Flask
+peut avertir d’un répertoire temporaire `.media-export-*` sous `/app` en lecture seule
+(problème préexistant de l’export média). Les nouvelles projections JSON et médias
+servis à la demande ne dépendent pas de cette génération ; une correction dédiée
+reste à prévoir, sans rendre `/app` globalement inscriptible.

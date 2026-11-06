@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import tempfile
 import urllib.error
 import urllib.parse
@@ -15,15 +16,19 @@ from deploy.init import initialize
 from deploy.smoke import ROOT, run, _REDACTIONS, diagnostic
 
 
-def main():
-    if os.environ.get('GITHUB_ACTIONS')!='true':raise SystemExit('CI-only smoke')
+def main(*,allow_local=False):
+    if os.environ.get('GITHUB_ACTIONS')!='true' and not allow_local:raise SystemExit('CI-only smoke; explicit --local-fixtures required outside CI')
+    if allow_local and shutil.disk_usage(tempfile.gettempdir()).free<4*1024**3:
+        raise SystemExit('Local smoke requires at least 4 GiB free staging space plus Docker image capacity')
     with tempfile.TemporaryDirectory(prefix='atlas-frontend-smoke-') as temporary:
         root=Path(temporary)/'state';password=secrets.token_urlsafe(32);day=datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d')
         initialize(root,'synthetic-admin',password)
         _REDACTIONS[:]=[password,*[p.read_text().strip() for p in (root/'secrets').iterdir() if p.is_file()]]
         (root/f'data/articles/{day}_articles.json').write_text(json.dumps([{'hash':'a'*32,'title':'Synthetic headline for frontend','title_original':'Synthetic headline','summary':'An isolated news fixture.','category':'tech','source':'Fixture','link':'https://fixture.invalid/article','timestamp':'2026-11-06T12:00:00+01:00','pub_date':'2026-11-06T11:00:00Z'}]))
         (root/f'data/reports/{day}_report.md').write_text('# Synthetic report\n\nA **synthetic** document.\n')
-        with (root/'compose.env').open('a') as out:out.write('ATLAS_WEB_PORT=0\nATLAS_FRONTEND_PORT=0\nATLAS_PUBLIC_SCHEME=http\nATLAS_COOKIE_SECURE=0\n')
+        identity=uuid.uuid4().hex[:10]
+        images=['nova-atlas:s12-test-'+identity,'nova-atlas-frontend:s12-test-'+identity,'nova-atlas-frontend-gateway:s12-test-'+identity]
+        with (root/'compose.env').open('a') as out:out.write('ATLAS_IMAGE='+images[0]+'\nATLAS_FRONTEND_IMAGE='+images[1]+'\nATLAS_FRONTEND_GATEWAY_IMAGE='+images[2]+'\n');out.write('ATLAS_WEB_PORT=0\nATLAS_FRONTEND_PORT=0\nATLAS_PUBLIC_SCHEME=http\nATLAS_COOKIE_SECURE=0\n')
         command=['docker','compose','-p','atlas-frontend-ci-'+uuid.uuid4().hex[:8],'-f',str(ROOT/'docker-compose.yml'),'-f',str(ROOT/'docker-compose.frontend.yml'),'--env-file',str(root/'compose.env'),'--profile','web','--profile','frontend']
         try:
             run(command+['config','--quiet']);run(command+['build','web','frontend','frontend-gateway'])
@@ -69,6 +74,12 @@ def main():
         except Exception:
             diagnostic(run(command+['logs','--no-color','web','frontend','frontend-gateway'],check=False).stdout)
             raise
-        finally:run(command+['down','--volumes','--remove-orphans'],check=False)
+        finally:
+            run(command+['down','--volumes','--remove-orphans'],check=False)
+            run(['docker','image','rm',*images],check=False)
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--local-fixtures',action='store_true',help='Explicit isolated smoke; new temporary data, unique project and image tags only')
+    main(allow_local=parser.parse_args().local_fixtures)
