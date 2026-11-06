@@ -192,26 +192,32 @@ class EditionGenerator:
     def _build_prompt(self, edition_name: str, articles: list, day: str) -> str:
         cfg     = EDITIONS[edition_name]
         date_fr = self._format_date_fr(day)
+        from modules.editorial.selection import opt_in,save_selection
+        articles=opt_in(articles,self.config)
+        if self.config.get('editorial_events',{}).get('enabled') is True:
+            save_selection(Path(self.config.get('paths',{}).get('data_dir','data')),'editions',articles)
 
         by_cat = {}
         for a in articles:
             by_cat.setdefault(a.get("category", "monde"), []).append(a)
 
         context_parts = []
-        for cat in CAT_ORDER:
+        from modules.editorial.categories import ordered_categories
+        for cat in ordered_categories(articles,Path(self.config.get('paths',{}).get('feeds_file','config/feeds.yaml')),CAT_ORDER):
             arts = by_cat.get(cat, [])
             if not arts:
                 continue
+            from modules.editorial.selection import prompt_provenance
             summaries = [
-                f"  · [{a.get('source','')}] {a.get('summary','')[:160]}"
-                for a in arts[:3]
+                f"  · [{a.get('source','')}] {a.get('summary','')[:160]}" + ('\n'+prompt_provenance(a) if a.get('_editorial_event') else '')
+                for a in (arts if self.config.get('editorial_events',{}).get('enabled') is True else arts[:3])
             ]
             context_parts.append(
                 f"[{CAT_LABELS.get(cat, cat.upper())} — {len(arts)} articles]\n"
                 + "\n".join(summaries)
             )
 
-        context    = "\n\n".join(context_parts[:8])
+        context    = "\n\n".join(context_parts)
         sources    = list({a.get("source","") for a in articles if a.get("source")})[:8]
         nb         = len(articles)
         lang_label = "français" if self.language == "fr" else self.language

@@ -109,37 +109,11 @@ def load_bulletins_config(paths: dict) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def dedup_articles_by_similarity(articles: List[dict], threshold: float = 0.7) -> List[dict]:
-    """
-    Déduplique les articles par similarité du début de leur résumé.
-
-    Les news tech/geopolitique/sport sont souvent rapportées par 5-10 sources
-    différentes avec des résumés très proches (mais pas identiques). On groupe
-    par similarité de préfixe (200 premiers chars du résumé) et on garde
-    celui avec le résumé le plus long (= le plus informatif).
-
-    O(n²) — adapté pour des catégories < 100 articles. Pour de plus gros
-    volumes, pré-calculer et cacher le résultat.
-    """
-    from difflib import SequenceMatcher
-    kept = []
-    seen_prefixes = []  # (prefix_lowered, index_in_kept)
-    for a in articles:
-        s = (a.get("summary") or "").strip()[:200].lower()
-        if not s:
-            continue
-        is_dup = False
-        for k, prefix in enumerate(seen_prefixes):
-            sim = SequenceMatcher(None, s, prefix).ratio()
-            if sim > threshold:
-                # Doublon : garder celui qui a le résumé le plus long
-                if len(a.get("summary") or "") > len(kept[k].get("summary") or ""):
-                    seen_prefixes[k] = s
-                    kept[k] = a
-                is_dup = True
-                break
-        if not is_dup:
-            seen_prefixes.append(s)
-            kept.append(a)
+    """Compatibility name: remove identical records only, never infer event identity."""
+    seen=set();kept=[]
+    for article in articles:
+        signature=json.dumps(article,sort_keys=True,ensure_ascii=True)
+        if signature not in seen:seen.add(signature);kept.append(article)
     return kept
 
 
@@ -311,6 +285,9 @@ def _format_articles_for_prompt(articles: List[dict], max_summary_chars: int = 4
         if source:
             lines.append(f"    Source : {source}")
         lines.append(f"    {summary}")
+        from modules.editorial.selection import prompt_provenance
+        provenance=prompt_provenance(a)
+        if provenance:lines.append(provenance)
         lines.append("")
     return "\n".join(lines)
 
@@ -824,6 +801,10 @@ class BulletinGenerator:
         if len(articles) < cfg.get('min_articles', 3):
             return None
         try:
+            if script is None and profile=='bulletin':
+                from modules.editorial.selection import opt_in,save_selection
+                articles=opt_in(articles,self.config)
+                if self.config.get('editorial_events',{}).get('enabled') is True:save_selection(self.paths['data'],'radio',articles)
             if script is None:
                 intros, transitions, outros = self._load_messages()
                 script = generate_bulletin_script(articles, {**cfg, **self.config}, intros, transitions, outros)

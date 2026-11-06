@@ -89,6 +89,7 @@ function startLive(){
   try{const response=await fetch(location.href);if(!response.ok)throw Error('refresh');
    const doc=inertDocument(await response.text());if(document.body.dataset.page!=='live')return;
    replaceContents(document.getElementById('live-grid'),doc.getElementById('live-grid'));
+   replaceContents(document.getElementById('editorial-events'),doc.getElementById('editorial-events'));
    replaceContents(document.querySelector('.filter-bar'),doc.querySelector('.filter-bar'));
    const stamp=document.getElementById('live-updated'),next=doc.getElementById('live-updated');if(stamp&&next)stamp.textContent=next.textContent;
    filters();

@@ -195,7 +195,7 @@ class PostsGenerator:
 
         for a in articles:
             if id(a) not in hot_ids:
-                cat   = CATEGORY_LABELS.get(a.get("category","monde"), "NEWS")
+                cat   = CATEGORY_LABELS.get(a.get("category","monde"), a.get("category","monde").upper())
                 context_parts.append(
                     f"[{cat}] {a.get('title','')[:80]}\n"
                     f"  Source: {a.get('source','')}\n"
@@ -262,7 +262,7 @@ class PostsGenerator:
             for a in articles[:self.nb_posts]:
                 cat   = a.get("category","monde")
                 emoji = CATEGORY_EMOJIS.get(cat,"🌍")
-                label = CATEGORY_LABELS.get(cat,"NEWS")
+                label = CATEGORY_LABELS.get(cat,cat.upper())
                 summ  = a.get("summary","")[:180]
                 lien  = a.get("link","")
                 post_x = f"{emoji} {label}\n\n{summ}"[:self.max_x]

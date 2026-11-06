@@ -1,0 +1,631 @@
+{
+  "version": 1,
+  "scope": "24 paires synthétiques annotées manuellement, pas une mesure sur la presse réelle",
+  "pairs": [
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Même démission explicitement décrite par deux médias."
+    },
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Ministre Martin annonce une démission du gouvernement français",
+        "title_original": "Ministre Martin annonce une démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Variation grammaticale sans différence factuelle."
+    },
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français après le vote",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français après le vote",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Développement quelques heures plus tard lié au même fait."
+    },
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Minister Martin resigns from the French government",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00",
+        "language": "en"
+      },
+      "annotation": "Traduction française déjà disponible, original conservé."
+    },
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "europe",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Même événement associé à une autre catégorie."
+    },
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa demission du gouvernement français !",
+        "title_original": "Le ministre Martin annonce sa demission du gouvernement français !",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Différences typographiques et accent non pertinentes."
+    },
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "La démission de Martin provoque une réaction de l’opposition française",
+        "title_original": "La démission de Martin provoque une réaction de l’opposition française",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Même événement annoté, angle différent ; cas volontairement difficile."
+    },
+    {
+      "label": "same",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le Parlement analyse les conséquences économiques du départ du ministre Martin",
+        "title_original": "Le Parlement analyse les conséquences économiques du départ du ministre Martin",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Même événement annoté, titre éloigné ; rappel limité attendu."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "La France annonce une élection présidentielle le 12 avril",
+        "title_original": "La France annonce une élection présidentielle le 12 avril",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "La France annonce une élection législative le 18 juin",
+        "title_original": "La France annonce une élection législative le 18 juin",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Deux élections."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "5a0631a2125e85a507ad63fd505e5969",
+        "title": "Une attaque à Paris lundi provoque une enquête judiciaire",
+        "title_original": "Une attaque à Paris lundi provoque une enquête judiciaire",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media2.invalid/article",
+        "source": "Média 2",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "634076659b6363d558aceae901a63148",
+        "title": "Une attaque à Paris vendredi provoque une enquête judiciaire",
+        "title_original": "Une attaque à Paris vendredi provoque une enquête judiciaire",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media3.invalid/article",
+        "source": "Média 3",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Deux attaques."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "469d94f958183e75a653f41fdd95a371",
+        "title": "La BCE annonce une baisse des taux à 3 pour cent",
+        "title_original": "La BCE annonce une baisse des taux à 3 pour cent",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media4.invalid/article",
+        "source": "Média 4",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "b65297b7483826fe2ad4ddbccb28476f",
+        "title": "La BCE annonce une baisse des taux à 2 pour cent",
+        "title_original": "La BCE annonce une baisse des taux à 2 pour cent",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media5.invalid/article",
+        "source": "Média 5",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Décisions successives."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "bbdb1f81967ef2c499151113a0a3a719",
+        "title": "Le Bitcoin annonce une hausse à 80000 dollars sur les marchés",
+        "title_original": "Le Bitcoin annonce une hausse à 80000 dollars sur les marchés",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media6.invalid/article",
+        "source": "Média 6",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "8813d761b43695e804f2b3837351d8f6",
+        "title": "Le Bitcoin annonce une hausse à 81000 dollars sur les marchés",
+        "title_original": "Le Bitcoin annonce une hausse à 81000 dollars sur les marchés",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media7.invalid/article",
+        "source": "Média 7",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Mouvements successifs."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "db2e9ba96aeeafdfc101c00a9a071e25",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media8.invalid/article",
+        "source": "Média 8",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "41b4edcfbae3d9f9101072baacf2ada8",
+        "title": "Le ministre Martin dément sa démission du gouvernement français",
+        "title_original": "Le ministre Martin dément sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media9.invalid/article",
+        "source": "Média 9",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Annonce et démenti ; pas de jugement factuel."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "b32f3dce82b96a54345f2ac20be14841",
+        "title": "Un accident de train à Lyon lundi provoque une enquête",
+        "title_original": "Un accident de train à Lyon lundi provoque une enquête",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media10.invalid/article",
+        "source": "Média 10",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "bc81c652ea7e545ad55a25224e7e41c9",
+        "title": "Un accident de train à Lyon jeudi provoque une enquête",
+        "title_original": "Un accident de train à Lyon jeudi provoque une enquête",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media11.invalid/article",
+        "source": "Média 11",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Accidents distincts."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "d08ac8393b02048215656df37a62c979",
+        "title": "Donald Trump annonce une nomination diplomatique",
+        "title_original": "Donald Trump annonce une nomination diplomatique",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media12.invalid/article",
+        "source": "Média 12",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "b9fcbf0db0891ce0d61b0152154e0c8a",
+        "title": "Donald Trump conteste les résultats du scrutin",
+        "title_original": "Donald Trump conteste les résultats du scrutin",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media13.invalid/article",
+        "source": "Média 13",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Personnalité commune, fait différent."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "c106d3a67c2c08447a81bf90e077f559",
+        "title": "La BCE annonce une hausse des taux directeurs européens",
+        "title_original": "La BCE annonce une hausse des taux directeurs européens",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media14.invalid/article",
+        "source": "Média 14",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "bae1b5f524ff1a77a9f3dba9c5d66600",
+        "title": "La BCE annonce une baisse des taux directeurs européens",
+        "title_original": "La BCE annonce une baisse des taux directeurs européens",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media15.invalid/article",
+        "source": "Média 15",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Actions opposées."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "cadc7724dd13ab4699b2c0214e0f4bd7",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media16.invalid/article",
+        "source": "Média 16",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "dc4ba20f52331ed588f39813cd41f616",
+        "title": "Le ministre Martin annonce une réforme du budget français",
+        "title_original": "Le ministre Martin annonce une réforme du budget français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media17.invalid/article",
+        "source": "Média 17",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Acteur commun seulement."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "102a2a9368cfbdf7acbac9ea4ba0d54d",
+        "title": "Le gouvernement français annonce une nouvelle réforme des retraites",
+        "title_original": "Le gouvernement français annonce une nouvelle réforme des retraites",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media18.invalid/article",
+        "source": "Média 18",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "0711b0cb2398c785a0463e0e7d09847d",
+        "title": "Le gouvernement français annonce une nouvelle réforme fiscale",
+        "title_original": "Le gouvernement français annonce une nouvelle réforme fiscale",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media19.invalid/article",
+        "source": "Média 19",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Sujet gouvernemental, objets distincts."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "4414d8da3fe9204b57a697c31869c03f",
+        "title": "La France remporte une victoire contre Espagne 2 à 0",
+        "title_original": "La France remporte une victoire contre Espagne 2 à 0",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media20.invalid/article",
+        "source": "Média 20",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "ebeb4963e82b7923d8d37274575a5ab0",
+        "title": "La France remporte une victoire contre Espagne 3 à 1",
+        "title_original": "La France remporte une victoire contre Espagne 3 à 1",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media21.invalid/article",
+        "source": "Média 21",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Rencontres distinctes."
+    },
+    {
+      "label": "different",
+      "left": {
+        "hash": "84e8f7cacb499f2913dcea029d75fbc6",
+        "title": "La société Orion annonce une hausse du chiffre affaires trimestriel",
+        "title_original": "La société Orion annonce une hausse du chiffre affaires trimestriel",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media22.invalid/article",
+        "source": "Média 22",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "26ad36fb034f022218c081a9085624e8",
+        "title": "La société Orion annonce une suspension des vols commerciaux",
+        "title_original": "La société Orion annonce une suspension des vols commerciaux",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media23.invalid/article",
+        "source": "Média 23",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Organisation commune, faits différents."
+    },
+    {
+      "label": "ambiguous",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Date absente, preuves insuffisantes."
+    },
+    {
+      "label": "ambiguous",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Fuseau absent, même titre non suffisant."
+    },
+    {
+      "label": "ambiguous",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Le ministre Martin annonce sa démission du gouvernement français",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Le ministre Martin annonce sa démission du gouvernement italien",
+        "title_original": "Le ministre Martin annonce sa démission du gouvernement italien",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Pays différent malgré titre presque identique ; rester séparé."
+    },
+    {
+      "label": "ambiguous",
+      "left": {
+        "hash": "6401d9f6570aed94888c57a092934014",
+        "title": "Martin annonce une réunion du gouvernement français",
+        "title_original": "Martin annonce une réunion du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media0.invalid/article",
+        "source": "Média 0",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "right": {
+        "hash": "e346b667504b679a48419d1b6147ec8b",
+        "title": "Martin annonce une décision du gouvernement français",
+        "title_original": "Martin annonce une décision du gouvernement français",
+        "summary": "Le ministre Martin annonce sa démission du gouvernement français après le vote parlementaire. Les élus commentent cette démission.",
+        "link": "https://media1.invalid/article",
+        "source": "Média 1",
+        "category": "france",
+        "pub_date": "2026-11-06T12:00:00+00:00",
+        "timestamp": "2026-11-06T12:00:00"
+      },
+      "annotation": "Thème et acteur partagés, événement non établi."
+    }
+  ]
+}

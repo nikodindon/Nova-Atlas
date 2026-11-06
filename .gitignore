@@ -108,3 +108,13 @@ source_discovery.json
 .source_discovery.json*
 discovery_feed_state.json
 .discovery_feed_state.json*
+
+# Private derived editorial index, operator overrides and consumer provenance
+editorial_events.json
+.editorial_events.json*
+editorial_overrides.json
+.editorial_overrides.json*
+editorial-events.lock
+editorial-selection.lock
+editorial_selection_*.json
+.editorial_selection_*.json*

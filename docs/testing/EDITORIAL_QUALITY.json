@@ -1,0 +1,43 @@
+{
+  "stability_checks": {
+    "restart_same_ids": true,
+    "addition_keeps_id": true
+  },
+  "scope": "24 paires synthétiques annotées manuellement, pas une mesure sur la presse réelle",
+  "pairs": 24,
+  "algorithms": {
+    "historical_two_words": {
+      "true_positive": 8,
+      "false_merge": 12,
+      "missed_group": 0,
+      "true_negative": 0,
+      "precision": 0.4,
+      "recall": 1.0,
+      "ambiguous_proposed": 4
+    },
+    "historical_summary_prefix": {
+      "true_positive": 8,
+      "false_merge": 12,
+      "missed_group": 0,
+      "true_negative": 0,
+      "precision": 0.4,
+      "recall": 1.0,
+      "ambiguous_proposed": 4
+    },
+    "conservative_v1": {
+      "true_positive": 6,
+      "false_merge": 0,
+      "missed_group": 2,
+      "true_negative": 12,
+      "precision": 1.0,
+      "recall": 0.75,
+      "ambiguous_proposed": 0
+    }
+  },
+  "elapsed_seconds": 0.064213,
+  "benchmark": {
+    "synthetic_articles": 500,
+    "events": 10,
+    "elapsed_seconds": 2.907494
+  }
+}

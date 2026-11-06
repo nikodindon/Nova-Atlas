@@ -159,3 +159,16 @@ SearXNG public HTTPS facultatif à endpoint opérateur fixe ; transport LAN et R
 opérationnel reportés. Le cadre de navigation existant conserve le lecteur audio
 et initialise des composants statiques connus, sans exécuter le HTML reçu.
 Voir SOURCE_DISCOVERY.md pour contrats, budgets, embargos et rollback.
+
+## Sprint 08 — Événements dérivés et provenance
+
+Couvertures typées → comparaison lexicale conservatrice/contraintes négatives →
+groupes complets, sans transitivité fragile. Index JSON privé reconstructible,
+corrections humaines séparées et manifestes de provenance ; aucun article ni hash
+historique réécrit. CLI dry-run, fingerprint et verrous POSIX avant publication.
+API publique de projection /api/events et détail discret dans le direct ; aucune
+reconstruction web automatique. Breaking utilise l'index ou un fallback conservateur.
+Radio/éditions : sélection événementielle explicitement opt-in, provenance et overrides
+respectés, validation/audio inchangées. Registre commun des catégories configurées
+et inconnues ; rapports/éditions ne filtrent plus les catégories supplémentaires.
+LLM atlas-verify préparé uniquement comme interface désactivée. Voir EDITORIAL_EVENTS.md.

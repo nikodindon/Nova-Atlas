@@ -26,45 +26,7 @@ from typing import Optional
 
 # ─── CONSTANTES ÉDITORIALES ───────────────────────────────────────────────────
 
-CATEGORY_LABELS = {
-    "geopolitique":  "Géopolitique",
-    "economie":      "Économie",
-    "crypto":        "Crypto",
-    "tech":          "Tech & IA",
-    "france":        "France",
-    "monde":         "Monde",
-    "science":       "Science & Santé",
-    "environnement": "Environnement",
-    "societe":       "Société & Droits",
-    "culture":       "Culture & Arts",
-    "sport":         "Sport",
-}
-
-CATEGORY_ICONS = {
-    "geopolitique":  "🌍",
-    "economie":      "📈",
-    "crypto":        "₿",
-    "tech":          "⚡",
-    "france":        "🗼",
-    "monde":         "🌐",
-    "science":       "🔬",
-    "environnement": "🌿",
-    "societe":       "✊",
-    "culture":       "🎭",
-    "sport":         "⚽",
-    # Catégories ajoutées au sprint "plus de sources" (2026-07-06)
-    "sante":            "🏥",
-    "gaming":           "🎮",
-    "sciences_humaines":"🧠",
-    "auto":             "🚗",
-    "regions":          "🗺️",  # anciennement local_france, renommé 2026-07-07
-    "asie":             "🏯",  # ajoutée 2026-07-27 (pagode, symbole asiatique universel)
-    "monde_arabe":      "🕌",  # ajoutée 2026-07-27 (Maghreb + Moyen-Orient)
-    "eurasie":          "🪆",  # ajoutée 2026-07-27 (matriochka, Russie)
-    "europe":           "🏰",  # ajoutée 2026-07-27 (chateau medieval, 27 UE + UK)
-    "afrique":          "🌍",  # ajoutée 2026-07-28 (savane, Afrique sub-saharienne)
-    "amerique_latine":  "🌴",  # ajoutée 2026-07-28 (palmier, symbole tropical)
-}
+from modules.editorial.categories import CATEGORY_LABELS, CATEGORY_ICONS, registry
 
 EDITION_CONFIG = {
     "matin": {"label": "Édition du Matin", "emoji": "🌅", "color": "#f59e0b"},
@@ -451,6 +413,10 @@ def _get_icecast_url(paths: dict) -> str:
     return '/stream/' + quote(mount, safe='/')
 
 
+def _category_icons(paths):
+    return {c.id:c.icon for c in registry(paths.get('feeds_file') or paths['root']/'config/feeds.yaml')}
+
+
 def _branding(paths: dict) -> dict:
     """Retourne les variables de branding + i18n à injecter dans les templates."""
     ui = paths.get("ui", _UI_STRINGS["fr"])
@@ -462,7 +428,7 @@ def _branding(paths: dict) -> dict:
         "service_name":  paths["brand_name"],
         # UI strings traduits
         "ui":            ui,
-        "cat_labels":    paths.get("cat_labels", CATEGORY_LABELS),
+        "cat_labels":    {**paths.get("cat_labels", CATEGORY_LABELS),**{c.id:c.name for c in registry(paths.get('feeds_file') or paths['root']/'config/feeds.yaml',labels=paths.get('cat_labels',{}))}},
     }
 
 # ─── CONFIG ATLAS (JSON) ──────────────────────────────────────────────────────
@@ -534,73 +500,43 @@ def get_available_days(paths: dict) -> list:
 # ─── BREAKING NEWS ────────────────────────────────────────────────────────────
 
 def get_breaking_news(paths: dict, max_items: int = 6) -> list:
-    stopwords = {
-        "le","la","les","de","du","des","en","et","à","pour","sur","par",
-        "dans","avec","un","une","au","aux","que","qui","est","sont","a",
-        "the","of","in","to","and","is","are","for","on","at","an","that",
-        "this","it","as","was","be","by","or","from","has","have","new",
-        "says","said","after","will","can","more","its","but","not","their",
-    }
-
-    def kw(title):
-        words = re.findall(r'\b[A-Za-zÀ-ÿ]{4,}\b', title.lower())
-        return frozenset(w for w in words if w not in stopwords)
-
-    today     = datetime.now().strftime("%Y%m%d")
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
-    cutoff    = datetime.now() - timedelta(hours=4)
-
-    articles = []
-    for day in [yesterday, today]:
-        from modules.web.config_security import confined_file
-        f = confined_file(paths["articles"], f"{day}_articles.json")
-        if f.exists():
+    from datetime import timezone
+    from modules.editorial.index import EventIndex,IndexError
+    from modules.editorial.events import Coverage,group_coverages
+    cutoff=datetime.now(timezone.utc)-timedelta(hours=4)
+    data=None
+    if paths.get('data'):
+        try:data=EventIndex(paths['articles'],paths['data']).load()
+        except (IndexError,OSError,KeyError,TypeError):return []
+    if data is not None:events=data['events']
+    else:
+        articles=[]
+        for day in ((datetime.now()-timedelta(days=1)).strftime('%Y%m%d'),datetime.now().strftime('%Y%m%d')):
+            articles.extend(load_articles_for_day(day,paths))
+        coverages=[]
+        for article in articles[:500]:
             try:
-                with open(f, "r", encoding="utf-8") as fp:
-                    articles.extend(json.load(fp))
-            except Exception:
-                pass
-
-    recent = [
-        a for a in articles
-        if not a.get("migrated") and a.get("title") and a.get("link")
-        and _parse_ts(a.get("timestamp","")) >= cutoff
-    ]
-    if not recent:
-        return []
-
-    groups, grouped = [], set()
-    for i, a in enumerate(recent):
-        if i in grouped:
-            continue
-        kw_i = kw(a.get("title", ""))
-        group = [a]
-        grouped.add(i)
-        for j, b in enumerate(recent):
-            if j <= i or j in grouped:
-                continue
-            if len(kw_i & kw(b.get("title",""))) >= 2:
-                group.append(b)
-                grouped.add(j)
-        groups.append(group)
-
-    groups.sort(key=lambda g: -len(g))
-    breaking = []
-    for group in groups:
-        if len(group) < 2:
-            continue
-        best    = max(group, key=lambda x: len(x.get("summary","")))
-        sources = list({a.get("source","") for a in group if a.get("source")})[:3]
-        breaking.append({
-            "title":   best.get("title","")[:80],
-            "link":    best.get("link",""),
-            "count":   len(group),
-            "sources": ", ".join(sources),
-            "cat":     best.get("category","monde"),
-        })
-        if len(breaking) >= max_items:
-            break
-    return breaking
+                if article.get('migrated'):continue
+                coverage=Coverage.from_article(article)
+                if coverage.published_at and datetime.fromisoformat(coverage.published_at)>=cutoff:coverages.append(coverage)
+            except (ValueError,TypeError,AttributeError):continue
+        coverages=sorted(coverages,key=lambda c:c.published_at or '',reverse=True)[:200]
+        events,_=group_coverages(coverages)
+        events=[e for e in events if e['article_count']>=2]
+    selected=[]
+    for event in events:
+        published=event.get('latest_published_at')
+        if not published:continue
+        try:stamp=datetime.fromisoformat(published)
+        except ValueError:continue
+        if stamp<cutoff or stamp>datetime.now(timezone.utc)+timedelta(hours=1):continue
+        representative=max(event['articles'],key=lambda a:len(a['summary']))
+        selected.append({'title':event['title'][:80],'link':representative['link'] or '#','count':event['article_count'],
+            'sources':', '.join(event['sources'][:3]),'cat':event['category'],'event_id':event['event_id'],
+            'source_count':event['domain_count'],'article_count':event['article_count'],'independent_confirmation':False,
+            'coverages':[{'title':a['title'],'link':a['link'],'source':a['source']} for a in event['articles']],
+            'last_updated_at':event['last_updated_at'],'published_at':published})
+    return sorted(selected,key=lambda e:(e['published_at'],e['event_id']),reverse=True)[:max_items]
 
 def _parse_ts(ts: str) -> datetime:
     try:
@@ -696,8 +632,8 @@ def render_report_page(day: str, paths: dict) -> str:
         source_count=len(sources),
         gen_time=datetime.now().strftime("%H:%M"),
         categories=categories,
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        cat_icons=_category_icons(paths),
+        flash_button_html=render_flash_button_html(_category_icons(paths), _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
         stats=stats,
         recent_articles=recent,
@@ -772,8 +708,8 @@ def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=Markup(BASE_CSS),
         breaking_banner=render_breaking_banner(paths),
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        cat_icons=_category_icons(paths),
+        flash_button_html=render_flash_button_html(_category_icons(paths), _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
         edition_label=cfg["label"],
         edition_emoji=cfg["emoji"],
@@ -825,8 +761,8 @@ def build_index(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=Markup(BASE_CSS),
         breaking_banner=render_breaking_banner(paths),
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        cat_icons=_category_icons(paths),
+        flash_button_html=render_flash_button_html(_category_icons(paths), _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
         days=day_cards,
         today_file=today_file,
@@ -851,6 +787,15 @@ def build_homepage(paths: dict) -> str:
         if md:
             return render_edition_page(today, ed, paths)
     return build_live_feed(paths)
+
+
+def _live_events(paths):
+    from modules.editorial.index import EventIndex,IndexError,public_event
+    try:
+        data=EventIndex(paths['articles'],paths['data']).load()
+        if not data:return []
+        return [public_event(e) for e in sorted(data['events'],key=lambda e:e.get('latest_published_at') or '',reverse=True)[:6]]
+    except (IndexError,OSError,ValueError,TypeError,KeyError):return []
 
 
 def build_live_feed(paths: dict) -> str:
@@ -924,9 +869,10 @@ def build_live_feed(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=Markup(BASE_CSS + LIVE_CSS_EXTRA),
         breaking_banner=render_breaking_banner(paths),
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        cat_icons=_category_icons(paths),
+        flash_button_html=render_flash_button_html(_category_icons(paths), _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
+        editorial_events=_live_events(paths),
         articles=recent,          # fil chronologique unique
         cat_counts=cat_counts_sorted,
         total=len(recent),
@@ -992,8 +938,8 @@ def build_config_yaml_page(paths: dict, config: dict) -> str:
         active_voices=voices,
         all_voices=ALL_VOICES,
         lang_labels=LANG_LABELS,
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        cat_icons=_category_icons(paths),
+        flash_button_html=render_flash_button_html(_category_icons(paths), _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
         year=datetime.now().year,
     )
@@ -1009,8 +955,8 @@ def build_config_page(paths: dict) -> str:
         icecast_url=_get_icecast_url(paths),
         css=Markup(BASE_CSS),
         cfg=cfg,
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        cat_icons=_category_icons(paths),
+        flash_button_html=render_flash_button_html(_category_icons(paths), _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
         models=AVAILABLE_MODELS,
         today_file=f"{datetime.now().strftime('%Y%m%d')}_report.html",
@@ -1205,8 +1151,8 @@ def build_preferences_page(paths: dict) -> str:
         icecast_url="",
         css="",
         extra_js=Markup(PREFS_PAGE_JS + '<script defer src="/assets/preferences.js"></script>'),
-        cat_icons=CATEGORY_ICONS,
-        flash_button_html=render_flash_button_html(CATEGORY_ICONS, _get_cat_labels(load_atlas_config(paths))),
+        cat_icons=_category_icons(paths),
+        flash_button_html=render_flash_button_html(_category_icons(paths), _get_cat_labels(load_atlas_config(paths))),
         flash_button_js=FLASH_BUTTON_JS,
     )
 
@@ -1420,6 +1366,8 @@ def create_app(config: dict, *, root: Path = None):
     install_source_api(app, paths)
     from modules.web.discovery_api import install_discovery_api
     install_discovery_api(app, paths, config)
+    from modules.web.events_api import install_events_api
+    install_events_api(app, paths)
 
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():
@@ -1598,7 +1546,7 @@ def create_app(config: dict, *, root: Path = None):
             if not category:
                 return jsonify({"status": "error", "msg": "category requise"}), 400
             # Validation catégorie
-            if category not in CATEGORY_ICONS:
+            if category not in {c.id for c in registry(paths['feeds_file'])}:
                 return jsonify({"status": "error", "msg": f"category inconnue: {category}"}), 400
 
             if not _flash_guard.acquire(blocking=False):
@@ -2435,7 +2383,15 @@ LIVE_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <!-- Fil chronologique unique — chaque item porte data-cat pour le filtre JS -->
-  <div class="live-grid" id="live-grid">
+  <section id="editorial-events">
+{% if editorial_events %}<details><summary>Couvertures rapprochées de mêmes événements</summary>
+<p>Associations éditoriales proposées. Confirmation factuelle indépendante non établie.</p>
+{% for event in editorial_events %}<article class="live-card"><h3>{{ event.title }}</h3>
+<p>{{ event.article_count }} articles · {{ event.domain_count }} domaines · {{ event.status }} · Index événement actualisé : {{ event.last_updated_at }}</p>
+{% for coverage in event.articles %}<p><a href="{{ coverage.link|safe_url }}" target="_blank" rel="noopener noreferrer">{{ coverage.source or coverage.domain or 'Source inconnue' }} — {{ coverage.title }}</a> · {{ coverage.category }} · {{ coverage.published_raw or 'publication inconnue' }} ({{ coverage.publication_status }})</p>{% endfor %}
+</article>{% endfor %}</details>{% endif %}
+</section>
+<div class="live-grid" id="live-grid">
     {% for a in articles %}
     {% set cat = a.get('category', 'monde') %}
     <div class="live-item" data-category="{{ cat }}" data-cat="{{ cat }}">
