@@ -1049,7 +1049,7 @@ FEEDS_PAGE_JS = """
 <label>Résultats <select id="discovery-filter"><option value="">Tous</option><option value="verified">Vérifiés</option><option value="new">Nouveaux vérifiés</option></select></label>
 <div id="discovery-results" class="feeds-grid"></div><pre id="discovery-preview" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>
 </section>
-<section id="media-manager"><h2>Illustrations et droits</h2><p>Images locales seulement, sous approbation. Une licence déclarée ne garantit pas l'absence de droits de tiers. Illustrations génériques uniquement.</p>
+<p><a href="/radio-studio">Radio Studio — calendrier, jobs et canaux</a></p><section id="media-manager"><h2>Illustrations et droits</h2><p>Images locales seulement, sous approbation. Une licence déclarée ne garantit pas l'absence de droits de tiers. Illustrations génériques uniquement.</p>
 <p id="media-state" aria-live="polite"></p>
 <form id="media-search-form" class="add-form"><select id="media-target" aria-label="Article ou événement"></select><input id="media-query" placeholder="Sujet pour Commons" maxlength="120" required><button type="submit" class="feed-btn">Rechercher Commons</button><button id="media-rss" type="button" class="feed-btn">Candidats RSS en cache</button><button id="media-html" type="button" class="feed-btn">Inspecter la page</button><button id="media-cancel" type="button" class="feed-btn">Annuler</button></form>
 <div id="media-records" class="feeds-grid"></div><button id="media-prev" class="feed-btn">Précédent</button><button id="media-next" class="feed-btn">Suivant</button></section>
@@ -1239,7 +1239,7 @@ def create_app(config: dict, *, root: Path = None):
     app.extensions["atlas_background_jobs"] = []
     @app.get('/assets/<name>')
     def web_asset(name):
-        allowed = {'web.js','flash.js','csrf.js','config.js','simple-config.js','feeds.js','preferences.js','media.js','news-fallback.svg'}
+        allowed = {'web.js','flash.js','csrf.js','config.js','simple-config.js','feeds.js','preferences.js','media.js','studio.js','news-fallback.svg'}
         if name not in allowed:
             abort(404)
         return send_from_directory(Path(__file__).with_name('assets'), name)
@@ -1379,6 +1379,8 @@ def create_app(config: dict, *, root: Path = None):
     install_events_api(app, paths)
     from modules.web.media_api import install_media_api
     install_media_api(app, paths, config)
+    from modules.web.studio_api import install_studio_api
+    install_studio_api(app,paths,config)
 
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():
@@ -1575,7 +1577,15 @@ def create_app(config: dict, *, root: Path = None):
             }
 
             def _run_flash():
+                studio_job=None;studio_lease=None
+                studio_journal=app.extensions['atlas_radio_studio']
                 try:
+                    if studio_journal.configured:
+                        from modules.radio.studio import lease
+                        candidate_lease=lease(studio_journal.root/'generation.lock');candidate_lease.__enter__();studio_lease=candidate_lease
+                        studio_job=studio_journal.admit('manual:'+_dt.now().strftime('%Y%m%d_%H%M%S')+':'+job_id,kind='flash')
+                        if not studio_job or studio_job['status']!='admitted':raise ValueError('flash_not_admitted')
+                        studio_journal.start(studio_job['id'])
                     from modules.radio.bulletin_generator import (
                         get_flash_articles, generate_flash_script, BulletinGenerator
                     )
@@ -1587,6 +1597,7 @@ def create_app(config: dict, *, root: Path = None):
                     _flash_jobs[job_id]["progress"] = 10
                     articles = get_flash_articles(paths, category, since_minute_of_day=0)
                     _flash_jobs[job_id]["articles_count"] = len(articles)
+                    if studio_job:studio_journal.references(studio_job['id'],articles)
 
                     if len(articles) < 1:
                         _flash_jobs[job_id]["status"] = "error"
@@ -1647,7 +1658,10 @@ def create_app(config: dict, *, root: Path = None):
                     # (pas de double appel LLM).
                     gen = BulletinGenerator(cfg, paths)
                     _flash_jobs[job_id]["progress"] = 60
-                    out_path = gen.build(articles, script=script, profile='flash')
+                    studio_args={}
+                    if studio_job:
+                        studio_args={'publication_name':studio_job['publication_name'],'observer':lambda phase,**values:(studio_journal.tts_event if phase in ('tts_bridge_selected','tts_voice_planned') else studio_journal.metrics)(studio_job['id'],phase,**values),'cancel_event':app.extensions.get('atlas_stop_event')}
+                    out_path = gen.build(articles, script=script, profile='flash',**studio_args)
                     _flash_jobs[job_id]["progress"] = 90
                     from modules.radio.audio_integrity import validated_publication
                     if not out_path or not validated_publication(out_path):
@@ -1655,7 +1669,8 @@ def create_app(config: dict, *, root: Path = None):
                         _flash_jobs[job_id]["error"] = "Échec TTS/mix"
                         return
 
-                    # 5. Done
+                    if studio_job:studio_journal.attach(studio_job['id'],out_path)
+                    # 5. Done (generation only, never a broadcast acknowledgement).
                     _flash_jobs[job_id]["status"] = "done"
                     _flash_jobs[job_id]["progress"] = 100
                     _flash_jobs[job_id]["mp3_path"] = str(out_path)
@@ -1663,6 +1678,11 @@ def create_app(config: dict, *, root: Path = None):
                     _flash_jobs[job_id]["status"] = "error"
                     _flash_jobs[job_id]["error"] = "Échec de génération"
                 finally:
+                    if studio_job:
+                        try:
+                            if studio_journal.load()[0]['jobs'][studio_job['id']]['status']=='generating':studio_journal.fail(studio_job['id'])
+                        except (ValueError,OSError):pass
+                    if studio_lease:studio_lease.__exit__(None,None,None)
                     _flash_guard.release()
 
             try:
@@ -2071,7 +2091,7 @@ LIVE_CSS_EXTRA = """
 # ─── SCRIPT GLOBAL (player radio + theme + live refresh) ─────────────────────
 # Injecté dans chaque template juste avant </body>
 
-GLOBAL_SCRIPT = '<script src="/assets/csrf.js"></script><script defer src="/assets/media.js"></script><script defer src="/assets/feeds.js"></script><script defer src="/assets/web.js"></script><script defer src="/assets/flash.js"></script>'
+GLOBAL_SCRIPT = '<script src="/assets/csrf.js"></script><script defer src="/assets/media.js"></script><script defer src="/assets/studio.js"></script><script defer src="/assets/feeds.js"></script><script defer src="/assets/web.js"></script><script defer src="/assets/flash.js"></script>'
 
 REPORT_TEMPLATE = """<!DOCTYPE html>
 <html lang="fr"><head>

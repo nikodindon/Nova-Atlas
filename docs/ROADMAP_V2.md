@@ -23,8 +23,8 @@ sauvegarde requis lorsqu'une étape touche aux données ou au déploiement.
 | 07 | Découverte de sources | PR #15 fusionnée : site statique, SearXNG public opt-in, preview et ajout volontaire ; RSSHub/LAN reportés |
 | 08 | Éditorial | PR #16 fusionnée : index dérivé, regroupements conservateurs, provenance et corrections ; sélection radio/éditions opt-in |
 | 09 | Images | PR #17 fusionnée ; candidats RSS/HTML, Commons manuel, CC BY 4.0 sous revue, worker borné et fallback ; documentaire/autres licences reportés |
-| 10 | Laboratoire TTS | Corpus fixe, worker/adaptateurs optionnels et écoute aveugle ; banc synthétique validé, mesures vocales Ryzen/i5/GPU et choix définitif non réalisés |
-| 11 | Radio Studio | Segments complets, calendrier unique, continuité après panne |
+| 10 | Laboratoire TTS | PR #18 fusionnée ; corpus fixe, worker/adaptateurs optionnels et écoute aveugle ; banc synthétique validé, mesures vocales Ryzen/i5/GPU et choix définitif non réalisés |
+| 11 | Radio Studio | Journal/outbox privés opt-in, calendrier Paris, observations locales et reprise explicite ; bridge Edge facultatif, alternatives non qualifiées |
 | 12 | SvelteKit | Parcours public/studio/admin, auth, lecteur persistant, accessibilité |
 | 13 | Release candidate | Installation seconde machine, charge, sécurité, droits, restauration |
 | 14+ | Android | Compatibilité API puis tests multi-smartphones |

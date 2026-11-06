@@ -363,3 +363,8 @@ Le [laboratoire TTS](docs/TTS_BENCHMARK.md) compare un corpus français fixe dan
 environnement séparé : fixtures hors ligne, Piper CPU facultatif, baseline Edge sous
 activation explicite. Aucun modèle téléchargé ni changement de la radio par défaut.
 Les mesures vocales et l'écoute restent à effectuer avant toute sélection de moteur.
+
+Le [Radio Studio](docs/RADIO_STUDIO.md), désactivé par défaut, ajoute un calendrier
+et des jobs durables, une outbox par canal, une supervision privée et une reprise
+explicite des publications. Edge et les reçus MP3 restent les références ; aucune
+promesse de diffusion exactement-une-fois ou de réception à partir d'un pipe local.

@@ -299,6 +299,7 @@ def test_all_registered_routes_classified(app):
     private |= {'/config/feeds/<action>','/api/admin/sources','/api/admin/sources/<identity>','/api/admin/sources/actions/<action>','/api/admin/sources/stats','/api/admin/sources/export','/api/admin/sources/import','/api/admin/sources/test'}
     private |= {'/api/admin/discovery/<mode>','/api/admin/discovery/status','/api/admin/discovery/preview','/api/admin/discovery/cancel'}
     private |= {'/api/admin/media','/api/admin/media/targets','/api/admin/media/search','/api/admin/media/discover','/api/admin/media/cancel','/api/admin/media/<identity>/<action>','/api/admin/media/<identity>/preview/<int:size>.jpg'}
+    private |= {'/radio-studio','/api/admin/radio','/api/admin/radio/jobs/<identity>','/api/admin/radio/control','/api/admin/radio/jobs/<identity>/audio'}
     assert {r.rule for r in app.url_map.iter_rules()} == public | private
 
 

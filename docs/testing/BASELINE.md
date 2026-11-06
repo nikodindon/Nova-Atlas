@@ -301,3 +301,20 @@ Compilation Python, syntaxe JavaScript, test CSRF Node et git diff --check réus
 La CI Docker ajoute deploy.tts_lab_smoke, network=none, sans poids ni framework
 optionnel ; tous les smokes précédents restent conservés. Aucun fichier radio de
 production modifié. Plan non suivi conservé, SHA256 identique.
+
+## Sprint 11 — Radio Studio
+
+Base après fusion autorisée PR18 : `dev@c3e5895` (huit CI réussies).
+Trois reproductions initiales en échec : MP3 supprimé après échec de passage,
+admission non durable et publication sans notification non rattachable.
+Suite complète finale : **1536 passed, 0 failed, 0 skipped**, dont **10 scénarios
+Chromium**. Tests de journal/outbox, DST, vrais processus locaux dédiés pour
+admission et mort du détenteur flock, MP3/reçus, transport/bridge simulés et sécurité.
+
+Smoke également exécuté localement sur stockage temporaire : deux processus,
+WAV sinusoïdal → MP3 avec FFmpeg réel, pipeline et reçu, sortie avant notification,
+redémarrage/réconciliation, deux admissions, récepteur fichier local, arrêt et cache
+Android intact. Aucun Edge/LLM/Icecast réel ou modèle installé. La CI ajoute le
+même smoke dans un conteneur network=none ; les smokes antérieurs restent obligatoires.
+Compilation Python, contrôle des JS, test CSRF Node et diff --check vérifiés.
+Plan local non suivi conservé avec la même empreinte SHA256.

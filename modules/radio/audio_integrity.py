@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 MAX_AUDIO_BYTES = 256 * 1024 * 1024
 PUBLIC_NAME = re.compile(r'bulletin_[0-9]{8}_[0-9]{6}_[0-9a-f]{32}\.mp3\Z')
@@ -33,16 +34,21 @@ def _regular_audio(path):
         raise AudioIntegrityError('missing_or_empty_audio')
 
 
-def inspect_audio(path):
+def inspect_audio(path, *, timeout=None):
     """Full MP3 decode is mandatory; ffprobe enriches metadata when available."""
     path = Path(path)
     _regular_audio(path)
+    deadline=time.monotonic()+timeout if timeout is not None else None
+    def budget(default):
+        remaining=default if deadline is None else min(default,deadline-time.monotonic())
+        if remaining<=0:raise AudioIntegrityError('audio_validation_timeout')
+        return remaining
     info = None
     try:
         if shutil.which('ffprobe'):
             probe = subprocess.run(['ffprobe', '-v', 'error', '-protocol_whitelist', 'file,pipe', '-f', 'mp3', '-show_entries',
                 'stream=codec_type,codec_name,sample_rate,channels:format=duration',
-                '-of', 'json', str(path.resolve())], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=15)
+                '-of', 'json', str(path.resolve())], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=budget(15))
             if probe.returncode:
                 raise AudioIntegrityError('probe_failed')
             data = json.loads(probe.stdout)
@@ -57,7 +63,7 @@ def inspect_audio(path):
             info = AudioInfo(duration, 'mp3', rate, channels)
         result = subprocess.run(['ffmpeg', '-v', 'error', '-xerror', '-err_detect', 'explode',
             '-protocol_whitelist', 'file,pipe', '-f', 'mp3', '-i', str(path.resolve()), '-map', '0:a:0', '-progress', 'pipe:1',
-            '-nostats', '-f', 'null', '-'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=120)
+            '-nostats', '-f', 'null', '-'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=budget(120))
         if result.returncode:
             raise AudioIntegrityError('audio_decode_failed')
         # Decode progress also rules out streams with headers but no decoded frames.

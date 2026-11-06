@@ -6,7 +6,8 @@ Supporte fadeout fluide entre musique et bulletins.
 
 import logging
 from collections import OrderedDict
-from modules.radio.audio_integrity import validated_publication, cache_publication, receipt_path
+from modules.radio.audio_integrity import validated_publication, cache_publication, receipt_path, inspect_audio
+from modules.radio import transport
 import random
 import subprocess
 import tempfile
@@ -65,6 +66,7 @@ class Streamer:
         self._ffmpeg_proc: subprocess.Popen | None = None
         self._play_queue: Queue = Queue()
         self._lock = threading.Lock()
+        self._pipe_lock = threading.Lock()
         self._bulletin_lock = threading.Lock()
         self._accepted_bulletins = OrderedDict()
 
@@ -90,6 +92,11 @@ class Streamer:
             if not path or not validated_publication(path) or Path(path).name in self._accepted_bulletins:
                 logger.warning('Bulletin admission refused (invalid or duplicate)')
                 return False
+            studio=getattr(self,'studio',None)
+            if studio:
+                try:
+                    if not studio.channel_event(Path(path),'primary','queued'):return False
+                except (ValueError,OSError):return False
             self._play_queue.put(Path(path))
             self._accepted_bulletins[Path(path).name] = None
             if len(self._accepted_bulletins) > 4096:
@@ -109,9 +116,11 @@ class Streamer:
             while not self._stop_event.is_set():
                 self._play_next()
         except Exception as e:
-            logger.error(f"Erreur streamer : {e}", exc_info=True)
+            logger.error('Streamer failure')
         finally:
+            self._stop_event.set()
             self._kill_ffmpeg()
+            heartbeat.join(timeout=6)
 
     def stop(self):
         self._stop_event.set()
@@ -121,13 +130,15 @@ class Streamer:
     # ------------------------------------------------------------------ #
 
     def _heartbeat(self):
+        last_silence=-1.0
         while not self._stop_event.is_set():
-            if self._ffmpeg_proc and self._ffmpeg_proc.poll() is not None:
+            if self._ffmpeg_proc is None or self._ffmpeg_proc.poll() is not None or getattr(self,'_source_fault',False):
                 logger.warning("⚠️ ffmpeg est mort → relance")
                 self._start_ffmpeg()
-            if not self._streaming_event.is_set():
-                self._write_to_pipe(_SILENCE_BYTES)
-            time.sleep(HEARTBEAT_INTERVAL)
+            now=time.monotonic()
+            if not self._streaming_event.is_set() and now-last_silence>=1:
+                self._write_to_pipe(_SILENCE_BYTES);last_silence=now
+            self._stop_event.wait(HEARTBEAT_INTERVAL)
 
     # ------------------------------------------------------------------ #
     #  Logique de lecture                                                  #
@@ -140,9 +151,17 @@ class Streamer:
             if not validated_publication(bulletin):
                 logger.warning('Queued bulletin changed; playback refused')
                 return
-            self._stream_file(bulletin, is_music=False)
-            receipt_path(bulletin).unlink(missing_ok=True)
-            bulletin.unlink(missing_ok=True)
+            studio=getattr(self,'studio',None)
+            if studio:
+                try:studio.channel_event(bulletin,'primary','playing')
+                except (ValueError,OSError):return
+            success=self._stream_file(bulletin, is_music=False)
+            if studio:
+                try:studio.channel_event(bulletin,'primary','locally_sent' if success else 'interrupted' if self._stop_event.is_set() else 'failed',bytes_sent=getattr(self,'_last_pass_bytes',0))
+                except (ValueError,OSError):pass
+            # Studio keeps immutable publications for reconciliation; legacy deletes only after success.
+            if success and not studio:
+                receipt_path(bulletin).unlink(missing_ok=True);bulletin.unlink(missing_ok=True)
         except Empty:
             music = self._pick_music()
             if music:
@@ -153,13 +172,23 @@ class Streamer:
                     self._stream_file(music, is_music=True)
             else:
                 logger.warning("⚠️ Aucune musique trouvée")
-                time.sleep(5)
+                self._stop_event.wait(5)
 
     def _pick_music(self) -> Path | None:
-        if not self.music_dir.exists():
-            return None
-        files = list(self.music_dir.glob("*.mp3"))
-        return random.choice(files) if files else None
+        if not self.music_dir.exists() or self.music_dir.is_symlink():return None
+        cache=getattr(self,'_music_validation',{});self._music_validation=cache
+        files=list(self.music_dir.glob('*.mp3'))[:512];random.shuffle(files)
+        for path in files:
+            try:
+                if path.is_symlink() or not path.is_file() or path.stat().st_nlink!=1:continue
+                key=(path.name,path.stat().st_mtime_ns,path.stat().st_size)
+                if key not in cache:
+                    try:inspect_audio(path);cache[key]=True
+                    except (ValueError,OSError):cache[key]=False
+                if cache[key]:return path
+            except OSError:continue
+        if len(cache)>1024:self._music_validation={}
+        return None
 
     # ------------------------------------------------------------------ #
     #  Fade + intro musicale courte                                        #
@@ -174,7 +203,7 @@ class Streamer:
         out_path = Path(tmp.name)
 
         cmd = [
-            "ffmpeg", "-y", "-i", str(music_path),
+            "ffmpeg", "-nostdin", "-y", "-protocol_whitelist", "file,pipe", "-f", "mp3", "-i", str(music_path),
             "-vn", "-map", "0:a",
             "-t", str(INTRO + FADE_DURATION),
             "-af", f"afade=t=out:st={INTRO:.2f}:d={FADE_DURATION:.2f}",
@@ -189,7 +218,7 @@ class Streamer:
             else:
                 logger.warning("Intro fade échouée")
         except Exception as e:
-            logger.warning(f"Erreur intro fade : {e}")
+            logger.warning('Intro fade failed')
         finally:
             out_path.unlink(missing_ok=True)
 
@@ -198,96 +227,16 @@ class Streamer:
     # ------------------------------------------------------------------ #
 
     def _stream_file(self, path: Path, is_music: bool = True):
-        if self._ffmpeg_proc is None or self._ffmpeg_proc.poll() is not None:
-            self._start_ffmpeg()
-            time.sleep(1)
+        success=transport.stream_file(self,path,music=is_music)
+        if not success and is_music:self._stop_event.wait(1)
+        return success
 
-        transcode_cmd = [
-            "ffmpeg", "-y", "-i", str(path),
-            "-vn", "-map", "0:a",
-            "-ar", str(self.sample_rate), "-ac", str(self.channels),
-            "-b:a", self.bitrate,
-            "-codec:a", "libmp3lame",
-            "-f", "mp3",
-            "pipe:1"
-        ]
-
-        try:
-            transcode = subprocess.Popen(
-                transcode_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE if self._debug else subprocess.DEVNULL,
-            )
-
-            self._streaming_event.set()
-            start_time = time.monotonic()
-
-            while not self._stop_event.is_set():
-                if is_music and self._fade_requested.is_set():
-                    # Gestion du fadeout (ton ancienne logique)
-                    elapsed = time.monotonic() - start_time
-                    logger.info(f"Fadeout demandé après {elapsed:.1f}s")
-                    # ... (tu peux réintégrer ta logique _prebuild_fadeout ici si tu veux)
-                    self._fade_requested.clear()
-                    break
-
-                chunk = transcode.stdout.read(CHUNK_SIZE)
-                if not chunk:
-                    break
-                self._write_to_pipe(chunk)
-
-            transcode.stdout.close()
-            transcode.wait(timeout=5)
-
-        except Exception as e:
-            logger.error(f"Erreur streaming {path.name} : {e}")
-        finally:
-            self._streaming_event.clear()
-
-    def _write_to_pipe(self, data: bytes) -> bool:
-        if not data or not self._ffmpeg_proc or self._ffmpeg_proc.stdin is None:
-            return False
-        try:
-            self._ffmpeg_proc.stdin.write(data)
-            self._ffmpeg_proc.stdin.flush()
-            return True
-        except (BrokenPipeError, OSError):
-            logger.warning("Pipe cassé → relance ffmpeg")
-            self._start_ffmpeg()
-            return False
-
-    def _start_ffmpeg(self):
-        with self._lock:
-            self._kill_ffmpeg()
-            cmd = [
-                "ffmpeg", "-re",
-                "-probesize", "32", "-analyzeduration", "0",
-                "-f", "mp3", "-i", "pipe:0",
-                "-vn", "-map", "0:a",
-                "-codec:a", "libmp3lame",
-                "-b:a", self.bitrate,
-                "-ar", str(self.sample_rate), "-ac", str(self.channels),
-                "-f", "mp3", "-content_type", "audio/mpeg",
-                "-ice_name", "Nova Media",
-                self.icecast_url,
-            ]
-            self._ffmpeg_proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE if self._debug else subprocess.DEVNULL,
-            )
-            logger.info("🔗 ffmpeg connecté à Icecast")
-
+    def _write_to_pipe(self, data):return transport.write_pipe(self,data)
+    def _start_ffmpeg(self):return transport.start_source(self,'Nova Media')
     def _kill_ffmpeg(self):
-        if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
-            try:
-                if self._ffmpeg_proc.stdin:
-                    self._ffmpeg_proc.stdin.close()
-                self._ffmpeg_proc.terminate()
-                self._ffmpeg_proc.wait(timeout=5)
-            except Exception:
-                pass
+        with self._lock:
+            transport.stop_process(self._ffmpeg_proc);self._ffmpeg_proc=None
+        transport.observe(self,'stopped')
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -321,6 +270,7 @@ class AndroidStreamer:
         self._stop_event     = threading.Event()
         self._ffmpeg_proc    = None
         self._lock           = threading.Lock()
+        self._pipe_lock      = threading.Lock()
         self._bulletin_lock  = threading.Lock()
         self._accepted_bulletins = OrderedDict()
         # Bulletin "courant" (celui qui est en train de boucler).
@@ -368,6 +318,11 @@ class AndroidStreamer:
             except (OSError, ValueError):
                 logger.warning('Android publication copy failed; previous audio retained')
                 return False
+            studio=getattr(self,'studio',None)
+            if studio:
+                try:
+                    if not studio.channel_event(cached,'android','queued'):return False
+                except (ValueError,OSError):return False
             if self._current is None:
                 self._current = cached
                 self._current_done.set()
@@ -393,7 +348,7 @@ class AndroidStreamer:
                 with self._bulletin_lock:
                     if self._current is not None and not validated_publication(self._current):
                         logger.warning('Android cached audio changed; playback refused')
-                        self._current = self._pending if validated_publication(self._pending) else None
+                        self._current = self._pending if validated_publication(self._pending) else self._load_last_bulletin(self._config)
                         self._pending = None
                 if self._current is None:
                     # Pas de bulletin : on envoie du silence en boucle
@@ -439,9 +394,11 @@ class AndroidStreamer:
                     # Sinon, on continue à boucler sur le même
                     logger.info(f"🔁 [android] Re-boucle sur {self._current.name}")
         except Exception as e:
-            logger.error(f"[android] Erreur streamer : {e}", exc_info=True)
+            logger.error('Android streamer failure')
         finally:
+            self._stop_event.set()
             self._kill_ffmpeg()
+            heartbeat.join(timeout=6)
 
     def _heartbeat(self):
         """
@@ -451,143 +408,40 @@ class AndroidStreamer:
         """
         while not self._stop_event.is_set():
             try:
-                if self._ffmpeg_proc and self._ffmpeg_proc.poll() is not None:
+                if self._ffmpeg_proc is None or self._ffmpeg_proc.poll() is not None or getattr(self,'_source_fault',False):
                     logger.warning("[android] Heartbeat: ffmpeg mort, relance")
                     self._start_ffmpeg()
             except Exception as e:
-                logger.warning(f"[android] Heartbeat error: {e}")
-            time.sleep(2)
+                logger.warning('Android heartbeat failed')
+            self._stop_event.wait(2)
 
     def stop(self):
         self._stop_event.set()
         self._current_done.set()  # débloquer les wait
 
     def _play_in_loop(self, path: Path):
-        """
-        Joue `path` jusqu'à la fin du fichier, en boucle tant que
-        `_pending` n'est pas set. Si `_pending` est set pendant la
-        lecture, on interrompt IMMÉDIATEMENT pour basculer sans
-        blanc (c'est mieux que d'attendre la fin du fichier, ce qui
-        peut timeout le client Android).
-        """
-        # Vérifier que le fichier existe avant de commencer
-        # (peut être supprimé par un cleanup entre-temps)
-        if not path.exists():
-            logger.warning(f"[android] Bulletin introuvable : {path.name}, fallback")
-            return
         self._current_done.clear()
-        while not self._stop_event.is_set():
-            # GARANTIR que le source ffmpeg est vivant AVANT chaque passe.
-            if self._ffmpeg_proc is None or self._ffmpeg_proc.poll() is not None:
-                logger.warning(f"[android] Source ffmpeg mort, relance...")
-                self._start_ffmpeg()
-                time.sleep(0.5)
-            # Re-vérifier le fichier à chaque passe (peut être supprimé)
-            if not path.exists():
-                logger.warning(f"[android] Bulletin disparu pendant la lecture : {path.name}")
-                return
-            transcode_cmd = [
-                "ffmpeg", "-y", "-i", str(path),
-                "-vn", "-map", "0:a",
-                "-ar", str(self.sample_rate), "-ac", str(self.channels),
-                "-b:a", self.bitrate,
-                "-codec:a", "libmp3lame",
-                "-f", "mp3",
-                "pipe:1",
-            ]
-            try:
-                transcode = subprocess.Popen(
-                    transcode_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                )
-                # Stream chunk par chunk
-                while not self._stop_event.is_set():
-                    # Check PENDING EN PREMIER (avant de lire le chunk).
-                    # Si un nouveau bulletin attend, on interrompt IMMÉDIATEMENT
-                    # pour basculer sans blanc (c'est ce que veut l'utilisateur).
-                    if self._pending is not None:
-                        # Coupe le transcode proprement
-                        transcode.terminate()
-                        try:
-                            transcode.wait(timeout=2)
-                        except Exception:
-                            transcode.kill()
-                        break
-                    chunk = transcode.stdout.read(CHUNK_SIZE)
-                    if not chunk:
-                        break  # fin du fichier
-                    ok = self._write_to_pipe(chunk)
-                    if not ok:
-                        # Pipe cassé : le source est mort
-                        logger.warning(f"[android] Pipe cassé pendant {path.name}")
-                        transcode.terminate()
-                        break
-                transcode.stdout.close()
-                try:
-                    transcode.wait(timeout=5)
-                except Exception:
-                    transcode.kill()
-            except Exception as e:
-                logger.error(f"[android] Erreur streaming {path.name} : {e}")
-                # Tente de relancer le source pour la prochaine passe
-                try:
-                    self._start_ffmpeg()
-                    time.sleep(0.5)
-                except Exception:
-                    pass
-                continue
-            # Si un nouveau bulletin est pending, on sort de la boucle externe
-            if self._pending is not None:
-                break
-            # Sinon, on reboucle
-        self._current_done.set()
-
-    def _write_to_pipe(self, data: bytes) -> bool:
-        if not data or not self._ffmpeg_proc or self._ffmpeg_proc.stdin is None:
-            return False
         try:
-            self._ffmpeg_proc.stdin.write(data)
-            self._ffmpeg_proc.stdin.flush()
-            return True
-        except (BrokenPipeError, OSError):
-            logger.warning("[android] Pipe cassé → relance ffmpeg")
-            self._start_ffmpeg()
-            return False
+            while not self._stop_event.is_set():
+                if not validated_publication(path):return
+                studio=getattr(self,'studio',None)
+                if studio:
+                    try:studio.channel_event(path,'android','playing')
+                    except (ValueError,OSError):pass # Historical cache can be valid but untracked.
+                success=transport.stream_file(self,path,pending=lambda:self._pending is not None)
+                if studio:
+                    try:studio.channel_event(path,'android','locally_sent' if success else 'interrupted',bytes_sent=getattr(self,'_last_pass_bytes',0))
+                    except (ValueError,OSError):pass
+                if self._pending is not None:return
+                if not success:self._stop_event.wait(1)
+        finally:self._current_done.set()
 
-    def _start_ffmpeg(self):
-        with self._lock:
-            self._kill_ffmpeg()
-            cmd = [
-                "ffmpeg", "-re",
-                "-probesize", "32", "-analyzeduration", "0",
-                "-f", "mp3", "-i", "pipe:0",
-                "-vn", "-map", "0:a",
-                "-codec:a", "libmp3lame",
-                "-b:a", self.bitrate,
-                "-ar", str(self.sample_rate), "-ac", str(self.channels),
-                "-f", "mp3", "-content_type", "audio/mpeg",
-                "-ice_name", "Nova Atlas Android",
-                self.icecast_url,
-            ]
-            self._ffmpeg_proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE if self._debug else subprocess.DEVNULL,
-            )
-            logger.info("[android] ffmpeg connected to configured Icecast mount")
-
+    def _write_to_pipe(self,data):return transport.write_pipe(self,data)
+    def _start_ffmpeg(self):return transport.start_source(self,'Nova Atlas Android')
     def _kill_ffmpeg(self):
-        if self._ffmpeg_proc and self._ffmpeg_proc.poll() is None:
-            try:
-                if self._ffmpeg_proc.stdin:
-                    self._ffmpeg_proc.stdin.close()
-                self._ffmpeg_proc.terminate()
-                self._ffmpeg_proc.wait(timeout=5)
-            except Exception:
-                pass
-        self._ffmpeg_proc = None
+        with self._lock:
+            transport.stop_process(self._ffmpeg_proc);self._ffmpeg_proc=None
+        transport.observe(self,'stopped')
 
     def _generate_silence(self) -> bytes:
         """Génère 1 seconde de silence MP3 pour le mount idle."""
@@ -617,14 +471,9 @@ class AndroidStreamer:
             self._current_done.clear()
             self._current_done.wait(timeout=5)
             return
-        # Envoie 1s de silence en boucle
-        deadline = time.monotonic() + 1.0
+        # Exactly one one-second frame per second; wake immediately on a bulletin/stop.
         while not self._stop_event.is_set() and self._current is None:
             self._write_to_pipe(self._silence_bytes)
-            # Attend un peu (et vérifie si un bulletin est arrivé)
-            remaining = deadline - time.monotonic()
-            if remaining > 0:
-                self._current_done.clear()
-                self._current_done.wait(timeout=min(remaining, 0.1))
-            else:
-                deadline = time.monotonic() + 1.0
+            self._current_done.clear()
+            if self._current is None and not self._stop_event.is_set():
+                self._current_done.wait(timeout=1)
