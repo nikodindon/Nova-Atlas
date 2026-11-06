@@ -46,6 +46,7 @@ jobs:
       - run: python -m deploy.smoke
       - run: python -m deploy.rss_smoke
       - run: python -m deploy.tts_lab_smoke
+      - run: python -m deploy.radio_studio_smoke
 
   gateway-smoke:
     runs-on: ubuntu-latest

@@ -234,6 +234,11 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
     log = logging.getLogger("nova.radio")
     log.info("Initialisation radio...")
 
+    studio_enabled=config.get('radio_studio',{}).get('enabled') is True
+    if studio_enabled:
+        config={**config,'paths':{**config.get('paths',{})}}
+        for key,default in (('audio_queue','audio_queue'),('data_dir','data'),('music','music')):
+            config['paths'][key]=str(_P(config['paths'].get(key,default)).absolute())
     streamer = Streamer(config)
     # 2e streamer dédié pour le client Android : bulletins en boucle
     # sur le mount /nova-android (cf config.yaml icecast.android_mount)
@@ -248,9 +253,18 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
         "tmp":              _proj / "tmp",
         "background_music":  _proj / "background_music",
     }
+    studio=None;runtime_lease=None
+    if studio_enabled:
+        from modules.radio.studio import StudioJournal,RadioStudio,lease,ZONE
+        radio_paths.update(data=_P(config['paths']['data_dir']),articles=_P(config.get('paths',{}).get('articles_dir',_P(config['paths']['data_dir'])/'articles')).absolute(),audio_queue=_P(config['paths']['audio_queue']))
+        journal=StudioJournal(radio_paths['data'],radio_paths['audio_queue'])
+        runtime_lease=lease(journal.root/'runtime.lock');runtime_lease.__enter__()
+        try:journal.begin_run()
+        except (ValueError,OSError):log.error('Radio Studio journal unavailable; new generations disabled')
+        studio=RadioStudio(journal,streamer,android_streamer,stop_event)
     builder = BulletinGenerator(config, radio_paths)
 
-    def generate_bulletin():
+    def generate_bulletin(slot=None,identity=None):
         """Génère un bulletin avec les articles des 30 dernières minutes."""
         try:
             from modules.radio.bulletin_generator import load_bulletins_config
@@ -262,6 +276,8 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
             max_articles = config.get("radio", {}).get("max_articles_per_bulletin", 40)
             articles = articles[:max_articles]
             log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap {max_articles})")
+            if studio:
+                studio.generate(slot,articles,builder,identity);return
             path = builder.build(articles)
             if path:
                 # Cache Android before the primary can consume/delete the MP3.
@@ -298,16 +314,36 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
             log.info('⏰ Scheduler radio actif, post_hours=%s', post_hours)
             last_heartbeat = current
 
+    def radio_plan(now):
+        tasks=radio_tasks(now,post_hours)
+        if studio:
+            from modules.core.scheduler import DueTask
+            admitted=[]
+            for task in tasks:
+                try:row=journal.admit(task.slot)
+                except (ValueError,OSError):continue
+                if row and row['status']=='admitted':admitted.append(DueTask(task.group,task.slot,(task.slot,row['id'])))
+            return admitted
+        return tasks
+
+    previous_refresh=refresh_radio_schedule
+    def refresh_with_studio(now):
+        previous_refresh(now)
+        if studio:
+            try:studio.tick()
+            except (ValueError,OSError):log.warning('Radio Studio journal unavailable')
+
     try:
-        run_loop(lambda now: radio_tasks(now, post_hours), {'bulletin': generate_bulletin},
-                 stop_event, runner=ThreadRunner(log=log), clock=lambda: datetime.now(),
-                 before_tick=refresh_radio_schedule)
+        run_loop(radio_plan, {'bulletin': generate_bulletin},
+                 stop_event, runner=ThreadRunner(log=log), clock=lambda: datetime.now(ZONE) if studio else datetime.now(),
+                 before_tick=refresh_with_studio)
     finally:
         # run_loop drains bulletin work first; stop audio only after its final enqueue.
         streamer.stop()
         android_streamer.stop()
         for thread in stream_threads:
             thread.join()
+        if runtime_lease:runtime_lease.__exit__(None,None,None)
 
 
 # ─── PROCESSUS : WEB SERVER ───────────────────────────────────────────────────

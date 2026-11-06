@@ -132,3 +132,13 @@ ne sont pas rattrapées. Deux instances indépendantes ne sont pas coordonnées.
 garantie durable ou multi-processus demandera les jobs persistants du sprint SQL,
 avec idempotence métier et politique de reprise explicite. Aucun « exactly once »
 global n'est revendiqué ici.
+
+## Option Radio Studio — Sprint 11
+
+Sans option, les garanties et limites en mémoire ci-dessus restent applicables.
+Avec radio_studio.enabled : même boucle Radio et même autorité bulletins.yaml,
+horloge explicite Paris, réservation durable par créneau avant lancement du thread.
+Un job connu n'est pas régénéré après restart. Une génération active consomme le
+créneau suivant avec motif ; aucune nouvelle boucle Flask. Les jobs/passes ambigus
+exigent une reprise explicite d'une publication existante, pas un rejeu automatique.
+Voir RADIO_STUDIO.md pour outbox, états, limites et rollback.

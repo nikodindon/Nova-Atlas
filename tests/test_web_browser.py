@@ -293,3 +293,23 @@ def test_image_review_public_local_image_csp_and_audio(browser_page,app):
     page.locator('.topbar-nav a[href="/archives"]').click();page.wait_for_url('**/archives')
     assert page.evaluate('window.savedAudio===window._novaAudio && !window._novaAudio.paused')
     assert page.evaluate('window.pwned') is None
+
+
+def test_radio_studio_controls_calendar_and_persistent_player(browser_page,app):
+    from tests.test_radio_studio import attached
+    page,errors,requests,injections=browser_page
+    journal=app.extensions['atlas_radio_studio'];journal.configured=True;row,path=attached(journal)
+    page.goto('https://atlas.invalid/admin/login')
+    page.locator('[name="username"]').fill('admin-test');page.locator('[name="password"]').fill('synthetic-test-password')
+    page.evaluate("async()=>{const form=document.querySelector('form');await fetch(form.action,{method:'POST',body:new FormData(form),redirect:'manual'});}")
+    page.goto('https://atlas.invalid/config/feeds/page')
+    page.locator('[data-action="radio-toggle"]').click();page.evaluate('window.studioAudio=window._novaAudio')
+    page.locator('a[href="/radio-studio"]').click();page.wait_for_url('**/radio-studio')
+    page.wait_for_selector('[data-job="'+row['id']+'"]')
+    assert page.evaluate('window.studioAudio===window._novaAudio && !window._novaAudio.paused')
+    assert page.locator('#studio-calendar p').count()>0
+    page.locator('[data-studio="dry-run"]').click();page.wait_for_function("()=>document.querySelector('#studio-message').textContent.includes('Dry-run')")
+    page.locator('[data-studio="disable"]').click();page.wait_for_function("()=>document.querySelector('#studio-message').textContent.includes('suspendu')")
+    assert journal.load()[0]['enabled'] is False and path.exists()
+    page.locator('.topbar-nav a[href="/archives"]').click();page.wait_for_url('**/archives')
+    assert page.evaluate('window.studioAudio===window._novaAudio && !window._novaAudio.paused')

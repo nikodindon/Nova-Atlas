@@ -519,7 +519,7 @@ def synthesize_segment(text, voice, output_path, *, timeout=90):
 
 def synthesize_all_segments(segments, voice_map, tmp_dir, *, attempts=3, timeout=90,
                             backoff=1, max_backoff=4, manifest=None,
-                            synthesizer=None, inspector=None, wait=None):
+                            synthesizer=None, inspector=None, wait=None, cancel_event=None):
     """All mandatory segments or an exception; retry only the failing segment."""
     synthesizer, inspector, wait = synthesizer or synthesize_segment, inspector or inspect_audio, wait or time.sleep
     if not segments or not 1 <= attempts <= 5 or not 0 < timeout <= 300 or not 0 <= backoff <= max_backoff <= 30:
@@ -540,13 +540,16 @@ def synthesize_all_segments(segments, voice_map, tmp_dir, *, attempts=3, timeout
         records.append(Segment(index, tag, text, voice, Path(tmp_dir) / f"seg_{index:03d}_{tag.strip('[]')}.mp3"))
     for record in records:
         for attempt in range(1, attempts + 1):
+            if cancel_event is not None and cancel_event.is_set():raise AudioIntegrityError('tts_cancelled')
             record.attempts, record.state = attempt, 'generating'
             record.path.unlink(missing_ok=True)
             try:
-                if not synthesizer(record.text, record.voice, record.path, timeout=timeout):
+                result=synthesizer(record.text, record.voice, record.path, timeout=timeout)
+                if not result:
                     raise AudioIntegrityError('tts_failed')
                 if record.path.is_symlink() or not record.path.is_file() or not record.path.stat().st_size:
                     raise AudioIntegrityError('missing_segment_output')
+                if hasattr(result,'selected_voice'):record.voice=result.selected_voice
                 record.info = inspector(record.path)
                 record.state = 'valid'
                 break
@@ -556,7 +559,10 @@ def synthesize_all_segments(segments, voice_map, tmp_dir, *, attempts=3, timeout
                 logger.warning('TTS segment %d attempt %d/%d failed', record.index, attempt, attempts)
                 if attempt == attempts:
                     raise AudioIntegrityError('mandatory_segment_failed') from None
-                wait(min(max_backoff, backoff * 2 ** (attempt - 1)))
+                delay=min(max_backoff, backoff * 2 ** (attempt - 1))
+                if cancel_event is not None:
+                    if cancel_event.wait(delay):raise AudioIntegrityError('tts_cancelled')
+                else:wait(delay)
     return [record.path for record in records]
 
 
@@ -795,9 +801,11 @@ class BulletinGenerator:
         }
         return aliases.get(lang, lang[:2])
 
-    def build(self, articles, script=None, *, profile='bulletin'):
+    def build(self, articles, script=None, *, profile='bulletin', publication_name=None, observer=None, cancel_event=None):
         """Return only a complete, validated, atomically published MP3."""
         cfg = self.bulletins_cfg
+        manifest=[];tts_started=None
+        if cancel_event is not None and cancel_event.is_set():return None
         if len(articles) < cfg.get('min_articles', 3):
             return None
         try:
@@ -808,6 +816,7 @@ class BulletinGenerator:
             if script is None:
                 intros, transitions, outros = self._load_messages()
                 script = generate_bulletin_script(articles, {**cfg, **self.config}, intros, transitions, outros)
+            if cancel_event is not None and cancel_event.is_set():raise AudioIntegrityError('generation_cancelled')
             segments = split_script_by_voice(script)
             if profile not in ('bulletin', 'flash'):
                 raise AudioIntegrityError('invalid_profile')
@@ -821,15 +830,27 @@ class BulletinGenerator:
                 logger.warning('Script outside editorial length bounds (%d words)', count)
                 if policy == 'strict':
                     return None
+            if observer:observer('script_validated',words=count,segments=len(segments))
             generation = uuid.uuid4().hex
             # Same filesystem as the public queue; private work is never globbed as a bulletin.
             with tempfile.TemporaryDirectory(prefix='.bulletin-', dir=self.queue_dir) as tmp:
                 work = Path(tmp)
                 manifest = []
-                paths = synthesize_all_segments(segments, self.voice_map, work,
+                synthesizer=None;segment_voices=self.voice_map
+                bridge_cfg=self.config.get('tts_bridge',{})
+                if bridge_cfg.get('enabled') is True:
+                    from modules.radio.tts_bridge import TTSBridge
+                    bridge=TTSBridge(bridge_cfg.get('profiles',{}),observer=observer)
+                    segment_voices={tag:bridge_cfg['profiles'][profile][tag]['voice'] for tag,text in segments}
+                    synthesizer=lambda text,voice,path,timeout:bridge.synthesize(text,'['+path.stem.split('_',2)[2]+']',path,timeout=timeout,cancel=cancel_event,profile=profile)
+                if observer and synthesizer is None:
+                    for voice in sorted(set(self.voice_map[tag] for tag,text in segments)):observer('tts_voice_planned',engine='edge',voice=voice,fallback=False)
+                tts_started=time.monotonic()
+                paths = synthesize_all_segments(segments, segment_voices, work,
                     attempts=int(cfg.get('tts_max_attempts', 3)), timeout=float(cfg.get('tts_timeout_seconds', 90)),
                     backoff=float(cfg.get('tts_retry_backoff', 1)), max_backoff=float(cfg.get('tts_retry_max_backoff', 4)),
-                    manifest=manifest)
+                    manifest=manifest,synthesizer=synthesizer,cancel_event=cancel_event)
+                if observer:observer('tts_complete',tts_seconds=time.monotonic()-tts_started,retries=sum(s.attempts-1 for s in manifest))
                 if len(paths) != len(segments) or any(s.state != 'valid' for s in manifest):
                     raise AudioIntegrityError('incomplete_manifest')
                 formats = {(s.info.sample_rate, s.info.channels) for s in manifest
@@ -847,11 +868,23 @@ class BulletinGenerator:
                     raise AudioIntegrityError('mix_failed')
                 final_info = inspect_audio(staged)
                 compatible_duration(final_info, voice_info.duration)
-                target_path = self.queue_dir / f"bulletin_{datetime.now():%Y%m%d_%H%M%S}_{generation}.mp3"
+                if cancel_event is not None and cancel_event.is_set():raise AudioIntegrityError('generation_cancelled')
+                if observer:observer('audio_validated',audio_seconds=final_info.duration)
+                if publication_name is not None:
+                    from modules.radio.audio_integrity import PUBLIC_NAME
+                    if not isinstance(publication_name,str) or not PUBLIC_NAME.fullmatch(publication_name):raise AudioIntegrityError('invalid_publication_name')
+                target_path = self.queue_dir / (publication_name or f"bulletin_{datetime.now():%Y%m%d_%H%M%S}_{generation}.mp3")
                 return publish_audio(staged, target_path, final_info, len(manifest))
         except Exception as exc:
             reason = str(exc) if isinstance(exc, AudioIntegrityError) else type(exc).__name__
             logger.error('Bulletin generation refused (%s)', reason)
+            if observer:
+                try:
+                    code=reason.lower() if re.fullmatch('[A-Za-z_]{1,50}',reason) else 'unexpected_error'
+                    values={'segments':len(manifest),'retries':sum(max(0,s.attempts-1) for s in manifest)}
+                    if tts_started is not None:values['tts_seconds']=time.monotonic()-tts_started
+                    observer('build_refused_'+code,**values)
+                except Exception:pass
             return None
 
     def build_async(self, articles: List[dict], callback=None):

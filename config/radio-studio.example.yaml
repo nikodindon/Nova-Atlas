@@ -1,0 +1,19 @@
+# Fragment opt-in de config.yaml privé ; aucun service ni téléchargement au chargement.
+radio_studio:
+  enabled: false
+# Conserver Edge historique tant que ce bridge n'est pas explicitement souhaité.
+tts_bridge:
+  enabled: false
+  profiles:
+    bulletin:
+      "[VOIX1]": {engine: edge, voice: fr-FR-HenriNeural, language: fr-FR, qualified: true, fallback_enabled: false}
+      "[VOIX2]": {engine: edge, voice: fr-FR-DeniseNeural, language: fr-FR, qualified: true, fallback_enabled: false}
+      "[VOIX3]": {engine: edge, voice: fr-FR-HenriNeural, language: fr-FR, qualified: true, fallback_enabled: false}
+      "[VOIX_BREAKING]": {engine: edge, voice: fr-FR-HenriNeural, language: fr-FR, qualified: true, fallback_enabled: false}
+    flash:
+      "[VOIX1]": {engine: edge, voice: fr-FR-HenriNeural, language: fr-FR, qualified: true, fallback_enabled: false}
+      "[VOIX2]": {engine: edge, voice: fr-FR-DeniseNeural, language: fr-FR, qualified: true, fallback_enabled: false}
+# qualified pour Edge documente le choix opérateur de la baseline existante,
+# pas une nouvelle qualification acoustique ni une autorisation juridique.
+# Piper et fixtures ne sont pas des providers activables en production.
+# Les heures restent exclusivement dans config/bulletins.yaml.

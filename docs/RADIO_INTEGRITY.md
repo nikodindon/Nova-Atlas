@@ -192,3 +192,19 @@ redémarrage, pas d'exactly-once distribué, pas de déduplication sémantique e
 générations distinctes du même script. L'historique d'admission est borné, et Android
 peut reprendre son dernier bulletin validé au démarrage. Les jobs PostgreSQL et la
 politique de rétention automatique du cache restent à une étape ultérieure.
+
+## Orchestration facultative Sprint 11
+
+Radio Studio réserve le nom final avant build, sans changer MP3/reçu ni leurs
+contrôles. Les observers ne stockent que métriques/voix et motifs typés. Le bridge
+facultatif produit un MP3 de segment privé et revalide son décodage ; ni corpus,
+benchmarks, Piper non qualifié ou fixtures marquées ne deviennent un runtime actif.
+Length warn et la conservation de tous les segments restent identiques.
+
+En Studio, les publications sont conservées après passage principal pour reprise.
+En mode historique, suppression uniquement après succès local observé, plus après
+un échec de transmission. Ce succès ne prouve pas la réception Icecast. Les
+processus possédés sont nettoyés et les reconnexions bornées. La durée maximale
+optionnelle d'inspection permet au bridge de partager son budget avec la validation,
+sans supprimer le décodage complet. Voir RADIO_STUDIO.md pour les observations,
+les changements de comportement et la différence intégrité/diffusion effective.

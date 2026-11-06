@@ -192,3 +192,13 @@ Aucun poids/framework lourd dans les dépendances de production ; aucune publica
 radio ou sélection de moteur automatique. Le bridge futur devra conserver manifeste,
 MP3 et reçus du Sprint 01F. Voir [TTS_BENCHMARK.md](TTS_BENCHMARK.md) : mesures de
 banc synthétique seulement, résultats vocaux/4 Go GPU/qualité humaine non mesurés.
+
+### Sprint 11 : Radio Studio opt-in
+
+Journal JSON privé et versionné sous data/radio_studio, outbox par publication et
+états distincts par canal. Même scheduler Paris/bulletins.yaml, leases stables et
+reprise explicite après issue ambiguë, sans promesse exactly-once Icecast. API et
+page Flask privées, contrôle CSRF et lecteur persistant ; aucune boucle de jobs Web.
+Transport FFmpeg borné et observé localement ; cache Android et reçus conservés.
+Bridge TTS runtime séparé du laboratoire, Edge par défaut, aucun Piper/fallback
+implicite. Voir RADIO_STUDIO.md. PostgreSQL n'est pas une autorité opérationnelle.
