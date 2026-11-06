@@ -22,7 +22,8 @@ def hostile(app):
 
 def test_untrusted_article_is_plain_text(client, hostile):
     soup = BeautifulSoup(get(client, '/live').data, 'html.parser')
-    assert not soup.select('#live-grid img, #live-grid script, #live-grid svg')
+    assert not soup.select('#live-grid script, #live-grid svg')
+    assert all(img.get('src')=='/assets/news-fallback.svg' and not img.get('onerror') for img in soup.select('#live-grid img'))
     assert hostile[2] in soup.get_text()
 
 

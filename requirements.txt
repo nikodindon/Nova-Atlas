@@ -13,3 +13,6 @@ nh3==0.3.7
 # RSS/Atom parsing; the parser receives only the secured HTTP response bytes.
 feedparser==6.0.14
 sgmllib3k==1.0.0
+
+# Sprint 09: isolated, bounded JPEG/PNG/WebP decoding.
+Pillow==13.0.0

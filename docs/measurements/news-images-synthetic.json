@@ -1,0 +1,86 @@
+{
+  "scope": "3 synthetic flat-colour images, one isolated process each; not representative of editorial coverage",
+  "results": [
+    {
+      "input_format": "JPEG",
+      "input_bytes": 15029,
+      "dimensions": [
+        1280,
+        720
+      ],
+      "derivatives": [
+        {
+          "size": 320,
+          "width": 320,
+          "height": 180,
+          "bytes": 646
+        },
+        {
+          "size": 768,
+          "width": 768,
+          "height": 432,
+          "bytes": 2230
+        }
+      ],
+      "metrics": {
+        "decode_ms": 25.692,
+        "thumbnail_ms": 28.62,
+        "peak_rss_kib": 47880
+      }
+    },
+    {
+      "input_format": "PNG",
+      "input_bytes": 4322,
+      "dimensions": [
+        1280,
+        720
+      ],
+      "derivatives": [
+        {
+          "size": 320,
+          "width": 320,
+          "height": 180,
+          "bytes": 646
+        },
+        {
+          "size": 768,
+          "width": 768,
+          "height": 432,
+          "bytes": 2230
+        }
+      ],
+      "metrics": {
+        "decode_ms": 33.316,
+        "thumbnail_ms": 30.47,
+        "peak_rss_kib": 48144
+      }
+    },
+    {
+      "input_format": "WEBP",
+      "input_bytes": 1716,
+      "dimensions": [
+        1280,
+        720
+      ],
+      "derivatives": [
+        {
+          "size": 320,
+          "width": 320,
+          "height": 180,
+          "bytes": 646
+        },
+        {
+          "size": 768,
+          "width": 768,
+          "height": 432,
+          "bytes": 2230
+        }
+      ],
+      "metrics": {
+        "decode_ms": 60.153,
+        "thumbnail_ms": 26.915,
+        "peak_rss_kib": 57092
+      }
+    }
+  ]
+}

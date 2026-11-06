@@ -48,3 +48,6 @@ psycopg-binary==3.3.8
 # Sprint 05: feedparser receives bytes only, never a network URL.
 feedparser==6.0.14
 sgmllib3k==1.0.0
+
+# Sprint 09: isolated, bounded JPEG/PNG/WebP decoding.
+Pillow==13.0.0

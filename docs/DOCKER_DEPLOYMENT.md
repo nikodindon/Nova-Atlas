@@ -352,3 +352,12 @@ feed_ingestion_state.json utilise le bind data commun ; pas de volume/service de
 production supplémentaire ni changement PostgreSQL/LiteLLM. Le smoke RSS utilise
 un conteneur jetable network=none et un transport de test injecté, jamais une
 exception SSRF de production. Configuration/rollback : RSS_INGESTION.md.
+
+### Illustrations optionnelles
+
+Pillow épinglé est inclus dans l'image applicative. Le worker raster s'exécute
+sous le même UID non-root, en subprocess borné, sans credentials hérités.
+`data/news_media` et `data/media_http_state.json` utilisent le stockage POSIX data
+partagé existant ; aucun volume, service, GPU ou port supplémentaire.
+Sauvegarder ce manifeste et ses binaires ensemble. Le mode est `disabled` par
+défaut ; activation et politique de droits : [NEWS_IMAGES.md](NEWS_IMAGES.md).

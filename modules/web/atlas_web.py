@@ -421,6 +421,7 @@ def _branding(paths: dict) -> dict:
     """Retourne les variables de branding + i18n à injecter dans les templates."""
     ui = paths.get("ui", _UI_STRINGS["fr"])
     return {
+        **__import__("modules.media.view",fromlist=["helpers"]).helpers(paths),
         "brand_name":    paths["brand_name"],
         "brand_tagline": paths["brand_tagline"],
         "logo_main":     paths["logo_main"],
@@ -720,6 +721,7 @@ def render_edition_page(day: str, edition_name: str, paths: dict) -> str:
         article_count=article_count,
         gen_time=now.strftime("%H:%M"),
         body_html=body_html,
+        image_articles=articles[:3],
         editions_of_day=editions_day,
         edition_configs=EDITION_CONFIG,
         day=day,
@@ -1047,6 +1049,10 @@ FEEDS_PAGE_JS = """
 <label>Résultats <select id="discovery-filter"><option value="">Tous</option><option value="verified">Vérifiés</option><option value="new">Nouveaux vérifiés</option></select></label>
 <div id="discovery-results" class="feeds-grid"></div><pre id="discovery-preview" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>
 </section>
+<section id="media-manager"><h2>Illustrations et droits</h2><p>Images locales seulement, sous approbation. Une licence déclarée ne garantit pas l'absence de droits de tiers. Illustrations génériques uniquement.</p>
+<p id="media-state" aria-live="polite"></p>
+<form id="media-search-form" class="add-form"><select id="media-target" aria-label="Article ou événement"></select><input id="media-query" placeholder="Sujet pour Commons" maxlength="120" required><button type="submit" class="feed-btn">Rechercher Commons</button><button id="media-rss" type="button" class="feed-btn">Candidats RSS en cache</button><button id="media-html" type="button" class="feed-btn">Inspecter la page</button><button id="media-cancel" type="button" class="feed-btn">Annuler</button></form>
+<div id="media-records" class="feeds-grid"></div><button id="media-prev" class="feed-btn">Précédent</button><button id="media-next" class="feed-btn">Suivant</button></section>
 <div class="toast" id="toast"></div>
 
 
@@ -1164,6 +1170,9 @@ def generate_static_site(config: dict, full: bool = False, *, root: Path = None)
 
     import shutil
     shutil.copytree(Path(__file__).with_name('assets'), paths['site'] / 'assets', dirs_exist_ok=True)
+    from modules.media.export import export_images
+    from modules.media.service import MediaService
+    export_images(MediaService(paths['articles'],paths['data'],config.get('media',{})),paths['site'])
     all_days  = get_available_days(paths)
     today     = datetime.now().strftime("%Y%m%d")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
@@ -1230,7 +1239,7 @@ def create_app(config: dict, *, root: Path = None):
     app.extensions["atlas_background_jobs"] = []
     @app.get('/assets/<name>')
     def web_asset(name):
-        allowed = {'web.js','flash.js','csrf.js','config.js','simple-config.js','feeds.js','preferences.js'}
+        allowed = {'web.js','flash.js','csrf.js','config.js','simple-config.js','feeds.js','preferences.js','media.js','news-fallback.svg'}
         if name not in allowed:
             abort(404)
         return send_from_directory(Path(__file__).with_name('assets'), name)
@@ -1368,6 +1377,8 @@ def create_app(config: dict, *, root: Path = None):
     install_discovery_api(app, paths, config)
     from modules.web.events_api import install_events_api
     install_events_api(app, paths)
+    from modules.web.media_api import install_media_api
+    install_media_api(app, paths, config)
 
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():
@@ -2060,7 +2071,7 @@ LIVE_CSS_EXTRA = """
 # ─── SCRIPT GLOBAL (player radio + theme + live refresh) ─────────────────────
 # Injecté dans chaque template juste avant </body>
 
-GLOBAL_SCRIPT = '<script src="/assets/csrf.js"></script><script defer src="/assets/feeds.js"></script><script defer src="/assets/web.js"></script><script defer src="/assets/flash.js"></script>'
+GLOBAL_SCRIPT = '<script src="/assets/csrf.js"></script><script defer src="/assets/media.js"></script><script defer src="/assets/feeds.js"></script><script defer src="/assets/web.js"></script><script defer src="/assets/flash.js"></script>'
 
 REPORT_TEMPLATE = """<!DOCTYPE html>
 <html lang="fr"><head>
@@ -3158,3 +3169,12 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 {{ flash_button_js }}
 {{ global_script }}
 </body></html>"""
+
+# Local-only visual projection; no network in templates.
+from modules.media.view import FIGURE as _MEDIA_FIGURE
+LIVE_TEMPLATE=LIVE_TEMPLATE.replace('<!-- Bande couleur + icône + titre -->',_MEDIA_FIGURE+'<!-- Bande couleur + icône + titre -->')
+LIVE_TEMPLATE=LIVE_TEMPLATE.replace('<article class="live-card"><h3>{{ event.title }}</h3>','<article class="live-card">'+_MEDIA_FIGURE.replace('media_for_article(a)','media_for_event(event)')+'<h3>{{ event.title }}</h3>')
+REPORT_TEMPLATE=REPORT_TEMPLATE.replace('<div class="article-item" data-category="{{ a.category }}">','<div class="article-item" data-category="{{ a.category }}">'+_MEDIA_FIGURE)
+BASE_CSS+='\n.news-image{margin:8px 0;max-width:320px}.news-image img{display:block;max-width:100%;height:auto;border-radius:8px}.news-image figcaption{font-size:11px;overflow-wrap:anywhere;color:var(--text-muted,#9aa)}\n'
+
+EDITION_TEMPLATE=EDITION_TEMPLATE.replace('<div class="edition-body">','<div class="edition-illustrations">{% for a in image_articles %}'+_MEDIA_FIGURE+'{% endfor %}</div><div class="edition-body">')

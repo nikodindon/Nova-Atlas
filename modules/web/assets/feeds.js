@@ -58,6 +58,7 @@ for(const id of ['source-import-content','source-import-format'])el(id).addEvent
 el('source-import-apply').addEventListener('click',async()=>{if(!preview)return;try{await request('/import',{...preview,apply:true});preview=null;el('source-import-apply').disabled=true;await refresh();toast('Import terminé');}catch(error){toast(error.message,true);}});
 refresh();
 if(window.NovaDiscovery)window.NovaDiscovery();
+if(window.NovaMedia)window.NovaMedia();
 };
 document.addEventListener('DOMContentLoaded',window.NovaSources);
 

@@ -104,6 +104,25 @@ try:
   assert opt_in(temporary_articles,{}) is temporary_articles
   assert len(opt_in(temporary_articles,{'paths':{'data_dir':str(root)},'editorial_events':{'enabled':True}}))==3
 
+  # The production decoder runs in its bounded subprocess, with synthetic pixels.
+  from modules.media.store import MediaStore,decode_image
+  from modules.media.candidates import ImageCandidate
+  from modules.media.rights import CC_BY
+  from PIL import Image
+  import io
+  raster=io.BytesIO();Image.new('RGB',(640,360),'navy').save(raster,'PNG');raw=raster.getvalue()
+  decoded=decode_image(raw);assert len(decoded['variants'])==2
+  media=MediaStore(root,mode='approved_only')
+  target={'kind':'article','id':'a'*32,'fingerprint':'b'*64,'title':'Synthetic'}
+  proof={'provider':'commons','page_revision':1,'file_sha1':hashlib.sha1(raw).hexdigest(),'size':len(raw),'source_page':'https://commons.wikimedia.org/wiki/File:Synthetic.png','license':'CC BY 4.0','license_url':CC_BY,'author':'Synthetic creator','credit':'Fixture','attribution_required':True,'copyrighted':True}
+  candidate=ImageCandidate('https://upload.wikimedia.org/wikipedia/commons/a/ab/Synthetic.png','commons',proof['source_page'],'Fixture','commons','123',proof)
+  identity=media.add(candidate,target,trusted=True);media.prepare(identity,raw,expected=media.load()[1])
+  assert media.public_for(target)['fallback']
+  row=media.load()[0]['records'][identity];media.decide(identity,'approve',expected=media.load()[1],binding=media.binding(row),ack=True)
+  assert not media.public_for(target)['fallback']
+  media.add(__import__('dataclasses').replace(candidate,proof={**proof,'license':'CC BY-NC 4.0'}),target,trusted=True)
+  assert media.public_for(target)['fallback']
+
   try:client.get('http://news.invalid/redirect',accept_not_modified=True)
   except http.BlockedURL:pass
   else:raise AssertionError('private redirect accepted')
@@ -111,7 +130,7 @@ try:
 finally:
  http.get=real_get;server.shutdown();worker.join();server.server_close();faulthandler.cancel_dump_traceback_later()
 assert not any(t.name.startswith('FeedHTTP') for t in threading.enumerate())
-print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers, Source Manager atomic disable/reload/export, static source discovery, derived editorial events and private redirect rejection. No external source/model.')
+print('RSS smoke PASS: RSS/Atom, conditional HTTP 200/304, restart/cache replay, URL dedup, unchanged public JSON, bounded workers, Source Manager atomic disable/reload/export, static source discovery, derived editorial events and private redirect rejection; bounded raster worker, explicit rights approval and license-change revocation. No external source/model.')
 '''
 
 

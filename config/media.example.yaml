@@ -1,0 +1,11 @@
+# Fragment à intégrer explicitement dans config.yaml privé, pas chargé tout seul.
+# Aucun téléchargement par défaut ; aucun compte, clé ou fournisseur payant.
+media:
+  mode: disabled                 # disabled | suggest | approved_only
+  commons_enabled: false         # recherche manuelle via API officielle seulement
+# Suggestion après revue de docs/NEWS_IMAGES.md :
+# media:
+#   mode: suggest
+#   commons_enabled: true
+# Seul approved_only permet la projection d'une illustration générique CC BY 4.0
+# préparée et approuvée explicitement. Aucun mode documentaire automatique.
