@@ -202,3 +202,11 @@ page Flask privées, contrôle CSRF et lecteur persistant ; aucune boucle de job
 Transport FFmpeg borné et observé localement ; cache Android et reçus conservés.
 Bridge TTS runtime séparé du laboratoire, Edge par défaut, aucun Piper/fallback
 implicite. Voir RADIO_STUDIO.md. PostgreSQL n'est pas une autorité opérationnelle.
+
+### Sprint 12 : coexistence frontend
+
+Frontend SvelteKit/TypeScript SSR optionnel, client serveur à origine Flask fixe,
+proxy nginx same-origin et lecteur racine persistant. Projections publiques additives
+et bootstrap CSRF liés à la session Flask ; aucun accès Node aux volumes privés.
+Pages publiques natives, hub admin et deux vues de consultation ; mutations dans
+les outils Flask. Voir [FRONTEND_V2.md](FRONTEND_V2.md).

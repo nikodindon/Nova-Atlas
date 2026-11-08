@@ -1,0 +1,7 @@
+FROM nginx:1.30-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311
+COPY deploy/frontend/nginx.conf /etc/nginx/nginx.conf
+COPY deploy/frontend/start.sh /start.sh
+USER nginx
+EXPOSE 8080
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/bin/sh", "/start.sh"]
