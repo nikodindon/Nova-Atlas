@@ -92,3 +92,10 @@ publiques SSR, événements, archives/documents, images autorisées et lecteur p
 Hub admin + sources/Radio Studio en consultation, authentification Flask inchangée.
 Migration complète des écrans administratifs et revue accessibilité manuelle reportées ;
 aucun cutover automatique. Voir FRONTEND_V2.md.
+
+Sprint 13 : dossier RC-0 pour revue, pas une mise en production. Restauration
+legacy vérifiée, préflight sans lecture des secrets, archivage manuel prudent,
+export read-only corrigé et charge synthétique. **No-Go qualification publique** :
+multi-machine, radio 24 h, licences/droits, revue opérateur et scan OS restent
+à réaliser. Les limites de l'index (500) et de stockage ne sont pas levées.
+Voir RELEASE_CANDIDATE.md et CHANGELOG_V2.md ; aucun cutover PostgreSQL.

@@ -376,3 +376,11 @@ archives et lecteur persistant entre pages natives. Flask reste le backend et
 l’autorité des sessions ; les mutations administratives restent dans ses outils.
 Voir [FRONTEND_V2.md](docs/FRONTEND_V2.md) pour les contrats, tests, profils Compose,
 HTTPS et rollback sans migration. Aucun basculement automatique.
+
+## Dossier de candidature — Sprint 13
+
+[Release candidate RC-0](docs/RELEASE_CANDIDATE.md) : inventaire, tests de restauration,
+préflight en lecture seule, maintenance Studio et validation sur fixtures.
+**No-Go exploitation publique/multi-machine** tant que qualification, droits et
+portes opérateur ne sont pas levés. Aucun déploiement V2 annoncé.
+[Changelog V2](CHANGELOG_V2.md) · [mesures CPU synthétiques](docs/measurements/rc/README.md).

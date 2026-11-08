@@ -1,5 +1,8 @@
 """Additive bounded public projections for the opt-in frontend. No business writes."""
 from dataclasses import asdict
+from collections import OrderedDict
+import hashlib
+import threading
 from datetime import datetime,timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -55,8 +58,21 @@ def install_public_api(app,paths,config):
         if not 1<=page<=10000 or not 1<=size<=50:raise PublicReadError('invalid_pagination')
         return page,size
     def respond(**data):return jsonify(status='ok',observed_at=datetime.now(timezone.utc).isoformat(),**data)
+    article_cache=OrderedDict();article_cache_lock=threading.RLock()
     def articles(day):
+        # Hash the bounded authoritative file every time; cache only public text,
+        # never rights decisions or secret/session state. Two versions per process.
         raw=regular(paths['articles']/f'{day}_articles.json',4*1024*1024)
+        key=(day,None if raw is None else hashlib.sha256(raw).hexdigest())
+        with article_cache_lock:
+            if key in article_cache:
+                article_cache.move_to_end(key)
+                return [dict(row) for row in article_cache[key]]
+            rows=article_rows(raw)
+            article_cache[key]=rows
+            while len(article_cache)>2:article_cache.popitem(last=False)
+            return [dict(row) for row in rows]
+    def article_rows(raw):
         values=[] if raw is None else decode(raw)
         if not isinstance(values,list) or len(values)>2000:raise PublicReadError('invalid_articles')
         result=[]
@@ -64,7 +80,7 @@ def install_public_api(app,paths,config):
             if isinstance(value,dict) and value.get('migrated'):continue
             try:
                 c=Coverage.from_article(value)
-                image_target=target_for_article(value)
+                image_target={'kind':'article','id':c.article_hash,'fingerprint':c.id,'title':c.title}
                 result.append({'id':c.id,'hash':c.article_hash,'title':c.title,'original_title':c.original_title,'summary':c.summary,'link':c.link,'source':c.source,'category':c.category,
                     'published_raw':c.published_raw,'published_at':c.published_at,'publication_status':c.publication_status,'observed_raw':c.observed_raw,'observed_at':c.observed_at,'language':c.language,'_image_target':image_target})
             except (ValueError,TypeError,KeyError):continue
@@ -99,10 +115,9 @@ def install_public_api(app,paths,config):
         options(('date','page','per_page','category'));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
         rows=articles(day)
         if request.args.get('category'):rows=[r for r in rows if r['category']==request.args['category']]
-        page_rows=[]
-        for row in rows[(page-1)*size:page*size]:
-            target=row.pop('_image_target')
-            page_rows.append({**row,'image':store.public_for(target)})
+        selected=rows[(page-1)*size:page*size]
+        targets=[row.pop('_image_target') for row in selected]
+        page_rows=[{**row,'image':image} for row,image in zip(selected,store.public_many(targets))]
         return respond(date=day,articles=page_rows,total=len(rows),page=page,per_page=size)
     @app.get('/api/public/archives')
     @guarded
@@ -143,7 +158,9 @@ def install_public_api(app,paths,config):
         options(('page','per_page','category'));page,size=pagination();data=EventIndex(paths['articles'],paths['data']).load();rows=(data or {}).get('events',[])
         if request.args.get('category'):rows=[r for r in rows if request.args['category'] in [r['category'],*r['secondary_categories']]]
         rows=sorted(rows,key=lambda r:r['last_updated_at'] or '',reverse=True)
-        return respond(events=[projection(r) for r in rows[(page-1)*size:page*size]],total=len(rows),page=page,per_page=size,index_available=data is not None)
+        selected=rows[(page-1)*size:page*size]
+        images=store.public_many([target_for_event(row) for row in selected])
+        return respond(events=[{**public_event(row),'image':image} for row,image in zip(selected,images)],total=len(rows),page=page,per_page=size,index_available=data is not None)
     @app.get('/api/public/events/<identity>')
     @guarded
     def public_event_detail(identity):

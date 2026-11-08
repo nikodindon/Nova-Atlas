@@ -281,3 +281,19 @@ les publications, ne rien migrer/détruire. Le mode historique ne consomme pas
 l'outbox ; son historique en mémoire peut réadmettre une fenêtre encore ouverte.
 Planifier le retour hors de cette fenêtre pour éviter une nouvelle génération.
 Aucun déploiement ni service existant interrompu pendant ce sprint.
+
+## Maintenance RC — Sprint 13
+
+`python -m deploy.studio_archive` fournit une preview privée par cutoff/version.
+Application uniquement après sauvegarde/restauration vérifiée et arrêt Radio ; leases
+runtime/génération/journal. Archives immuables, index/tombstones durable avant retrait
+terminal ; aucun MP3/reçu supprimé, aucun ancien créneau réadmis. Tous les fichiers
+encore présents et derniers jobs par canal restent protégés. La maintenance peut
+donc libérer moins que prévu : aucun contournement du quota 1024, pas de purge cachée.
+Sauvegarder journal, archive_index.json et archives ensemble ; ancien runtime sans
+lecture des tombstones incompatible avec une reprise sûre après compactage.
+
+`deploy.radio_diagnostic` distingue observation de lancement, pipe local, mount et
+octets client. Probe opérateur explicite, pas d'API arbitraire, enfant limité six
+secondes ; octets seuls ne prouvent pas le décodage. Les courts smokes Icecast/FFmpeg
+synthétiques ne sont pas une validation 24 h. Voir RELEASE_CANDIDATE.md.

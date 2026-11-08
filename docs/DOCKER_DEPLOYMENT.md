@@ -369,3 +369,21 @@ loopback:5173, sans secrets ni volumes privés. Le profil de base reste inchang�
 Utiliser `--profile web --profile frontend`, jamais `full` pour une simple prévisualisation.
 Réseau privé, pairs proxies exacts, HTTPS et rollback détaillés dans
 [FRONTEND_V2.md](FRONTEND_V2.md). Aucun déploiement exécuté par le sprint.
+
+## Candidature RC et restauration
+
+Voir [RELEASE_CANDIDATE.md](RELEASE_CANDIDATE.md) avant tout changement opérateur.
+Préflight host-only en lecture seule : `python -m deploy.preflight --storage CHEMIN
+--inspect-data --compose --profiles frontend`. Il ne lit aucun fichier de secrets
+et ne remplace pas la validation privée du compose.env.
+Snapshots explicites avec `python -m deploy.recovery` : dry-run, arrêt attesté et
+leases, destination neuve, hashes/modes/mtime comparés. Les secrets ne sont copiés
+que sur `--include-secrets --stopped --apply`, jamais affichés. PGDATA nécessite
+exclusion explicite et pg_dump séparé. **Retargeter compose.env après restore**,
+aucun service n'est démarré automatiquement.
+
+L'export d'images stage désormais sous site/media, volume autorisé, sans rendre
+/app inscriptible. PostgreSQL 18.6 reçoit un digest rafraîchi, sans changement de
+majeure ; nginx explicite 1.30.6 au digest déjà présent. Les nouvelles preuves CI
+utilisent seulement projets temporaires et signaux sur leurs conteneurs.
+Aucune qualification de stockage réseau/rootless/ARM64 ou de seconde machine.

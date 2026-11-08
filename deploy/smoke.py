@@ -97,12 +97,20 @@ publish_audio(source,target,inspect_audio(source),1)
 """
             run(command+['exec','-T','web','python','-c',audio])
             run(command+['run','--rm','--no-deps','--entrypoint','python','radio','-c',"from pathlib import Path;from modules.radio.audio_integrity import validated_publication;assert all(validated_publication(p) for p in Path('/app/audio_queue').glob('bulletin_*.mp3'))"])
+            from deploy.radio_probe_smoke import exercise
+            exercise(command,run)
             print('Smoke: atomic audio and cooperative restart',flush=True)
             inode=(state/'data/service-web.lock').stat().st_ino
             run(command+['stop','web'])
             container=run(command+['ps','-aq','web']).stdout.strip()
             assert run(['docker','inspect','--format','{{.State.ExitCode}}',container]).stdout.strip()=='0'
-            run(command+['up','-d','--wait','--wait-timeout','120','web'])
+            run(command+['stop','icecast'])
+            from deploy.recovery import snapshot,restore
+            snapshot(state,Path(temporary)/'snapshot',apply=True,stopped=True,include_secrets=True)
+            restored=Path(temporary)/'restored';restore(Path(temporary)/'snapshot',restored,apply=True)
+            verify_audio="from pathlib import Path;from modules.radio.audio_integrity import validated_publication,inspect_audio;files=list(Path('/verify').glob('bulletin_*.mp3'));assert files;assert all(validated_publication(p) and inspect_audio(p).duration>0 for p in files);print('RC real MP3 restore PASS: receipt hashes and full decoding in isolated read-only container')"
+            print(run(['docker','run','--rm','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--user',f'{os.getuid()}:{os.getgid()}','--tmpfs','/tmp:rw,noexec,nosuid,size=32m,mode=1777','--volume',str(restored/'audio_queue')+':/verify:ro','--entrypoint','python',app_image,'-c',verify_audio]).stdout,flush=True)
+            run(command+['up','-d','--wait','--wait-timeout','120','web','icecast'])
             assert (state/'data/ci-persistence').read_text()=='synthetic persistent data'
             assert (state/'data/service-web.lock').stat().st_ino==inode
             logs=run(command+['logs','--no-color','web','icecast']).stdout

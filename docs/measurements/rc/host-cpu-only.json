@@ -1,0 +1,19 @@
+{
+  "architecture": "x86_64",
+  "cpu_model": "AMD Ryzen 5 1600 Six-Core Processor",
+  "gpu_inference": "not_tested",
+  "kernel": "7.0.0-31-generic",
+  "lockfiles": {
+    "frontend/package-lock.json": "fa8c7af542014982eaaf9f21b8f020f37e19e79dbd7c06f9c922f1aaa1e56993",
+    "requirements-runtime.lock": "ff7c303666205301d0a2fc2cad4e46e437558327b513ff0315abb47dc64c0acd"
+  },
+  "logical_cpus": 12,
+  "multi_machine": "not_established",
+  "network_and_24h_radio": "not_tested",
+  "operator_label": "unclassified",
+  "python": "3.12.3",
+  "qualification": "not_established",
+  "ram_total_kib": 32793164,
+  "version": 1,
+  "voice_listening": "not_tested"
+}

@@ -151,7 +151,8 @@ class StudioJournal:
         name=self.name(slot,identity,kind)
         refs=[str(s) if re.fullmatch('[a-f0-9]{32,64}',str(s)) else 'unknown' for s in references][:100]
         def save(data):
-            if identity in data['jobs']:return None
+            from modules.radio.studio_archive import is_archived
+            if identity in data['jobs'] or is_archived(self.root,identity):return None
             if not data['enabled']:return None
             if len(data['jobs'])>=1024:raise StudioError('journal_quota_explicit_archive_required')
             busy=any(r['status']=='generating' for r in data['jobs'].values())
