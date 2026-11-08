@@ -197,6 +197,10 @@ restauration PostgreSQL neuve selon DATABASE_MIGRATION.md. Ne jamais assimiler
 l'exclusion à une sauvegarde de la base. Dump/restauration/verify sont exercés dans
 le smoke PostgreSQL ; une stratégie de point cohérent DB+fichiers reste opérateur.
 
+Le smoke Docker de base restaure aussi les MP3 sinusoïdaux/reçus dans un répertoire
+neuf puis les fait relire et décoder complètement par un conteneur network=none,
+volume restauré read-only, même UID. Aucun audio synthétique n’est admis en production.
+
 Preuve CI frontend : snapshot live refusé, arrêt Web/Node/nginx, copie vérifiée,
 restauration dans un autre répertoire, modification du seul chemin synthétique
 d'env, destruction du seul ancien projet de test, redémarrage du nouveau projet
