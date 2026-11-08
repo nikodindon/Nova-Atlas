@@ -220,3 +220,16 @@ peut avertir d’un répertoire temporaire `.media-export-*` sous `/app` en lect
 (problème préexistant de l’export média). Les nouvelles projections JSON et médias
 servis à la demande ne dépendent pas de cette génération ; une correction dédiée
 reste à prévoir, sans rendre `/app` globalement inscriptible.
+
+## Contrôles RC — Sprint 13
+
+Le smoke ajoute Chromium sur le vrai proxy jetable nginx/Node/Flask, une image locale
+approuvée synthétique, ajout Source Manager sans fetch, liens des outils historiques
+et retour natif. Il restaure ensuite dans un nouveau stockage/projet et redémarre
+les images déjà construites. Aucun service de l'installation utilisateur.
+
+Les pages publiques réutilisent deux projections texte par empreinte du fichier
+autoritaire ; modification/vide/corruption invalidés, aucune décision de droits
+cachée. Les droits sont chargés une fois par page et les octets restent vérifiés.
+L'avertissement d'export média read-only indiqué plus haut est corrigé par staging
+sous site/media ; autres limites administratives et frontière audio inchangées.

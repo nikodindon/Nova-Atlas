@@ -210,3 +210,13 @@ proxy nginx same-origin et lecteur racine persistant. Projections publiques addi
 et bootstrap CSRF liés à la session Flask ; aucun accès Node aux volumes privés.
 Pages publiques natives, hub admin et deux vues de consultation ; mutations dans
 les outils Flask. Voir [FRONTEND_V2.md](FRONTEND_V2.md).
+
+## Sprint 13 — validation de candidature
+
+Legacy JSON/YAML reste autoritaire, SQL facultatif. Outils opérateur host-only
+`deploy.preflight`, `deploy.recovery`, `deploy.studio_archive`, `deploy.radio_diagnostic`
+et corpus `deploy.rc_validation` : aucune API de téléchargement/maintenance publique.
+Snapshots arrêtés, restauration neuve ; archivage terminal avec tombstones avant
+compactage. Cache texte public content-addressed borné à deux versions, décisions
+de droits revalidées par page, octets média toujours contrôlés. Export statique
+stage sous site/media sur le même filesystem. Dossier et limites : RELEASE_CANDIDATE.md.

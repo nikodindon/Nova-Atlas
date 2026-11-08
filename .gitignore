@@ -131,3 +131,6 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/.env*
 !frontend/.env.example
+
+# Optional operator verification environment
+.venv-operator/

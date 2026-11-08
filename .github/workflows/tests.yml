@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: python -m deploy.secret_scan
       - run: node tests/test_csrf.cjs
       - run: for script in modules/web/assets/*.js; do node --check "$script"; done
       - run: python -m compileall -q main.py modules tests
@@ -47,6 +48,11 @@ jobs:
       - run: python -m deploy.rss_smoke
       - run: python -m deploy.tts_lab_smoke
       - run: python -m deploy.radio_studio_smoke
+      - run: python -m deploy.rc_validation --output /tmp/rc-measurements.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rc-synthetic-measurements
+          path: /tmp/rc-measurements.json
 
   gateway-smoke:
     runs-on: ubuntu-latest

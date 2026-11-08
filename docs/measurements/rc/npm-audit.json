@@ -1,0 +1,65 @@
+{
+  "checked_at": "2026-11-08",
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 4,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 4
+    },
+    "dependencies": {
+      "prod": 1,
+      "dev": 262,
+      "optional": 28,
+      "peer": 1,
+      "peerOptional": 0,
+      "total": 262
+    }
+  },
+  "findings": {
+    "@sveltejs/adapter-node": {
+      "severity": "low",
+      "range": ">=1.0.0-next.0",
+      "advisories": [],
+      "fixAvailable": {
+        "name": "@sveltejs/adapter-node",
+        "version": "0.0.18",
+        "isSemVerMajor": true
+      }
+    },
+    "@sveltejs/kit": {
+      "severity": "low",
+      "range": ">=1.0.0-next.0",
+      "advisories": [],
+      "fixAvailable": {
+        "name": "@sveltejs/kit",
+        "version": "0.0.30",
+        "isSemVerMajor": true
+      }
+    },
+    "@sveltejs/vite-plugin-svelte": {
+      "severity": "low",
+      "range": "*",
+      "advisories": [],
+      "fixAvailable": {
+        "name": "@sveltejs/kit",
+        "version": "0.0.30",
+        "isSemVerMajor": true
+      }
+    },
+    "deepmerge": {
+      "severity": "low",
+      "range": ">=4.2.0",
+      "advisories": [
+        "https://github.com/advisories/GHSA-gcqx-w48m-w2h4"
+      ],
+      "fixAvailable": {
+        "name": "@sveltejs/kit",
+        "version": "0.0.30",
+        "isSemVerMajor": true
+      }
+    }
+  }
+}

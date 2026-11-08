@@ -97,6 +97,8 @@ publish_audio(source,target,inspect_audio(source),1)
 """
             run(command+['exec','-T','web','python','-c',audio])
             run(command+['run','--rm','--no-deps','--entrypoint','python','radio','-c',"from pathlib import Path;from modules.radio.audio_integrity import validated_publication;assert all(validated_publication(p) for p in Path('/app/audio_queue').glob('bulletin_*.mp3'))"])
+            from deploy.radio_probe_smoke import exercise
+            exercise(command,run)
             print('Smoke: atomic audio and cooperative restart',flush=True)
             inode=(state/'data/service-web.lock').stat().st_ino
             run(command+['stop','web'])

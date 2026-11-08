@@ -232,3 +232,11 @@ legacy, avec les garanties des Sprints 01E/01F et leurs verrous POSIX. Aucune
 transition de job/checkpoint/publication en SQL n'est annoncée ici. Le cutover,
 la concurrence de collecteurs SQL et les nouveaux événements/jobs nécessitent une
 PR complémentaire avec tests métier. Voir DATABASE_MIGRATION.md.
+
+## Audit RC — Sprint 13
+
+Les régressions des P0 01A–01G restent obligatoires. Aucun déploiement ni pentest
+distant : auth/CSRF/CSP, DNS rebinding, files/verrous et publication audio couverts
+sur fixtures. Incident historique OpenRouter sans confirmation de révocation.
+Le dossier RC ne qualifie pas publiquement la V2 sur la seule base de CI vertes ;
+voir RELEASE_CANDIDATE.md pour les portes non levées et l'inventaire de preuves.

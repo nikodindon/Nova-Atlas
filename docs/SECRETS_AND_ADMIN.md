@@ -203,3 +203,13 @@ UI LiteLLM désactivée, pas de port publié ni DB/gestion de clés virtuelles. 
 fichiers vides cloud initiaux n'autorisent aucun provider. Voir LLM_GATEWAY.md pour
 initialisation, rotation et risques résiduels. L'exposition historique OpenRouter
 reste une action de révocation/audit du propriétaire, sans réutilisation.
+
+## Audit RC — Sprint 13
+
+Scan des blobs Git actifs par motifs connus via `python -m deploy.secret_scan` :
+aucune lecture de fichiers privés/non suivis et aucune valeur candidate affichée.
+Ce contrôle ne prouve pas une révocation ni l'absence de tous formats de tokens.
+La révocation de la clé OpenRouter historiquement exposée et la revue d'usage
+restent à confirmer par le propriétaire ; aucune action fournisseur effectuée.
+Préflight stat-only des fichiers de secrets ; les snapshots privés avec secrets
+exigent une action opérateur explicite. Voir RELEASE_CANDIDATE.md.

@@ -87,3 +87,15 @@ adaptés, revue humaine et corpus représentatif à prévoir. Aucune activation 
 | UI | Légendes hostiles et hotlinks | textContent/autoescape, CSP img-src self, revue auth/CSRF, radio persistante Chromium |
 
 Voir NEWS_IMAGES.md pour les plafonds et exclusions. Aucun jeu de données réel lu.
+
+## Constat RC — Sprint 13
+
+| Surface | Constat / preuve | Décision |
+|---|---|---|
+| media/export.py | mkdtemp dans site.parent hors bind writable ; reproduction avant fix | Stage et fsync sous site/media ; échange refusé préserve l'ancien arbre |
+| web/public_api.py et media/store.py | Validation manifeste répétée par carte ; 2,8 s/page et 44 s/12 lectures sur corpus initial | Snapshot droits par page et cache texte SHA deux versions ; droits/octets recontrôlés, mesures dans measurements/rc |
+| radio/studio.py | Quota 1024 exigeait archive sans outil | CLI dry-run/version/leases, archives puis tombstones puis compactage ; fichiers/cas ambigus protégés |
+| Déploiement | Restauration seulement décrite | Outil refusant écrasement/liens/état actif ; round-trip et redémarrage neuf CI |
+| Capacité éditoriale | >500 articles dans fenêtre = refus explicite | Limite conservée, pas d'index incomplet ; No-Go promesse de charge supérieure |
+| Stockage audio/logs | Croissance sans purge globale automatique | Maintenance opérateur après backup ; pas de disponibilité 24/7 revendiquée |
+| Qualification/droits | B, 24 h, écoute, Edge/musique, licence projet et scan OS manquent | No-Go exploitation publique ; checklist dans RELEASE_CANDIDATE.md |

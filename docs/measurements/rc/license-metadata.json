@@ -1,0 +1,210 @@
+{
+  "scope": "metadata_only_not_legal_approval",
+  "npm_lock_sha256": "fa8c7af542014982eaaf9f21b8f020f37e19e79dbd7c06f9c922f1aaa1e56993",
+  "npm_licenses": {
+    "MIT": 200,
+    "MPL-2.0": 14,
+    "Apache-2.0": 23,
+    "BlueOak-1.0.0": 3,
+    "BSD-2-Clause": 10,
+    "BSD-3-Clause": 3,
+    "ISC": 9
+  },
+  "python_runtime": [
+    {
+      "name": "aiohappyeyeballs",
+      "version": "2.7.1",
+      "license_metadata": "PSF-2.0"
+    },
+    {
+      "name": "aiohttp",
+      "version": "3.14.5",
+      "license_metadata": "Apache-2.0 AND MIT"
+    },
+    {
+      "name": "aiosignal",
+      "version": "1.4.0",
+      "license_metadata": "Apache 2.0"
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "beautifulsoup4",
+      "version": "4.15.0",
+      "license_metadata": "MIT License"
+    },
+    {
+      "name": "blinker",
+      "version": "1.9.0",
+      "license_metadata": "UNKNOWN"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.10.23",
+      "license_metadata": "MPL-2.0"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.2",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "click",
+      "version": "8.5.0",
+      "license_metadata": "BSD-3-Clause"
+    },
+    {
+      "name": "edge-tts",
+      "version": "7.3.1",
+      "license_metadata": "UNKNOWN"
+    },
+    {
+      "name": "Flask",
+      "version": "3.1.3",
+      "license_metadata": "BSD-3-Clause"
+    },
+    {
+      "name": "frozenlist",
+      "version": "1.8.0",
+      "license_metadata": "Apache-2.0"
+    },
+    {
+      "name": "idna",
+      "version": "3.20",
+      "license_metadata": "BSD-3-Clause"
+    },
+    {
+      "name": "itsdangerous",
+      "version": "2.2.0",
+      "license_metadata": "UNKNOWN"
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "license_metadata": "UNKNOWN"
+    },
+    {
+      "name": "lxml",
+      "version": "6.1.3",
+      "license_metadata": "BSD-3-Clause"
+    },
+    {
+      "name": "Markdown",
+      "version": "3.11.2",
+      "license_metadata": "BSD-3-Clause"
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.4",
+      "license_metadata": "BSD-3-Clause"
+    },
+    {
+      "name": "multidict",
+      "version": "7.2.1",
+      "license_metadata": "Apache-2.0"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "license_metadata": "Apache-2.0 OR BSD-2-Clause"
+    },
+    {
+      "name": "propcache",
+      "version": "0.5.4",
+      "license_metadata": "Apache-2.0"
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0",
+      "license_metadata": "BSD-2-Clause"
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "license_metadata": "Apache-2.0"
+    },
+    {
+      "name": "soupsieve",
+      "version": "4.0",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "tabulate",
+      "version": "0.10.0",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "license_metadata": "PSF-2.0"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "Werkzeug",
+      "version": "3.1.9",
+      "license_metadata": "BSD-3-Clause"
+    },
+    {
+      "name": "yarl",
+      "version": "1.25.1",
+      "license_metadata": "Apache-2.0"
+    },
+    {
+      "name": "nh3",
+      "version": "0.3.7",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "SQLAlchemy",
+      "version": "2.1.8",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "alembic",
+      "version": "1.20.1",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "Mako",
+      "version": "1.4.3",
+      "license_metadata": "MIT"
+    },
+    {
+      "name": "psycopg",
+      "version": "3.3.8",
+      "license_metadata": "LGPL-3.0-only"
+    },
+    {
+      "name": "psycopg-binary",
+      "version": "3.3.8",
+      "license_metadata": "LGPL-3.0-only"
+    },
+    {
+      "name": "feedparser",
+      "version": "6.0.14",
+      "license_metadata": "BSD-2-Clause"
+    },
+    {
+      "name": "sgmllib3k",
+      "version": "1.0.0",
+      "license_metadata": "BSD License"
+    },
+    {
+      "name": "Pillow",
+      "version": "13.0.0",
+      "license_metadata": "MIT-CMU"
+    }
+  ]
+}
