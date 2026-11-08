@@ -99,8 +99,8 @@ def test_images_are_projected_only_for_requested_page(app,client,monkeypatch):
     paths,day,_=content(app)
     (paths['articles']/f'{day}_articles.json').write_text(json.dumps([article(i,when=datetime.now(timezone.utc)) for i in range(3)]))
     calls=[]
-    def image(self,target):calls.append(target);return FALLBACK
-    monkeypatch.setattr(MediaStore,'public_for',image)
+    def images(self,targets):calls.extend(targets);return [dict(FALLBACK) for _ in targets]
+    monkeypatch.setattr(MediaStore,'public_many',images)
     response=get(client,'/api/public/articles?date='+day+'&per_page=1')
     assert response.status_code==200 and response.json['total']==3
     assert len(calls)==1

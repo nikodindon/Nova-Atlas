@@ -11,7 +11,7 @@ def export_images(service,site):
     site=checked(site);site.mkdir(parents=True,exist_ok=True)
     media=checked(site/'media');media.mkdir(exist_ok=True)
     destination=checked(media/'images')
-    stage=Path(tempfile.mkdtemp(prefix='.media-export-',dir=site.parent));stage.chmod(0o755)
+    stage=Path(tempfile.mkdtemp(prefix='.media-export-',dir=media));stage.chmod(0o755)
     try:
         try:state,_=service.store.load() if service.store.mode=='approved_only' else ({'records':{}},None)
         except (ValueError,OSError):state={'records':{}}
@@ -21,6 +21,12 @@ def export_images(service,site):
                 for size in (320,768):
                     with open(directory/f'{size}.jpg','xb') as stream:
                         stream.write(service.store.bytes(row,size));stream.flush();os.fsync(stream.fileno());os.fchmod(stream.fileno(),0o644)
+        # The staging tree is on the exported media mount, including bind mounts.
+        for directory in [*stage.iterdir(),stage]:
+            if directory.is_dir():
+                fd=os.open(directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+                try:os.fsync(fd)
+                finally:os.close(fd)
         if destination.exists():
             # Linux POSIX local storage: exchange entire tree; old approved copies
             # cannot survive a revocation in a newly generated export.

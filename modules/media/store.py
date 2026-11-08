@@ -236,15 +236,29 @@ class MediaStore:
             'caption':'Illustration générique — '+row['caption'],'attribution':{'author':row['rights']['author'],'credit':row['rights']['credit'],'source':row['candidate']['source_page'],'license':'CC BY 4.0','license_url':row['rights']['license_url'],'changes':'Redimensionnement, orientation corrigée et réencodage JPEG ; métadonnées supprimées.'}}
 
     def public_for(self,target):
-        if self.mode!='approved_only':return dict(FALLBACK)
+        return self.public_many([target])[0]
+
+    def public_many(self,targets):
+        """One validated manifest snapshot per bounded page; no cross-request cache."""
+        if not targets:return []
+        if len(targets)>100:raise MediaError('projection_page_limit')
+        fallback=lambda:[dict(FALLBACK) for _ in targets]
+        if self.mode!='approved_only':return fallback()
         try:
-            state,_=self.load()
-            rows=[r for r in state['records'].values() if r['target']['kind']==target['kind'] and r['target']['id']==target['id'] and r['target']['fingerprint']==target['fingerprint']]
-            for row in sorted(rows,key=lambda r:r.get('approval',{}).get('at',0) if r.get('approval') else 0,reverse=True):
-                result=self.record_projection(row)
-                if result:return result
-        except (ValueError,OSError,KeyError,TypeError):pass
-        return dict(FALLBACK)
+            state,_=self.load();grouped={}
+            for row in state['records'].values():
+                target=row['target'];key=(target['kind'],target['id'],target['fingerprint'])
+                grouped.setdefault(key,[]).append(row)
+            results=[]
+            for target in targets:
+                rows=grouped.get((target['kind'],target['id'],target['fingerprint']),[])
+                projected=None
+                for row in sorted(rows,key=lambda r:r.get('approval',{}).get('at',0) if r.get('approval') else 0,reverse=True):
+                    projected=self.record_projection(row)
+                    if projected:break
+                results.append(projected or dict(FALLBACK))
+            return results
+        except (ValueError,OSError,KeyError,TypeError):return fallback()
 
     def bytes(self,row,size):
         if size not in (320,768):raise MediaError('invalid_variant')
