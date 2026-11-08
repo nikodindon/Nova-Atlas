@@ -89,6 +89,17 @@ def scalar(value):
 def parse_document(raw):
     if len(raw.encode())>MAX_BYTES:raise SourceError('Liste trop volumineuse')
     doc=Document([],[],[],digest(raw));current=None;last=None;ids=set();pairs=set()
+    # Managed initialization uses an empty YAML mapping. Accept only this empty
+    # form (plus ordinary comments), never ignore an unsupported nonempty mapping.
+    meaningful=[line.strip() for line in raw.splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    if meaningful==['{}']:
+        for line in raw.splitlines():
+            stripped=line.strip()
+            if stripped.startswith('#'):
+                body=stripped[1:].strip()
+                if stripped.startswith(META) or body.startswith(('[SPRINT0]','http://','https://')):raise SourceError('Source ou métadonnées sans catégorie')
+                doc.comments.append(line)
+        return doc
     for line in raw.splitlines():
         stripped=line.strip()
         if not stripped:continue

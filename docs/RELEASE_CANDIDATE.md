@@ -30,7 +30,7 @@ bloque toute publication. Un P1 de restauration/restart/diffusion centrale cass�
 bloque le profil concerné. Aucun de ces critères n'est reclassé P2 pour faire passer
 une RC. L'absence de validation opérateur ou de droits constitue une porte non levée.
 
-Validation locale : **1597 tests Python réussis** (baseline 1566, +31),
+Validation locale : **1600 tests Python réussis** (baseline 1566, +34),
 **33 tests frontend** et **10 scénarios Chromium natifs** réussis ; TypeScript, lint,
 build, helpers CSRF, compilation Python, configuration Compose et diff vérifiés.
 Les nouveaux smokes proxy/restauration/Icecast sont exécutés en CI ; le statut
@@ -75,7 +75,12 @@ final de la PR et ses artifacts font foi, pas un résultat déclaré avant exéc
    Archive privée puis tombstones puis compactage du journal. Une interruption
    après tombstones ne rend pas le créneau réadmissible. Données ambiguës, fichiers
    audio encore présents et dernier job observé par canal sont conservés.
-5. **Restauration non démontrée** : outil de snapshots/restauration neuf et tests de
+5. **Première source impossible après installation** : init écrit le YAML `{}` mais
+   Source Manager le refusait, donc aucune version valide pour le premier ajout.
+   Acceptation ciblée du mapping vide et des commentaires ordinaires, sans accepter
+   un mapping non vide non supporté ni écraser un fichier malformé. Trois reproductions
+   et parcours auth/CSRF existant vérifient catégorie puis source sans aucun fetch.
+6. **Restauration non démontrée** : outil de snapshots/restauration neuf et tests de
    refus d'état actif, liens, corruption, permissions, ENOSPC/interruption. Un
    sous-arbre illisible provoque un échec, jamais un snapshot incomplet « réussi ».
 
@@ -315,7 +320,7 @@ sont satisfaits. Un scan d'image CVE/SBOM complet reste à produire avant exposi
 
 | Image | Vérification et décision |
 |---|---|
-| Node24 bookworm slim @01d566e8… | Même digest que le registre ; branche LTS maintenue, pas de saut majeur |
+| Node24.22.2 bookworm slim @01d566e8… | Même digest que le registre ; branche LTS maintenue, pas de saut majeur |
 | nginx1.30.6 alpine @583b7f2f… | Digest inchangé, tag rendu exact ; les correctifs publiés sont dans ce digest |
 | PostgreSQL18.6 trixie @e3d24f69… | Rafraîchissement ciblé de l'image même version, ancien digest @3a426452… ; migrations/dump/restore en CI |
 | LibreTime Icecast2.5.0 Debian @01b91f4d… | Digest toujours disponible et inchangé ; version amont courante, image tierce LibreTime, disponibilité ≠ scan sécurité |
