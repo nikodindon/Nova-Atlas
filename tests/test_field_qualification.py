@@ -220,3 +220,12 @@ def test_synthetic_marker_refuses_symlinked_feed_file_before_read(tmp_path):
     (state/'config/feeds.yaml').symlink_to(outside)
     with pytest.raises(ValueError):initialize(state)
     assert not (state/'config/field-run.json').exists()
+
+def test_synthetic_music_stays_in_writable_queue_not_readonly_library(tmp_path):
+    from deploy.field_source import music_workspace
+    queue=tmp_path/'queue';queue.mkdir()
+    root=music_workspace(queue,'a'*32)
+    assert root.parent==queue and root.stat().st_mode&0o777==0o700
+    assert music_workspace(queue,'a'*32)==root
+    (root/'unrelated.mp3').write_bytes(b'not a fixture')
+    with pytest.raises(ValueError):music_workspace(queue,'a'*32)

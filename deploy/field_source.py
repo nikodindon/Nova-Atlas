@@ -26,6 +26,12 @@ def authorize(marker,run_id,duration,interval,ack,reserved,long_ack):
     if not isinstance(run_id,str) or not re.fullmatch('[a-f0-9]{32}',run_id) or run_id!=marker['run_id']:raise ValueError('run_id_mismatch')
     if not ack or not reserved or not 1<=duration<=86400 or not 300<=interval<=3600 or duration>60 and not long_ack:raise ValueError('explicit_authorization_and_resources_required')
 
+def music_workspace(queue,run_id):
+    if not re.fullmatch('[a-f0-9]{32}',run_id):raise ValueError('invalid_run_id')
+    root=safe(Path(queue)/('.field-music-'+run_id));root.mkdir(mode=0o700,exist_ok=True)
+    if any(p.is_symlink() or not p.is_file() or p.name!='tone.mp3' for p in root.iterdir()):raise ValueError('synthetic_music_workspace_required')
+    return root
+
 def execute(run_id,duration,interval,ack,reserved,long_ack):
     root=Path('/app')
     if Path.cwd()!=root or os.getuid()==0:raise ValueError('nonroot_managed_test_container_only')
@@ -46,7 +52,8 @@ def execute(run_id,duration,interval,ack,reserved,long_ack):
     if len(journal.load()[0]['jobs'])+math.ceil(duration/interval)>900:raise ValueError('archive_review_required_before_campaign')
     with lease(journal.root/'runtime.lock'):
         journal.begin_run()
-        cfg={'paths':{'audio_queue':str(queue),'music':str(root/'music')},'radio':{'bitrate':'128k','sample_rate':44100,'channels':2},
+        music_root=music_workspace(queue,run_id)
+        cfg={'paths':{'audio_queue':str(queue),'music':str(music_root)},'radio':{'bitrate':'128k','sample_rate':44100,'channels':2},
              'icecast':{'host':'icecast','port':8000,'user':'source','password':read_secret('icecast_source_password'),'mount':'/nova','android_mount':'/nova-android'}}
         primary=Streamer(cfg);android=AndroidStreamer(cfg);studio=RadioStudio(journal,primary,android,stop)
         threads=[threading.Thread(target=s.run,daemon=True) for s in (primary,android)]
@@ -63,7 +70,7 @@ def execute(run_id,duration,interval,ack,reserved,long_ack):
                     subprocess.run(['ffmpeg','-v','error','-nostdin','-f','lavfi','-i','sine=frequency=440:duration=6','-ar','44100','-ac','2','-c:a','libmp3lame','-b:a','128k',str(path)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=True,timeout=20)
                     if stop.is_set():journal.fail(row['id'],'interrupted');break
                     info=inspect_audio(path);published=queue/row['publication_name'];publish_audio(path,published,info,1)
-                    music=root/'music'/f'field-tone-{run_id}.mp3'
+                    music=music_root/'tone.mp3'
                     if not music.exists():
                         with music.open('xb') as stream:stream.write(published.read_bytes())
                         music.chmod(0o600)
