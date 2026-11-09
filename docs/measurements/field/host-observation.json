@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-09T09:27:00.837138+00:00",
+  "classification": "unassigned_host_readonly_not_machine_A_or_B_qualification",
+  "duration_seconds": 5.025779027957469,
+  "samples": 6,
+  "host_cpu_busy_fractions": [
+    0.05996621621621623,
+    0.06040268456375841,
+    0.03976801988400991,
+    0.08257638315441784,
+    0.07404021937842775
+  ],
+  "free_bytes_min": 1941458944,
+  "minimum_4gib": "BLOCKED",
+  "application_cpu_ram": "NOT_TESTED",
+  "gpu": "NOT_TESTED",
+  "docker_installation": "NOT_TESTED"
+}

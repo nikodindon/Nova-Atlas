@@ -122,9 +122,33 @@ def test_decoder_no_remote_protocol_and_timeout():
     assert decode_sample(b'x'*8192,runner=fake)=='PASS'
     assert decode_sample(b'')=='FAIL'
 
-def test_inventory_not_tested_is_not_clean():
+def test_inventory_not_tested_is_not_clean(monkeypatch):
+    monkeypatch.delenv("GITHUB_ACTIONS",raising=False)
     from deploy.security_inventory import summarize,run as inventory
     assert summarize({'matches':[{'vulnerability':{'severity':'High'}}],'descriptor':{}})['classification']=='potential_pending_applicability_review'
     assert summarize({'matches':[],'descriptor':{}})['status']=='PASS_WITHIN_SCANNER_COVERAGE'
     with pytest.raises(ValueError):summarize({})
     with pytest.raises(ValueError):inventory('runtime','/tmp/never-started-field-inventory')
+
+def test_failure_windows_are_not_uptime_or_exact_outages():
+    from deploy.field_report import summarize
+    rows=[{'kind':'start','version':1}]
+    for when,ok in [(0,True),(60,False),(120,False),(180,True)]:
+        rows.append({'kind':'sample','version':1,'elapsed_seconds':when,'observation':{'channels':{'android':{'mount':'PASS' if ok else 'FAIL','client_bytes':8192 if ok else 0,'sample_decode':'PASS' if ok else 'NOT_TESTED'}}}})
+    value=summarize(rows)
+    assert not value['end_record_present'] and value['radio_24h']=='NOT_TESTED'
+    assert value['channels']['android']['observed_failure_windows']==[{'first_failed_sample_seconds':60,'first_successful_sample_seconds':180}]
+    assert value['maximum_sample_gap_seconds']==60
+    rows[-1]['elapsed_seconds']=10
+    with pytest.raises(ValueError):summarize(rows)
+
+def test_corrupt_jsonl_preserved_and_no_tokens_in_summary(tmp_path):
+    from deploy.field_report import load
+    path=tmp_path/'log';path.write_text('{broken')
+    with pytest.raises(ValueError):load(path)
+    assert path.read_text()=='{broken'
+
+def test_physical_status_cannot_be_inferred_from_all_ci():
+    value=fresh(S,A);value['gates']['code_ci']={'status':'PASS','evidence':[proof()]}
+    assert assess(value)['gates']['installation_a']=='NOT_TESTED'
+    assert assess(value)['public']=='NO_GO'

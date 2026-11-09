@@ -44,7 +44,7 @@ def sample(url,*,loopback_http=False,session_factory=requests.Session,decoder=de
                     except (ValueError,TypeError):
                         try:delay=max(0,int((parsedate_to_datetime(value)-datetime.now(timezone.utc)).total_seconds()))
                         except (ValueError,TypeError,OverflowError):delay=60
-                    result['retry_after_seconds']=max(1,delay);return result
+                    result['retry_after_seconds']=max(1,min(delay,86401));result['embargo_exceeds_maximum_campaign']=delay>86400;return result
                 if response.status_code!=200:return result
                 result['mount']='PASS'
                 if not response.headers.get('Content-Type','').lower().startswith(('audio/','application/ogg')):return result
