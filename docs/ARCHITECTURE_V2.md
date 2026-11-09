@@ -220,3 +220,11 @@ Snapshots arrêtés, restauration neuve ; archivage terminal avec tombstones ava
 compactage. Cache texte public content-addressed borné à deux versions, décisions
 de droits revalidées par page, octets média toujours contrôlés. Export statique
 stage sous site/media sur le même filesystem. Dossier et limites : RELEASE_CANDIDATE.md.
+
+## Qualification terrain
+
+Les outils deploy.qualification/field_metrics/field_radio/field_report sont
+opérateur, exclus de l’image runtime, sans contrôle automatique des services.
+SBOM des candidats et diagnostics Android privés ne modifient pas les contrats
+métier. Aucune promotion automatique en PASS ou autorisation publique ; voir
+FIELD_QUALIFICATION.md.

@@ -384,3 +384,6 @@ préflight en lecture seule, maintenance Studio et validation sur fixtures.
 **No-Go exploitation publique/multi-machine** tant que qualification, droits et
 portes opérateur ne sont pas levés. Aucun déploiement V2 annoncé.
 [Changelog V2](CHANGELOG_V2.md) · [mesures CPU synthétiques](docs/measurements/rc/README.md).
+
+Le [dossier de qualification terrain](docs/FIELD_QUALIFICATION.md) prépare la RC-1
+conditionnelle : aucun PASS A/B, smartphone ou endurance n’est déduit des CI.
