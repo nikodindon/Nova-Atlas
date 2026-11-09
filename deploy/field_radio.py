@@ -62,7 +62,7 @@ def sample(url,*,loopback_http=False,session_factory=requests.Session,decoder=de
 def worker_run(command,**kwargs):
     if os.name!='posix':raise ValueError('posix_worker_required')
     timeout=kwargs.pop('timeout');body=kwargs.pop('input')
-    process=subprocess.Popen(command,start_new_session=True,**kwargs)
+    process=subprocess.Popen(command,start_new_session=True,stdin=subprocess.PIPE,**kwargs)
     try:
         out,_=process.communicate(body,timeout=timeout)
     except subprocess.TimeoutExpired:

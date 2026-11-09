@@ -173,7 +173,7 @@ def test_probe_kills_only_its_own_worker_group_and_decoder(monkeypatch):
     calls=[]
     class Process:
         pid=12345;returncode=-9
-        def __init__(self,*args,**kwargs):assert kwargs['start_new_session'] is True;self.attempt=0
+        def __init__(self,*args,**kwargs):assert kwargs['start_new_session'] is True and kwargs['stdin']==subprocess.PIPE;self.attempt=0
         def communicate(self,*args,**kwargs):
             self.attempt+=1
             if self.attempt==1:raise subprocess.TimeoutExpired('own-worker',8)
