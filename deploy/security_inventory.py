@@ -30,6 +30,15 @@ def summarize(report):
         'classification':'potential_pending_applicability_review' if matches else 'no_matches_in_this_database_not_a_security_guarantee',
         'automatic_suppressions':0,'public_release_authorized':False}
 
+def lock_bom(lock):
+    from urllib.parse import quote
+    components=[]
+    for key,row in lock.get('packages',{}).items():
+        if not key or not isinstance(row.get('version'),str):continue
+        name=key.rsplit('node_modules/',1)[-1]
+        components.append({'type':'library','name':name,'version':row['version'],'purl':'pkg:npm/'+quote(name,safe='/')+'@'+quote(row['version'],safe='')})
+    return {'bomFormat':'CycloneDX','specVersion':'1.6','version':1,'components':components}
+
 def run(target,output):
     if os.environ.get('GITHUB_ACTIONS')!='true':raise ValueError('disposable_ci_runner_only')
     output=Path(output)
@@ -53,8 +62,15 @@ def run(target,output):
     command([tool['grype'],'sbom:'+str(output/'sbom.syft.json'),'-o','json','--file',str(output/'grype.json')],timeout=1200)
     database=json.loads(command([tool['grype'],'db','status','-o','json'],capture=True,timeout=30))
     report=json.loads((output/'grype.json').read_text());summary=summarize(report)
+    supplemental=None
+    if target=='frontend':
+        lock=ROOT/'frontend/package-lock.json'
+        (output/'frontend-build-graph.cdx.json').write_text(json.dumps(lock_bom(json.loads(lock.read_text()))))
+        command([tool['grype'],'sbom:'+str(output/'frontend-build-graph.cdx.json'),'-o','json','--file',str(output/'frontend-build-graph.grype.json')],timeout=1200)
+        supplemental={'lock_sha256':hashlib.sha256(lock.read_bytes()).hexdigest(),'scope':'entire declared build graph including dev dependencies; not a precise bundle reachability map','summary':summarize(json.loads((output/'frontend-build-graph.grype.json').read_text()))}
+
     metadata={'schema_version':1,'target':target,'commit':commit,'image_identity':identity,'sbom_packages':len(sbom['artifacts']),'tools':versions,'database':database,'summary':summary,
-        'scope':'candidate final image, OS/Python/Node/native packages discoverable by Syft; no user volumes or live deployment','limitations':['scanner catalog coverage is not completeness','matches are potential until triaged','not a license grant','not a runtime reachability proof']}
+        'frontend_build_graph':supplemental,'scope':'candidate final image, OS/Python/Node/native packages discoverable by Syft; no user volumes or live deployment','limitations':['scanner catalog coverage is not completeness','matches are potential until triaged','not a license grant','not a runtime reachability proof']}
     metadata['artifacts']={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in output.glob('*.json')}
     (output/'summary.json').write_text(json.dumps(metadata,indent=2)+'\n');print(json.dumps({'target':target,'packages':metadata['sbom_packages'],**summary}))
 

@@ -161,3 +161,8 @@ def test_file_growth_stat_only_no_secret_content_or_paths(tmp_path):
     assert str(path) not in raw and 'not-read-synthetic' not in raw
     link=tmp_path/'link';link.symlink_to(path)
     assert sample(tmp_path,proc=proc,watch_files=[link])['file_sizes'][0]['status']=='NOT_TESTED'
+
+def test_frontend_build_graph_is_explicitly_supplemental_and_purls_encoded():
+    from deploy.security_inventory import lock_bom
+    value=lock_bom({'packages':{'':{'version':'0.1'},'node_modules/@sveltejs/kit':{'version':'2.0.0'},'node_modules/helper':{'version':'1.0'}}})
+    assert len(value['components'])==2 and value['components'][0]['purl']=='pkg:npm/%40sveltejs/kit@2.0.0'

@@ -48,6 +48,10 @@ jobs:
       - run: python -m deploy.rss_smoke
       - run: python -m deploy.tts_lab_smoke
       - run: python -m deploy.radio_studio_smoke
+      - name: Native decoder for isolated field probe
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
       - run: python -m deploy.field_probe_smoke
       - run: python -m deploy.rc_validation --output /tmp/rc-measurements.json
       - uses: actions/upload-artifact@v4
