@@ -198,13 +198,41 @@ global persistant entre deux lancements opérateur.
 Avant la campagne longue : source synthétique complète autorisée, volumes isolés,
 réception courte réussie sur les deux canaux, alertes disque/RAM et réservation
 explicite de l'hôte. Ne pas activer Edge TTS ou un modèle pour produire les sons.
-Utiliser les générateurs FFmpeg et le parcours avec reçus démontrés par
-`deploy/radio_studio_smoke.py` et `deploy/radio_probe_smoke.py` comme recette auditée ;
-ces scripts sont **CI-only** et ne doivent pas être débridés avec une fausse variable
-GITHUB_ACTIONS sur un PC utilisateur. L'opérateur doit préparer sa source de test
-avec le calendrier et l'autorisation correspondants ; aucune source longue n'est
-lancée automatiquement par les outils de collecte. Cette admission/source longue
-reste une porte opérateur non levée, pas un déploiement livré et déjà qualifié.
+La source `deploy.field_source` fournit une recette exécutable : un marqueur n'est
+créé que sur un état géré neuf avec feeds vides, sans article ni audio/musique.
+Elle ne lance jamais main.py, News, LLM ou TTS. Le marqueur ne prouve pas à lui seul
+l'isolation des volumes : l'opérateur doit contrôler les montages avant autorisation.
+
+```sh
+# Juste après deploy.init, avant ajout de fixtures, sur le chemin neuf autorisé :
+python -m deploy.field_source --initialize "$ATLAS_FIELD_STATE"
+# Conserver le run_id retourné (identifiant de test, pas un credential).
+# Démarrer Icecast seul avec le même projet/profils/env, puis :
+docker compose -p "$ATLAS_FIELD_PROJECT" --env-file "$ATLAS_FIELD_STATE/compose.env" \
+  --profile radio run --rm --no-deps --entrypoint python \
+  --volume "$PWD/deploy/field_source.py:/field_source.py:ro" \
+  radio /field_source.py --execute --run-id RUN_ID_RETOURNE --duration 30 \
+  --authorize-test-source --resources-reserved
+```
+
+Le script exige /app géré et non-root, marqueur/run_id identiques, chemins sans
+symlink et musique synthétique uniquement. Il utilise le secret **neuf de test**
+monté par Compose, jamais un credential de production. Il crée un MP3 sinusoïdal
+complet, le décode, publie avec reçu, journalise un job Studio et l'admet dans les
+deux streamers existants. Le canal principal alterne avec un fond synthétique,
+Android conserve le dernier bulletin validé en boucle. Les URLs credentials internes
+FFmpeg restent privées comme dans le streamer historique : ne pas exporter une
+liste brute des processus/argv. Aucun secret n'est imprimé par cet outil.
+
+La source ne reçoit pas de texte/URL utilisateur et n'appelle aucun fournisseur.
+Un lease Studio stable empêche deux sources runtime concurrentes ; aucun .lock
+supprimé. Maximum 24 h, intervalle 300–3600 s et revue d'archivage requise avant
+900 jobs. SIGTERM coopératif ferme seulement ses streamers/processus. Après le test
+court, pour une campagne longue explicitement autorisée : ajouter
+`--duration 86400 --interval 300 --authorize-long-run` à la commande source, dans
+un terminal contrôlé séparé des observateurs. Ne jamais activer le service radio
+normal en parallèle. La source seule ne prouve pas la réception : les sondes et
+l'écoute restent obligatoires.
 
 Après autorisation écrite et ressources réservées seulement :
 

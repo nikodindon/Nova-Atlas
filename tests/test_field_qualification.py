@@ -204,3 +204,9 @@ def test_synthetic_source_valid_ack_is_not_a_qualification():
     marker={'version':1,'run_id':'a'*32,'mode':'synthetic-only','created_at':'2026-11-09T00:00:00Z'}
     authorize(marker,'a'*32,30,300,True,True,False)
     with pytest.raises(ValueError):authorize(marker,'b'*32,30,300,True,True,False)
+
+def test_synthetic_initialization_refuses_symlinked_storage(tmp_path):
+    from deploy.field_source import initialize
+    state=tmp_path/'state';state.mkdir();outside=tmp_path/'outside';outside.mkdir()
+    (state/'config').symlink_to(outside,target_is_directory=True)
+    with pytest.raises(ValueError):initialize(state)

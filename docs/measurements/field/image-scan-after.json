@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "ci": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42596103190",
+  "tools": {
+    "syft": "1.55.0",
+    "grype": "0.121.2"
+  },
+  "images": [
+    {
+      "target": "nginx",
+      "commit": "7ce22be58bd2877da4ca7a31965586eaf80edd7d",
+      "image_identity": "sha256:e90203181dacea3b9f8d1f68508e45fdf74b48465b946fa223da2ff06ab83748",
+      "packages": 71,
+      "summary": {
+        "status": "WARNING",
+        "matches": 3,
+        "severity": {
+          "Medium": 3
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database": {
+        "schemaVersion": "v6.1.10",
+        "built": "2026-11-08T06:19:57Z",
+        "valid": true
+      },
+      "frontend_build_graph": null,
+      "artifacts_sha256": {
+        "sbom.cdx.json": "57e062600b921baa12f34d7bd4c01de3290bc8cae081606ad1c3b76d52727ac4",
+        "grype.json": "fa9bcb022f15702ed313fbcca210f39c841de1d27472931ac9fca95eaf8a9db2",
+        "sbom.syft.json": "640734f9978d017496cbeac1235c4823b830c2f3db5d85baeaf3accb6c56c807"
+      }
+    },
+    {
+      "target": "litellm",
+      "commit": "7ce22be58bd2877da4ca7a31965586eaf80edd7d",
+      "image_identity": "sha256:8f47c8dbdadbd51678ce2f436bf5fe9be3e0a8f0928a26e7163134e2502ef7e7",
+      "packages": 308,
+      "summary": {
+        "status": "WARNING",
+        "matches": 25,
+        "severity": {
+          "High": 4,
+          "Medium": 17,
+          "Low": 4
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database": {
+        "schemaVersion": "v6.1.10",
+        "built": "2026-11-08T06:19:57Z",
+        "valid": true
+      },
+      "frontend_build_graph": null,
+      "artifacts_sha256": {
+        "sbom.cdx.json": "8c18f3dd0ecd552061926710ba66341a2a147661f9b3638d9e1611e2a80b442d",
+        "grype.json": "5dad0c585bb97347dfcf98e46e5cd9917e81e12e27e1967e012ae067e9d92b14",
+        "sbom.syft.json": "d14d48043252a4e726f2891237f970b2d5e65fc16ac4f343a68e9e9a081ef3a2"
+      }
+    },
+    {
+      "target": "postgres",
+      "commit": "7ce22be58bd2877da4ca7a31965586eaf80edd7d",
+      "image_identity": "postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+      "packages": 149,
+      "summary": {
+        "status": "WARNING",
+        "matches": 392,
+        "severity": {
+          "Negligible": 106,
+          "High": 125,
+          "Critical": 4,
+          "Medium": 121,
+          "Low": 36
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database": {
+        "schemaVersion": "v6.1.10",
+        "built": "2026-11-08T06:19:57Z",
+        "valid": true
+      },
+      "frontend_build_graph": null,
+      "artifacts_sha256": {
+        "sbom.cdx.json": "90e9299c44c8ccc0a00b54949386d1016da62a9088400db609a40ca3cfee28b5",
+        "grype.json": "fc30ce758e92a8edeb62051c31f6fcdef6c9b8103bdcebdecf99a5e7d081cb41",
+        "sbom.syft.json": "df8408bbdcaaff0408578f0a206506a35f54637b85e3407f145af3ae9c7324a5"
+      }
+    },
+    {
+      "target": "icecast",
+      "commit": "7ce22be58bd2877da4ca7a31965586eaf80edd7d",
+      "image_identity": "sha256:d6654c47e66be6228877ec746de8a19240768bfea4620be45c4fd624b5290be3",
+      "packages": 136,
+      "summary": {
+        "status": "WARNING",
+        "matches": 354,
+        "severity": {
+          "Negligible": 102,
+          "Critical": 18,
+          "High": 136,
+          "Low": 16,
+          "Medium": 82
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database": {
+        "schemaVersion": "v6.1.10",
+        "built": "2026-11-08T06:19:57Z",
+        "valid": true
+      },
+      "frontend_build_graph": null,
+      "artifacts_sha256": {
+        "sbom.cdx.json": "d75f0dce23f9659dad099c4c544fc92bf98cf07d53d00f7ce781827a93a80699",
+        "grype.json": "3550d57bc109f5f25a17a8cb5709255b6ef217b1532b3a3c13200c6d6f932f11",
+        "sbom.syft.json": "ec86e1d2ca0170f7d72d01539aaeff3c135e1a0bb0c30661cdf1599e291465e3"
+      }
+    },
+    {
+      "target": "frontend",
+      "commit": "7ce22be58bd2877da4ca7a31965586eaf80edd7d",
+      "image_identity": "sha256:c3bdd90da0a4432f776342ad1b95b2b6c9b2d0f73501a715eff9c24b7e99f3e7",
+      "packages": 236,
+      "summary": {
+        "status": "WARNING",
+        "matches": 225,
+        "severity": {
+          "Negligible": 64,
+          "High": 55,
+          "Medium": 90,
+          "Critical": 2,
+          "Low": 14
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database": {
+        "schemaVersion": "v6.1.10",
+        "built": "2026-11-08T06:19:57Z",
+        "valid": true
+      },
+      "frontend_build_graph": {
+        "lock_sha256": "fa8c7af542014982eaaf9f21b8f020f37e19e79dbd7c06f9c922f1aaa1e56993",
+        "scope": "entire declared build graph including dev dependencies; not a precise bundle reachability map",
+        "summary": {
+          "status": "WARNING",
+          "matches": 1,
+          "severity": {
+            "Low": 1
+          },
+          "classification": "potential_pending_applicability_review",
+          "automatic_suppressions": 0,
+          "public_release_authorized": false
+        }
+      },
+      "artifacts_sha256": {
+        "sbom.cdx.json": "859916ab5b7a6d23394fcb388cd8aa7bdc841d48e7774e517c361d9207225a27",
+        "frontend-build-graph.grype.json": "adcbafd40205407abd9569fcee5fdf8ec95aada57e98b1e313fa53a9f0a37da6",
+        "grype.json": "05ea82ddcc2bd9e43992f4e18be12afe8deae3370b376df5c4a9dd093a9529c4",
+        "sbom.syft.json": "706ec8f713d8edf16752e2c393309bd1a2665e0f9ac54ffd48a24a482a564270",
+        "frontend-build-graph.cdx.json": "73f07f73f677e367fd150ec1e4ef810a516be8e7986735f6b9f6d3069bdd363c"
+      }
+    },
+    {
+      "target": "runtime",
+      "commit": "7ce22be58bd2877da4ca7a31965586eaf80edd7d",
+      "image_identity": "sha256:0c39796b7d476f5a0b77a481e1b1657e906bd07bc725725a7ed3d084a32a55cc",
+      "packages": 341,
+      "summary": {
+        "status": "WARNING",
+        "matches": 811,
+        "severity": {
+          "Negligible": 167,
+          "Critical": 11,
+          "High": 304,
+          "Low": 22,
+          "Medium": 291,
+          "Unknown": 16
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database": {
+        "schemaVersion": "v6.1.10",
+        "built": "2026-11-08T06:19:57Z",
+        "valid": true
+      },
+      "frontend_build_graph": null,
+      "artifacts_sha256": {
+        "sbom.cdx.json": "23092d40f2db92afda24ec9f06712698cece462fcc067e3e36b63f540c8c74da",
+        "grype.json": "b068e8b7dbed60a36feb14ee5cbff2d2580c5f1a8a2fd03e6f74d9dff53bf0bf",
+        "sbom.syft.json": "bf141f89d2d5a192dba3ed1f364a60c7f396428a06e35b109ec6ba0645bf81d8"
+      }
+    }
+  ],
+  "public_release": "NO_GO_pending_remaining_matches_review"
+}

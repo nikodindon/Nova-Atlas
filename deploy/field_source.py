@@ -13,6 +13,7 @@ def safe(path):
 
 def initialize(state):
     state=safe(state)
+    for relative in ('config','data/articles','audio_queue','music'):safe(state/relative)
     if not (state/'config/config.yaml').is_file() or (state/'config/feeds.yaml').read_text().strip()!='{}':raise ValueError('fresh_managed_state_required')
     if any((state/'data/articles').iterdir()) or any(p.is_file() for p in (state/'audio_queue').rglob('*')) or any((state/'music').iterdir()):raise ValueError('no_existing_media_or_articles_allowed')
     marker={'version':1,'run_id':uuid.uuid4().hex,'mode':'synthetic-only','created_at':datetime.now(timezone.utc).isoformat()}
@@ -28,8 +29,12 @@ def authorize(marker,run_id,duration,interval,ack,reserved,long_ack):
 def execute(run_id,duration,interval,ack,reserved,long_ack):
     root=Path('/app')
     if Path.cwd()!=root or os.getuid()==0:raise ValueError('nonroot_managed_test_container_only')
-    marker=json.loads(safe(root/'config/field-run.json').read_text())
+    for relative in ('config','data','audio_queue','music'):safe(root/relative)
+    marker_path=safe(root/'config/field-run.json')
+    if marker_path.stat().st_size>4096 or marker_path.stat().st_nlink!=1:raise ValueError('invalid_marker_file')
+    marker=json.loads(marker_path.read_text())
     authorize(marker,run_id,duration,interval,ack,reserved,long_ack)
+    if any(p.is_symlink() or not p.is_file() or p.name!=f'field-tone-{run_id}.mp3' for p in (root/'music').iterdir()):raise ValueError('synthetic_music_only')
     from deploy.runtime import read_secret
     from modules.radio.studio import StudioJournal,RadioStudio,lease
     from modules.radio.streamer import Streamer,AndroidStreamer
