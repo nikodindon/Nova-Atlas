@@ -1,7 +1,7 @@
 """Explicit synthetic-only source for a new, authorized isolated Compose state.
 Plan by default. Never starts main.py, News, an LLM or TTS. Not a qualification.
 """
-import argparse,json,math,os,re,signal,subprocess,tempfile,threading,time,uuid
+import argparse,json,math,os,re,signal,subprocess,sys,tempfile,threading,time,uuid
 from datetime import datetime,timezone
 from pathlib import Path
 
@@ -35,6 +35,7 @@ def execute(run_id,duration,interval,ack,reserved,long_ack):
     marker=json.loads(marker_path.read_text())
     authorize(marker,run_id,duration,interval,ack,reserved,long_ack)
     if any(p.is_symlink() or not p.is_file() or p.name!=f'field-tone-{run_id}.mp3' for p in (root/'music').iterdir()):raise ValueError('synthetic_music_only')
+    sys.path.insert(0,str(root))  # trusted read-only code root for a /field_source.py bind mount
     from deploy.runtime import read_secret
     from modules.radio.studio import StudioJournal,RadioStudio,lease
     from modules.radio.streamer import Streamer,AndroidStreamer

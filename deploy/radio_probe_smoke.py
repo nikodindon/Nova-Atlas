@@ -46,12 +46,14 @@ def exercise(command,run,field_run_id=None):
         from pathlib import Path
         source=(Path(__file__).with_name('field_source.py')).read_text()
         code="""
-import json,subprocess,sys,time
+import json,subprocess,sys,time,tempfile
+from pathlib import Path
 import requests
 source=SOURCE
 args=['field-source','--execute','--run-id',RUN_ID,'--duration','10','--authorize-test-source','--resources-reserved']
-program='import sys;sys.argv='+repr(args)+'\n'+source
-process=subprocess.Popen([sys.executable,'-c',program],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+temporary=tempfile.TemporaryDirectory(prefix='field-source-ci-')
+program=Path(temporary.name)/'field_source.py';program.write_text(source)
+process=subprocess.Popen([sys.executable,str(program),*args[1:]],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
 try:
  with requests.Session() as session:
   session.trust_env=False
@@ -78,6 +80,7 @@ finally:
   process.terminate()
   try:process.wait(timeout=25)
   except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+ temporary.cleanup()
 """
         code=code.replace('SOURCE',repr(source)).replace('RUN_ID',repr(field_run_id))
         print(run(command+['exec','-T','web','python','-c',code]).stdout,flush=True)

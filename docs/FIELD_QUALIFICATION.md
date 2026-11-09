@@ -209,9 +209,9 @@ python -m deploy.field_source --initialize "$ATLAS_FIELD_STATE"
 # Conserver le run_id retourné (identifiant de test, pas un credential).
 # Démarrer Icecast seul avec le même projet/profils/env, puis :
 docker compose -p "$ATLAS_FIELD_PROJECT" --env-file "$ATLAS_FIELD_STATE/compose.env" \
-  --profile radio run --rm --no-deps --entrypoint python \
+  --profile radio run --rm --no-deps --entrypoint /usr/bin/tini \
   --volume "$PWD/deploy/field_source.py:/field_source.py:ro" \
-  radio /field_source.py --execute --run-id RUN_ID_RETOURNE --duration 30 \
+  radio -- python /field_source.py --execute --run-id RUN_ID_RETOURNE --duration 30 \
   --authorize-test-source --resources-reserved
 ```
 
