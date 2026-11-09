@@ -182,3 +182,25 @@ def test_probe_kills_only_its_own_worker_group_and_decoder(monkeypatch):
     monkeypatch.setattr(os,'killpg',lambda pid,sig:calls.append((pid,sig)))
     with pytest.raises(subprocess.TimeoutExpired):worker_run(['own-worker'],input='synthetic',timeout=8,stdout=subprocess.PIPE,text=True)
     assert calls==[(12345,signal.SIGKILL)]
+
+def test_synthetic_source_marker_new_state_only(tmp_path):
+    from deploy.field_source import initialize
+    root=tmp_path/'state'
+    for name in ('config','data/articles','audio_queue/android_cache','music'):(root/name).mkdir(parents=True,exist_ok=True)
+    (root/'config/config.yaml').write_text('service: {}');(root/'config/feeds.yaml').write_text('{}\n')
+    identity=initialize(root);assert len(identity)==32
+    with pytest.raises(FileExistsError):initialize(root)
+    (root/'data/articles/old.json').write_text('[]')
+    with pytest.raises(ValueError):initialize(root)
+
+@pytest.mark.parametrize('ack,reserved,long_ack,duration',[(False,True,False,30),(True,False,False,30),(True,True,False,86400),(True,True,True,86401)])
+def test_synthetic_source_never_implicitly_runs(ack,reserved,long_ack,duration):
+    from deploy.field_source import authorize
+    marker={'version':1,'run_id':'a'*32,'mode':'synthetic-only','created_at':'2026-11-09T00:00:00Z'}
+    with pytest.raises(ValueError):authorize(marker,'a'*32,duration,300,ack,reserved,long_ack)
+
+def test_synthetic_source_valid_ack_is_not_a_qualification():
+    from deploy.field_source import authorize
+    marker={'version':1,'run_id':'a'*32,'mode':'synthetic-only','created_at':'2026-11-09T00:00:00Z'}
+    authorize(marker,'a'*32,30,300,True,True,False)
+    with pytest.raises(ValueError):authorize(marker,'b'*32,30,300,True,True,False)

@@ -34,10 +34,50 @@ print('RC isolated Icecast samples PASS '+json.dumps(measurements))
 '''
 
 
-def exercise(command,run):
+def exercise(command,run,field_run_id=None):
     if os.environ.get('GITHUB_ACTIONS')!='true':raise SystemExit('Disposable CI only')
     print(run(command+['exec','-T','web','python','-c',CODE]).stdout,flush=True)
     run(command+['restart','icecast'])
     run(command+['up','-d','--wait','--wait-timeout','60','icecast'])
     print(run(command+['exec','-T','web','python','-c',CODE]).stdout,flush=True)
     print('RC Icecast restart PASS: both isolated mounts received and decoded before/after restart; no claim of 24h continuity or audience delivery.',flush=True)
+
+    if field_run_id:
+        from pathlib import Path
+        source=(Path(__file__).with_name('field_source.py')).read_text()
+        code="""
+import json,subprocess,sys,time
+import requests
+source=SOURCE
+args=['field-source','--execute','--run-id',RUN_ID,'--duration','10','--authorize-test-source','--resources-reserved']
+program='import sys;sys.argv='+repr(args)+'\n'+source
+process=subprocess.Popen([sys.executable,'-c',program],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+try:
+ with requests.Session() as session:
+  session.trust_env=False
+  for mount in ('nova','nova-android'):
+   okay=False;deadline=time.monotonic()+8
+   while time.monotonic()<deadline:
+    try:
+     with session.get('http://127.0.0.1:5055/stream/'+mount,stream=True,allow_redirects=False,timeout=(1,2)) as response:
+      if response.status_code==200:
+       raw=next(response.iter_content(8192),b'')
+       if len(raw)>=4096:okay=True;break
+    except requests.RequestException:pass
+    time.sleep(.1)
+   assert okay,'synthetic fixture receiver unavailable'
+ out,_=process.communicate(timeout=30)
+ assert process.returncode==0 and json.loads(out)['jobs_admitted']==1
+ from modules.radio.studio import StudioJournal
+ from pathlib import Path
+ journal=StudioJournal(Path('/app/data'),Path('/app/audio_queue'))
+ assert len(journal.load()[0]['jobs'])==1
+ print('Field source smoke PASS: synthetic publication/receipt, both live test mounts, durable Studio job, bounded source shutdown; not a field qualification')
+finally:
+ if process.poll() is None:
+  process.terminate()
+  try:process.wait(timeout=25)
+  except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+"""
+        code=code.replace('SOURCE',repr(source)).replace('RUN_ID',repr(field_run_id))
+        print(run(command+['exec','-T','web','python','-c',code]).stdout,flush=True)
