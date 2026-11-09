@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "references": {
+    "server": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+    "android": "c925e89972f40cf462c2965ba10573b3ba3e7b4a"
+  },
+  "gates": {
+    "code_ci": {
+      "status": "PASS",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Server 1653 pytest, JS/Chromium/smokes; Android46 JVM and4 emulator tests on referenced Android commit",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "CI coverage only; summary hash points to ci-evidence.json, no physical qualification",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "installation_a": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "installation_b": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "frontend": {
+      "status": "WARNING",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Existing isolated integration smokes and synthetic short source/restore; see CI logs",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Successful fixtures only; field campaign NOT_TESTED",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "rss": {
+      "status": "WARNING",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Existing isolated integration smokes and synthetic short source/restore; see CI logs",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Successful fixtures only; field campaign NOT_TESTED",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "events": {
+      "status": "WARNING",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Existing isolated integration smokes and synthetic short source/restore; see CI logs",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Successful fixtures only; field campaign NOT_TESTED",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "images": {
+      "status": "WARNING",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Existing isolated integration smokes and synthetic short source/restore; see CI logs",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Successful fixtures only; field campaign NOT_TESTED",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "backup": {
+      "status": "WARNING",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Existing isolated integration smokes and synthetic short source/restore; see CI logs",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Successful fixtures only; field campaign NOT_TESTED",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "restore": {
+      "status": "WARNING",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Existing isolated integration smokes and synthetic short source/restore; see CI logs",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Successful fixtures only; field campaign NOT_TESTED",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "radio_short": {
+      "status": "WARNING",
+      "evidence": [
+        {
+          "commit": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+          "kind": "ci",
+          "environment": "GitHub Actions isolated runner",
+          "protocol": "Existing isolated integration smokes and synthetic short source/restore; see CI logs",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Successful fixtures only; field campaign NOT_TESTED",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "radio_24h": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "android_emulator": {
+      "status": "PASS",
+      "evidence": [
+        {
+          "commit": "c925e89972f40cf462c2965ba10573b3ba3e7b4a",
+          "kind": "emulator",
+          "environment": "GitHub Android14 API34 x86_64 emulator",
+          "protocol": "4 isolated instrumentation tests including local PCM Media3, no Icecast reception on a phone",
+          "date": "2026-11-09T10:21:50.116675+00:00",
+          "result": "PASS",
+          "limits": "Component emulator scope only; no physical device or battery qualification",
+          "artifact": "https://github.com/nikodindon/nova-atlas-android/actions/runs/42596905962",
+          "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
+        }
+      ]
+    },
+    "android_device_1": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "android_device_2": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "android_device_3": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "tts_real": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "licenses": {
+      "status": "BLOCKED",
+      "evidence": []
+    },
+    "vulnerabilities": {
+      "status": "BLOCKED",
+      "evidence": []
+    },
+    "secrets": {
+      "status": "BLOCKED",
+      "evidence": []
+    },
+    "public_distribution": {
+      "status": "BLOCKED",
+      "evidence": []
+    }
+  }
+}

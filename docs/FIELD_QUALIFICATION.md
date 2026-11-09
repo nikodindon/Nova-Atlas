@@ -404,3 +404,29 @@ Sources : [Syft](https://github.com/anchore/syft/releases/tag/v1.55.0),
 [Python3.12.16](https://www.python.org/downloads/release/python-31216/),
 [secdb Alpine](https://secdb.alpinelinux.org/v3.24/main.json),
 [Media3 TransferListener](https://developer.android.com/reference/androidx/media3/datasource/TransferListener).
+
+## Preuves CI clôturant le code de ce sprint
+
+`docs/measurements/field/ci-evidence.json` et `qualification-current.json` fixent
+les références testées et leurs limites ; `decision.json` est le résumé validé du
+registre. **1653 tests Python réussis (+53), 46 JVM Android, 4 instrumentés API34**.
+JS/CSRF, Chromium Flask/SvelteKit, Docker/RSS, Radio Studio, source synthétique,
+sonde native, LiteLLM simulé et PostgreSQL/restauration ont réussi. La source courte
+avec job/reçu et les deux mounts ont été testés en CI ; pas sur un PC utilisateur.
+Les commit(s) de documentation suivants n'altèrent pas le code validé ; le statut
+final des PR doit être contrôlé séparément avant revue.
+
+Code/CI et émulateur sont PASS dans leur scope explicite ; frontend/RSS/événements/
+images/sauvegarde/restauration/radio courte restent WARNING (fixtures réussies,
+terrain non testé). A/B, trois téléphones, TTS réel et24 h restent NOT_TESTED.
+Licences, vulnérabilités, secrets et distribution restent BLOCKED. Le registre
+ne transforme donc aucune validation théorique en qualification physique.
+
+Après correctifs : nginx passe de4 à3 correspondances (Critical zlib retirée) ;
+runtime de864 à811 (Python ciblé corrigé). Les autres images conservent leurs
+correspondances à examiner. Ce sont des couples paquet/avis, pas autant d'exploits.
+Les résumés avant/après et empreintes complètes sont versionnés ; les raw SBOM/CVE
+sont artifacts. FFmpeg/RIST, libtiff, libxml2 et libc font notamment partie du triage
+restant : des restrictions de format/protocole réduisent certains parcours, mais
+aucune inatteignabilité globale ni faux positif n'est affirmé sans preuve. Le statut
+wont-fix du distributeur ne vaut pas une autorisation de diffusion. **NO-GO public**.
