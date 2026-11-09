@@ -16,7 +16,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "CI coverage only; summary hash points to ci-evidence.json, no physical qualification",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -40,7 +40,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Successful fixtures only; field campaign NOT_TESTED",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -56,7 +56,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Successful fixtures only; field campaign NOT_TESTED",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -72,7 +72,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Successful fixtures only; field campaign NOT_TESTED",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -88,7 +88,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Successful fixtures only; field campaign NOT_TESTED",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -104,7 +104,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Successful fixtures only; field campaign NOT_TESTED",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -120,7 +120,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Successful fixtures only; field campaign NOT_TESTED",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -136,7 +136,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Successful fixtures only; field campaign NOT_TESTED",
-          "artifact": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
@@ -156,7 +156,7 @@
           "date": "2026-11-09T10:21:50.116675+00:00",
           "result": "PASS",
           "limits": "Component emulator scope only; no physical device or battery qualification",
-          "artifact": "https://github.com/nikodindon/nova-atlas-android/actions/runs/42596905962",
+          "artifact": "https://github.com/nikodindon/Nova-Atlas/blob/ad55e800aee0dd198f8c1fbe229821ddad6d9443/docs/measurements/field/ci-evidence.json",
           "sha256": "a99ce613f967fa4cd050f0142b23f4c7cb7f278b73e5549dd567ad434692cbdd"
         }
       ]
