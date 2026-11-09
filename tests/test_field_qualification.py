@@ -152,3 +152,12 @@ def test_physical_status_cannot_be_inferred_from_all_ci():
     value=fresh(S,A);value['gates']['code_ci']={'status':'PASS','evidence':[proof()]}
     assert assess(value)['gates']['installation_a']=='NOT_TESTED'
     assert assess(value)['public']=='NO_GO'
+
+def test_file_growth_stat_only_no_secret_content_or_paths(tmp_path):
+    proc=tmp_path/'proc';proc.mkdir();(proc/'stat').write_text('cpu 1 2 3 4 5 6 7 8\n');(proc/'meminfo').write_text('MemTotal: 100 kB\nMemAvailable: 50 kB\n')
+    path=tmp_path/'private-journal';path.write_text('not-read-synthetic-private-content')
+    value=sample(tmp_path,proc=proc,watch_files=[path]);raw=json.dumps(value)
+    assert value['file_sizes'][0]['bytes']==len(path.read_bytes())
+    assert str(path) not in raw and 'not-read-synthetic' not in raw
+    link=tmp_path/'link';link.symlink_to(path)
+    assert sample(tmp_path,proc=proc,watch_files=[link])['file_sizes'][0]['status']=='NOT_TESTED'

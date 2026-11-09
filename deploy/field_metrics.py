@@ -14,14 +14,21 @@ def process_sample(pid,*,proc=Path('/proc')):
     parts=(root/'stat').read_text().rsplit(')',1)[1].split()
     return {'pid':pid,'start_ticks':int(parts[19]),'cpu_ticks':int(parts[11])+int(parts[12]),'rss_bytes':int(parts[21])*os.sysconf('SC_PAGE_SIZE'),'state':parts[0]}
 
-def sample(storage,pids=(),*,proc=Path('/proc')):
+def sample(storage,pids=(),*,proc=Path('/proc'),watch_files=()):
     mem={line.split(':')[0]:int(line.split()[1])*1024 for line in (proc/'meminfo').read_text().splitlines() if line.startswith(('MemTotal:','MemAvailable:'))}
     ticks=[int(v) for v in (proc/'stat').read_text().splitlines()[0].split()[1:9]]
     disk=os.statvfs(storage);processes=[]
     for pid in pids:
         try:processes.append(process_sample(pid,proc=proc))
         except (ValueError,OSError,IndexError):processes.append({'pid':pid,'status':'NOT_TESTED','reason':'missing_reused_or_inaccessible_process'})
-    return {'cpu_total_ticks':sum(ticks),'cpu_idle_ticks':ticks[3]+ticks[4],'memory':mem,'free_bytes':disk.f_bavail*disk.f_frsize,'processes':processes}
+    files=[]
+    for index,path in enumerate(watch_files):
+        try:
+            info=checked(path).lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink!=1:raise ValueError()
+            files.append({'slot':index,'bytes':info.st_size,'mtime_ns':info.st_mtime_ns,'status':'observed_metadata_only'})
+        except (ValueError,OSError):files.append({'slot':index,'status':'NOT_TESTED'})
+    return {'file_sizes':files,'cpu_total_ticks':sum(ticks),'cpu_idle_ticks':ticks[3]+ticks[4],'memory':mem,'free_bytes':disk.f_bavail*disk.f_frsize,'processes':processes}
 
 def run(collector,output,*,duration=0,interval=10,long_authorized=False,resources_reserved=False,clock=time.monotonic,stop=None,wall=lambda:datetime.now(timezone.utc).isoformat()):
     if not 0<=duration<=86400 or not 1<=interval<=300 or duration>60 and not (long_authorized and resources_reserved):raise ValueError('explicit_long_run_authorization_required')
@@ -50,12 +57,12 @@ def run(collector,output,*,duration=0,interval=10,long_authorized=False,resource
     return {'status':'observed','samples':count,'endurance_qualified':False}
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--storage',required=True);p.add_argument('--output',required=True);p.add_argument('--pid',type=int,action='append',default=[]);p.add_argument('--duration',type=int,default=0);p.add_argument('--interval',type=int,default=10);p.add_argument('--authorize-long-run',action='store_true');p.add_argument('--resources-reserved',action='store_true');a=p.parse_args();stop=threading.Event()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--storage',required=True);p.add_argument('--output',required=True);p.add_argument('--pid',type=int,action='append',default=[]);p.add_argument('--watch-file',action='append',default=[]);p.add_argument('--duration',type=int,default=0);p.add_argument('--interval',type=int,default=10);p.add_argument('--authorize-long-run',action='store_true');p.add_argument('--resources-reserved',action='store_true');a=p.parse_args();stop=threading.Event()
     for sig in (signal.SIGINT,signal.SIGTERM):signal.signal(sig,lambda *_:stop.set())
     try:
         root=checked(a.storage)
-        if not root.is_dir() or len(a.pid)>8 or any(v<=0 for v in a.pid):raise ValueError()
-        result=run(lambda:sample(root,a.pid),a.output,duration=a.duration,interval=a.interval,long_authorized=a.authorize_long_run,resources_reserved=a.resources_reserved,stop=stop)
+        if not root.is_dir() or len(a.pid)>8 or len(a.watch_file)>16 or any(v<=0 for v in a.pid):raise ValueError()
+        result=run(lambda:sample(root,a.pid,watch_files=a.watch_file),a.output,duration=a.duration,interval=a.interval,long_authorized=a.authorize_long_run,resources_reserved=a.resources_reserved,stop=stop)
     except (ValueError,OSError):result={'status':'FAIL','reason':'metrics_refused_or_interrupted_storage_preserved'}
     print(json.dumps(result));raise SystemExit(1 if result['status']=='FAIL' else 0)
 if __name__=='__main__':main()

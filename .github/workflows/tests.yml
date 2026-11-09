@@ -48,6 +48,7 @@ jobs:
       - run: python -m deploy.rss_smoke
       - run: python -m deploy.tts_lab_smoke
       - run: python -m deploy.radio_studio_smoke
+      - run: python -m deploy.field_probe_smoke
       - run: python -m deploy.rc_validation --output /tmp/rc-measurements.json
       - uses: actions/upload-artifact@v4
         with:
