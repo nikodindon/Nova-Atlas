@@ -210,3 +210,13 @@ def test_synthetic_initialization_refuses_symlinked_storage(tmp_path):
     state=tmp_path/'state';state.mkdir();outside=tmp_path/'outside';outside.mkdir()
     (state/'config').symlink_to(outside,target_is_directory=True)
     with pytest.raises(ValueError):initialize(state)
+
+def test_synthetic_marker_refuses_symlinked_feed_file_before_read(tmp_path):
+    from deploy.field_source import initialize
+    state=tmp_path/'state'
+    for name in ('config','data/articles','audio_queue','music'):(state/name).mkdir(parents=True,exist_ok=True)
+    (state/'config/config.yaml').write_text('service: {}')
+    outside=tmp_path/'not-authorized-feed';outside.write_text('{}')
+    (state/'config/feeds.yaml').symlink_to(outside)
+    with pytest.raises(ValueError):initialize(state)
+    assert not (state/'config/field-run.json').exists()

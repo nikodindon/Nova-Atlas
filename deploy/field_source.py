@@ -13,7 +13,7 @@ def safe(path):
 
 def initialize(state):
     state=safe(state)
-    for relative in ('config','data/articles','audio_queue','music'):safe(state/relative)
+    for relative in ('config','config/config.yaml','config/feeds.yaml','data/articles','audio_queue','music'):safe(state/relative)
     if not (state/'config/config.yaml').is_file() or (state/'config/feeds.yaml').read_text().strip()!='{}':raise ValueError('fresh_managed_state_required')
     if any((state/'data/articles').iterdir()) or any(p.is_file() for p in (state/'audio_queue').rglob('*')) or any((state/'music').iterdir()):raise ValueError('no_existing_media_or_articles_allowed')
     marker={'version':1,'run_id':uuid.uuid4().hex,'mode':'synthetic-only','created_at':datetime.now(timezone.utc).isoformat()}
