@@ -186,8 +186,9 @@ python -m deploy.field_report --report /chemin/prive/radio-courte.jsonl
 ```
 
 Un worker borné à huit secondes englobe DNS/headers/lecture/décodage ; timeouts
-socket 2/3 s, sample maximum 8 Kio habituel (plafond 64 Kio), FFmpeg local avec
-protocoles file/pipe, timeout trois secondes. Ce décodage porte sur l'échantillon,
+socket 2/3 s, sample maximum 8 Kio habituel (plafond 64 Kio), FFmpeg local en demuxer MP3 imposé (pas de playlist auto-détectée),
+protocoles file/pipe, timeout trois secondes. Le groupe dédié du worker est tué
+en dépassement du budget, y compris son décodeur, jamais un streamer. Ce décodage porte sur l'échantillon,
 **pas sur un MP3 complet ni sur le reçu du bulletin**. Mount200, octets, décodage,
 pipe local et auditeur restent des observations distinctes. 429 respecte son
 Retry-After ; les délais dépassant 24 h sont marqués au-delà de la campagne et

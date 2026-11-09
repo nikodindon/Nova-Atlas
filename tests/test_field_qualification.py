@@ -166,3 +166,19 @@ def test_frontend_build_graph_is_explicitly_supplemental_and_purls_encoded():
     from deploy.security_inventory import lock_bom
     value=lock_bom({'packages':{'':{'version':'0.1'},'node_modules/@sveltejs/kit':{'version':'2.0.0'},'node_modules/helper':{'version':'1.0'}}})
     assert len(value['components'])==2 and value['components'][0]['purl']=='pkg:npm/%40sveltejs/kit@2.0.0'
+
+def test_probe_kills_only_its_own_worker_group_and_decoder(monkeypatch):
+    import subprocess,signal
+    from deploy.field_radio import worker_run
+    calls=[]
+    class Process:
+        pid=12345;returncode=-9
+        def __init__(self,*args,**kwargs):assert kwargs['start_new_session'] is True;self.attempt=0
+        def communicate(self,*args,**kwargs):
+            self.attempt+=1
+            if self.attempt==1:raise subprocess.TimeoutExpired('own-worker',8)
+            return ('',None)
+    monkeypatch.setattr(subprocess,'Popen',Process)
+    monkeypatch.setattr(os,'killpg',lambda pid,sig:calls.append((pid,sig)))
+    with pytest.raises(subprocess.TimeoutExpired):worker_run(['own-worker'],input='synthetic',timeout=8,stdout=subprocess.PIPE,text=True)
+    assert calls==[(12345,signal.SIGKILL)]

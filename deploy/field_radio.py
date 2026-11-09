@@ -23,7 +23,7 @@ def decode_sample(raw,*,runner=subprocess.run):
     try:
         with tempfile.TemporaryDirectory(prefix='atlas-radio-sample-') as tmp:
             path=Path(tmp)/'sample.audio';path.write_bytes(raw)
-            result=runner(['ffmpeg','-v','error','-nostdin','-protocol_whitelist','file,pipe','-i',str(path),'-map','0:a:0','-t','0.25','-f','null','-'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=3)
+            result=runner(['ffmpeg','-v','error','-nostdin','-protocol_whitelist','file,pipe','-f','mp3','-i',str(path),'-map','0:a:0','-t','0.25','-f','null','-'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=3)
             return 'PASS' if result.returncode==0 else 'FAIL'
     except (OSError,subprocess.TimeoutExpired):return 'NOT_TESTED'
 
@@ -33,7 +33,7 @@ def sample(url,*,loopback_http=False,session_factory=requests.Session,decoder=de
     try:
         with session_factory() as session:
             session.trust_env=False
-            with session.get(url,stream=True,allow_redirects=False,timeout=(2,3),headers={'Accept':'audio/mpeg,audio/ogg'}) as response:
+            with session.get(url,stream=True,allow_redirects=False,timeout=(2,3),headers={'Accept':'audio/mpeg'}) as response:
                 result['http_status']=response.status_code
                 if response.status_code==429:
                     # Reuse a bounded parsed delay, never publish raw headers.
@@ -47,7 +47,7 @@ def sample(url,*,loopback_http=False,session_factory=requests.Session,decoder=de
                     result['retry_after_seconds']=max(1,min(delay,86401));result['embargo_exceeds_maximum_campaign']=delay>86400;return result
                 if response.status_code!=200:return result
                 result['mount']='PASS'
-                if not response.headers.get('Content-Type','').lower().startswith(('audio/','application/ogg')):return result
+                if not response.headers.get('Content-Type','').lower().startswith(('audio/mpeg','audio/mp3')):return result
                 body=bytearray()
                 for chunk in response.iter_content(8192):
                     if clock()-started>4:break
@@ -59,7 +59,20 @@ def sample(url,*,loopback_http=False,session_factory=requests.Session,decoder=de
     finally:result['elapsed_seconds']=max(0,clock()-started)
     return result
 
-def bounded(url,loopback_http=False,*,runner=subprocess.run):
+def worker_run(command,**kwargs):
+    if os.name!='posix':raise ValueError('posix_worker_required')
+    timeout=kwargs.pop('timeout');body=kwargs.pop('input')
+    process=subprocess.Popen(command,start_new_session=True,**kwargs)
+    try:
+        out,_=process.communicate(body,timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:os.killpg(process.pid,signal.SIGKILL)
+        except ProcessLookupError:pass
+        process.communicate(timeout=3)
+        raise
+    return subprocess.CompletedProcess(command,process.returncode,out)
+
+def bounded(url,loopback_http=False,*,runner=worker_run):
     endpoint(url,loopback_http)
     env={k:v for k,v in os.environ.items() if k in ('PATH','LANG')}
     try:

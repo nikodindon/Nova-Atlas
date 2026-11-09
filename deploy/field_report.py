@@ -49,5 +49,5 @@ def load(path):
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--report',required=True);a=p.parse_args()
     try:print(json.dumps(load(a.report),sort_keys=True))
-    except (ValueError,OSError,KeyError,TypeError):print(json.dumps({'status':'FAIL','reason':'invalid_report_preserved'}));raise SystemExit(1)
+    except (ValueError,OSError,KeyError,TypeError,RecursionError,OverflowError):print(json.dumps({'status':'FAIL','reason':'invalid_report_preserved'}));raise SystemExit(1)
 if __name__=='__main__':main()

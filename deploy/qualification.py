@@ -84,5 +84,5 @@ def main():
                 if version!=a.expected:raise ValueError('version_conflict')
                 evidence,_=read(a.evidence);value['gates'][a.gate]={'status':a.status,'evidence':[evidence]};validate(value)
                 print(json.dumps({'sha256':write_new(a.output,value),'status':'recorded_not_authorized'}))
-    except (OSError,ValueError,TypeError,KeyError):print(json.dumps({'status':'FAIL','reason':'qualification_refused_originals_preserved'}));raise SystemExit(1)
+    except (OSError,ValueError,TypeError,KeyError,RecursionError,OverflowError):print(json.dumps({'status':'FAIL','reason':'qualification_refused_originals_preserved'}));raise SystemExit(1)
 if __name__=='__main__':main()
