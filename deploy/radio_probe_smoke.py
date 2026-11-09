@@ -69,7 +69,7 @@ try:
     time.sleep(.1)
    assert okay,'synthetic fixture receiver unavailable'
  out,_=process.communicate(timeout=30)
- assert process.returncode==0 and json.loads(out)['jobs_admitted']==1
+ assert process.returncode==0 and json.loads(out)['jobs_admitted']==1,out
  from modules.radio.studio import StudioJournal
  from pathlib import Path
  journal=StudioJournal(Path('/app/data'),Path('/app/audio_queue'))

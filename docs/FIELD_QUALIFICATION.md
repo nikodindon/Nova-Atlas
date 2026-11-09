@@ -115,6 +115,11 @@ docker compose -p "$ATLAS_FIELD_PROJECT" --env-file "$ATLAS_FIELD_STATE/compose.
   --profile web up -d --wait web
 ```
 
+Pour RSS local : un refus des IP privées par le client normal est attendu, pas
+un bug à contourner. Les succès contrôlés utilisent les transports injectés du
+smoke Docker/RSS, ou une source de test à IP publique explicitement autorisée ;
+jamais une exception SSRF globale pour le LAN.
+
 Pour SvelteKit ajouter `-f docker-compose.yml -f docker-compose.frontend.yml`
 et `--profile frontend`, puis build/up des services frontend et frontend-proxy
 avec web. Conserver **le même -p, env-file, overlays et profils** dans les commandes

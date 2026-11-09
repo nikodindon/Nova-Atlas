@@ -72,8 +72,10 @@ def execute(run_id,duration,interval,ack,reserved,long_ack):
                     info=inspect_audio(path);published=queue/row['publication_name'];publish_audio(path,published,info,1)
                     music=music_root/'tone.mp3'
                     if not music.exists():
-                        with music.open('xb') as stream:stream.write(published.read_bytes())
-                        music.chmod(0o600)
+                        partial=music.with_name('.tone.part')
+                        with partial.open('xb') as stream:
+                            stream.write(published.read_bytes());stream.flush();os.fsync(stream.fileno())
+                        partial.chmod(0o600);os.replace(partial,music)
                     journal.attach(row['id'],published)
                     if not studio.enqueue(row['id']):raise ValueError('test_queue_refused')
                     jobs+=1
@@ -94,5 +96,5 @@ def main():
             print(json.dumps({'status':'marked_not_started','run_id':initialize(a.initialize)}));return
         if not a.execute:print(json.dumps({'status':'PLAN_ONLY','services_started':False}));return
         print(json.dumps(execute(a.run_id,a.duration,a.interval,a.authorize_test_source,a.resources_reserved,a.authorize_long_run)))
-    except (ValueError,OSError,RuntimeError,subprocess.SubprocessError):print(json.dumps({'status':'FAIL','reason':'synthetic_source_refused_or_failed'}));raise SystemExit(1)
+    except (ValueError,OSError,RuntimeError,subprocess.SubprocessError) as error:print(json.dumps({'status':'FAIL','reason':'synthetic_source_refused_or_failed','error_type':type(error).__name__}));raise SystemExit(1)
 if __name__=='__main__':main()

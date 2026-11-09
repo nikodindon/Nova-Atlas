@@ -1,4 +1,4 @@
-"""Disposable GitHub CI only: builds images, runs Web/Icecast, never News/Radio engines."""
+"""Disposable GitHub CI only: builds images, runs Web/Icecast and synthetic sources, never business schedulers."""
 import json
 import os
 import re
@@ -118,7 +118,7 @@ publish_audio(source,target,inspect_audio(source),1)
             logs=run(command+['logs','--no-color','web','icecast']).stdout
             for name in ('admin_password_hash','session_secret','icecast_source_password'):
                 assert (state/'secrets'/name).read_text().strip() not in logs
-            print('Docker smoke PASS: builds, non-root binaries, closed secrets, health, shared locks/audio, persistence and SIGTERM. No engines started.')
+            print('Docker smoke PASS: builds, non-root binaries, closed secrets, health, shared locks/audio, persistence and SIGTERM. Only explicit synthetic sources; no News/LLM/TTS.')
         except BaseException:
             diagnostic(run(command+['logs','--no-color','--tail','60','web','icecast'],check=False).stdout)
             raise
