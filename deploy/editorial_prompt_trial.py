@@ -28,7 +28,7 @@ def prepare(output,repetitions=1):
         for repetition in range(1,repetitions+1):
             order=VERSIONS[index%3:]+VERSIONS[:index%3]
             for version in order:
-                prompt=ed.summary_prompt(case['title'],case['source'],'qualification','fr',ed.options({'fetch':{'editorial':{'prompt_version':version}}}))
+                prompt=ed.summary_prompt(case['title'],case['source'],case.get('category','qualification'),'fr',ed.options({'fetch':{'editorial':{'prompt_version':version}}}))
                 jobs.append({'case_id':case['id'],'version':version,'repetition':repetition,
                     'prompt':prompt,'prompt_sha256':sha(prompt.encode()),
                     'transmitted_source_sha256':sha(case['source'][:3000].encode()),
@@ -41,7 +41,7 @@ def prepare(output,repetitions=1):
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self,*args,**kwargs):raise urllib.error.HTTPError(args[0].full_url,args[2],'redirect_refused',args[4],None)
+    def redirect_request(self,*args,**kwargs):raise urllib.error.HTTPError(args[0].full_url,args[2],'redirect_refused',args[4],args[1])
 
 
 class IsolatedClient(OllamaClient):
@@ -103,7 +103,7 @@ def measure(plan_path,authorization_path,output,*,execute=False):
         key=(job['case_id'],job['version'],job['repetition'])
         if key in seen:raise ExportError('duplicate_job')
         seen.add(key);case=cases[job['case_id']]
-        expected=ed.summary_prompt(case['title'],case['source'],'qualification','fr',ed.options({'fetch':{'editorial':{'prompt_version':job['version']}}}))
+        expected=ed.summary_prompt(case['title'],case['source'],case.get('category','qualification'),'fr',ed.options({'fetch':{'editorial':{'prompt_version':job['version']}}}))
         if job.get('prompt')!=expected or job.get('prompt_sha256')!=sha(expected.encode()) or job.get('expected_status')!=case['expected_status']:raise ExportError('changed_prompt_or_reference')
     repetitions={job['repetition'] for job in jobs}
     matrix={(case,version,repetition) for case in cases for version in VERSIONS for repetition in range(1,max(repetitions)+1)}
@@ -156,14 +156,22 @@ def measure(plan_path,authorization_path,output,*,execute=False):
             'french_quality':None,'invented_information':None,'human_review_required':True})
     report={'schema':1,'kind':'operator_authorized_measurement','model_environment':auth,
             'model_environment_provenance':'operator_declaration; API model ID checked; weights/hardware not remotely attested',
-            'plan_sha256':sha(raw),'parameters':PARAMETERS,'summaries':summaries,'runs':results,'planned_runs':len(jobs),
+            'plan_sha256':sha(raw),'parameters':PARAMETERS,'summaries':summaries,
+            'cases':[{'id':c['id'],'title':c['title'],'category':c.get('category','qualification'),
+                      'source_transmitted':c['source'][:3000],'expected_status':c['expected_status'],
+                      'reference_facts':c['reference_facts'],'notes':c['notes']} for c in corpus['cases']],
+            'runs':results,'planned_runs':len(jobs),
             'completed_runs':len(results),'complete':len(results)==len(jobs),'interrupted':interrupted,
             'truth_scores':None,'human_review_required':True,'deployment_authorized':False}
     lines=['# Essai réel Ornith — revue humaine requise','','Aucune note automatique de vérité ni autorisation de déploiement.',
            f"Appels observés : {len(results)} / {len(jobs)}. Seed non envoyé ; sorties non garanties identiques.",'']
-    for row in results:
-        lines.extend(['## '+row['case_id']+' / '+row['version'],f"État : {row['status']}. JSON syntaxiquement valide : {row['json_syntax_valid']}.",
-                      '```json',json.dumps({'output':row['output'],'receipt':row['receipt'],'human_review':row['human_review']},ensure_ascii=False,indent=2),'```',''])
+    for case in report['cases']:
+        lines.extend(['## '+case['id'],'Source synthétique CC0 ; seule cette fenêtre a été transmise.',
+                      '```json',json.dumps(case,ensure_ascii=False,indent=2),'```',''])
+        for row in [r for r in results if r['case_id']==case['id']]:
+            lines.extend(['### '+row['version']+' / répétition '+str(row['repetition']),
+                          f"État : {row['status']}. JSON syntaxiquement valide : {row['json_syntax_valid']}.",
+                          '```json',json.dumps({'output':row['output'],'receipt':row['receipt'],'human_review':row['human_review']},ensure_ascii=False,indent=2),'```',''])
     output_bundle(output,{'measurements.json':json_text(report),'review.md':'\n'.join(lines)+'\n'},(plan_path,authorization_path))
     return {'status':'measured_review_required','runs':len(results),'complete':report['complete'],'quality_validated':False}
 

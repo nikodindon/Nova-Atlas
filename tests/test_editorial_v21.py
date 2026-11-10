@@ -29,6 +29,7 @@ def test_v21_instruction_does_not_label_source_facts_unreliable():
     prompt=ed.summary_prompt('Une ouverture','La bibliothèque ouvre samedi.','monde','fr',policy)
     assert 'source non fiable' not in prompt
     assert 'une ou deux phrases' in prompt and 'aucun fait exploitable' in prompt
+    assert 'un écart de rubrique ne justifie pas un refus' in prompt
     assert json.dumps({'title':'Une ouverture','category':'monde','source':'La bibliothèque ouvre samedi.'},ensure_ascii=False) in prompt
     assert ed.parse_summary('{"status":"ok","summary":"La bibliothèque ouvre samedi."}','editorial-v2.1')=='La bibliothèque ouvre samedi.'
     with pytest.raises(ValueError,match='summary_source_insufficient'):
@@ -149,6 +150,9 @@ def test_runner_http_double_checks_protocol_not_ornith_quality(tmp_path,monkeypa
     assert result['runs']==39 and result['quality_validated'] is False
     report=json.loads((tmp_path/'measurement/measurements.json').read_text())
     assert report['truth_scores'] is None and report['deployment_authorized'] is False
+    assert len(report['cases'])==13
+    assert all('source_transmitted' in c for c in report['cases'])
+    assert next(c for c in report['cases'] if c['id']=='fait-unique')['category']=='geopolitique'
     assert all(r['human_review']['invented_information'] is None for r in report['runs'])
     assert len({r['request_id'] for r in report['runs']})==39
     assert all(r['receipt']['request_id']==r['request_id'] for r in report['runs'])

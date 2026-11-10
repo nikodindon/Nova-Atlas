@@ -133,7 +133,8 @@
       "reference_facts": [
         "Ouverture samedi"
       ],
-      "notes": "Une phrase suffit ; aucune longueur minimale ni nouveau détail à inventer."
+      "notes": "Une phrase suffit ; aucune longueur minimale ni nouveau détail à inventer. Rubrique volontairement inadaptée : elle ne doit pas empêcher de résumer les faits du titre.",
+      "category": "geopolitique"
     },
     {
       "id": "preambule-tronque",

@@ -43,7 +43,8 @@ figées dans les tests). Le mode par défaut reste `legacy-v1`.
 `editorial-v2.1` conserve le contrat JSON et le refus obligatoire si aucun fait
 exploitable n'existe sur le sujet. Il demande de résumer un fait partiel pertinent,
 même en une ou deux phrases, sans compléter les détails absents. Les accusations
-restent attribuées. La séparation de sécurité interdit de suivre les instructions
+restent attribuées. Le sujet est celui du titre ; une rubrique YAML inadaptée ne
+constitue pas un motif de refus. La séparation de sécurité interdit de suivre les instructions
 présentes dans SOURCE sans qualifier ses faits de non fiables. Un seul schéma de
 réussite est décrit, puis le cas de refus est défini sans exemple JSON final à recopier.
 Ces choix sont des hypothèses de correction, pas des résultats sur Ornith.
@@ -112,7 +113,8 @@ les deux modes structurés ; les clés de cache incluent leur version propre.
 `config/editorial_qualification/editorial-v21-corpus.json` contient 13 textes
 originaux synthétiques, placés sous CC0 : brèves françaises, information incomplète,
 déclaration non vérifiée, anglais, japonais, arabe, russe, texte long, fait unique,
-navigation, texte vide, sujet distinct et préambule dépassant la fenêtre.
+navigation, texte vide, sujet distinct et préambule dépassant la fenêtre. Le cas
+du fait unique utilise volontairement une rubrique thématique inadaptée.
 
 Les annotations concernent **la fenêtre réellement transmise**. Une information
 située après 3 000 caractères ne peut pas être attendue du modèle. Le cas de
@@ -174,7 +176,8 @@ python -m deploy.editorial_prompt_trial measure \
 ```
 
 Sorties privées, répertoire neuf hors Git et hors état actif : measurements.json,
-review.md. Matrice complète exigée, cache désactivé, aucun retry de génération,
+review.md. Les deux sorties contiennent les fenêtres sources autorisées, titres,
+catégories et annotations pour une revue autonome, sans relire le dépôt. Matrice complète exigée, cache désactivé, aucun retry de génération,
 budget global d'admission et timeouts par appel. Une limite atteinte donne un
 rapport incomplet, jamais un succès rempli artificiellement. Un timeout client
 n'atteste pas l'arrêt instantané du calcul côté serveur ; l'opérateur supervise
