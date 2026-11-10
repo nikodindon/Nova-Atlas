@@ -44,8 +44,8 @@ des origines explicitement configurées et distinctes.
 
 ## Images et versions
 
-- Application : base officielle `python:3.12.14-slim-trixie`, digest
-  `sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f`.
+- Application : base officielle `python:3.12.16-slim-trixie`, digest
+  `sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b`.
 - Icecast : base [LibreTime](https://github.com/libretime/icecast-docker)
   `libretime/icecast:2.5.0-debian`, digest
   `sha256:01b91f4d302775f761a5a23cd716586bf33574822d51a6667969c23165e5f286`.

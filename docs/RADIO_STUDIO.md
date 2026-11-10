@@ -297,3 +297,10 @@ lecture des tombstones incompatible avec une reprise sûre après compactage.
 octets client. Probe opérateur explicite, pas d'API arbitraire, enfant limité six
 secondes ; octets seuls ne prouvent pas le décodage. Les courts smokes Icecast/FFmpeg
 synthétiques ne sont pas une validation 24 h. Voir RELEASE_CANDIDATE.md.
+
+## Qualification terrain
+
+field_radio observe un mount et décode des échantillons privés bornés ; field_report
+ne les assimile ni à une écoute ni à un uptime continu. Le protocole 24 h exige
+une autorisation et des ressources réservées ; il n’est pas lancé automatiquement.
+Voir FIELD_QUALIFICATION.md.

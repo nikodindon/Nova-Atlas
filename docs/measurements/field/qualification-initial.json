@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "references": {
+    "server": "0e8752622bbbe16cf9b3b187bb7d69a9b1e4533b",
+    "android": "0bf4ba0dcbedf62521ae6daebaca9b703e7c1354"
+  },
+  "gates": {
+    "code_ci": {
+      "status": "WARNING",
+      "evidence": []
+    },
+    "installation_a": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "installation_b": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "frontend": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "rss": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "events": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "images": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "backup": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "restore": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "radio_short": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "radio_24h": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "android_emulator": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "android_device_1": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "android_device_2": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "android_device_3": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "tts_real": {
+      "status": "NOT_TESTED",
+      "evidence": []
+    },
+    "licenses": {
+      "status": "BLOCKED",
+      "evidence": []
+    },
+    "vulnerabilities": {
+      "status": "BLOCKED",
+      "evidence": []
+    },
+    "secrets": {
+      "status": "BLOCKED",
+      "evidence": []
+    },
+    "public_distribution": {
+      "status": "BLOCKED",
+      "evidence": []
+    }
+  }
+}

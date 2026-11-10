@@ -1,0 +1,33 @@
+{
+  "variant": "debug",
+  "commit": "e3200f50fa893bddd974f32f505ca0fdb25b8977",
+  "apk_sha256": "dd105c8cc5ce28e0ed27ad317b3072272d6b19e77e63485f78357bf69021d773",
+  "components": 126,
+  "native_libraries": [],
+  "tools": {
+    "syft": "1.55.0",
+    "grype": "0.121.2"
+  },
+  "database": {
+    "schemaVersion": "v6.1.10",
+    "built": "2026-11-08T06:19:57Z",
+    "valid": true
+  },
+  "scan": {
+    "status": "PASS_WITHIN_SCANNER_COVERAGE",
+    "matches": 0,
+    "severity": {},
+    "classification": "no_matches_in_this_database_not_a_security_guarantee",
+    "automatic_suppressions": 0,
+    "public_release_authorized": false
+  },
+  "jvm_tests_passed": 46,
+  "physical_tests": "NOT_TESTED",
+  "ci": "https://github.com/nikodindon/nova-atlas-android/actions/runs/42593941350",
+  "limitations": [
+    "debug candidate only",
+    "not a full runtime reachability proof",
+    "native identification not established if present",
+    "no license approval"
+  ]
+}

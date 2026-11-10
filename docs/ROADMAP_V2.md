@@ -99,3 +99,9 @@ export read-only corrigé et charge synthétique. **No-Go qualification publique
 multi-machine, radio 24 h, licences/droits, revue opérateur et scan OS restent
 à réaliser. Les limites de l'index (500) et de stockage ne sont pas levées.
 Voir RELEASE_CANDIDATE.md et CHANGELOG_V2.md ; aucun cutover PostgreSQL.
+
+## Sprint 15 — qualification préparée, NO-GO public
+
+Registre de preuves, métriques et sondes radio bornées, instrumentation Android,
+SBOM/CVE des candidats et corrections ciblées. A/B, trois smartphones, endurance,
+TTS réel et droits restent des portes opérateur. Voir FIELD_QUALIFICATION.md.
