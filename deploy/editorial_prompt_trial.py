@@ -87,9 +87,7 @@ def authorization(path):
     return value
 
 
-def measure(plan_path,authorization_path,output,*,execute=False):
-    if not execute:raise ExportError('explicit_execute_required')
-    auth=authorization(authorization_path) # Validate before any model listing or generation.
+def validated_protocol(plan_path):
     raw=read(plan_path);protocol=json.loads(raw)
     if protocol.get('schema')!=1 or protocol.get('kind')!='offline_plan_not_executed' or protocol.get('parameters')!=PARAMETERS:
         raise ExportError('invalid_or_changed_protocol')
@@ -108,6 +106,72 @@ def measure(plan_path,authorization_path,output,*,execute=False):
     repetitions={job['repetition'] for job in jobs}
     matrix={(case,version,repetition) for case in cases for version in VERSIONS for repetition in range(1,max(repetitions)+1)}
     if seen!=matrix:raise ExportError('balanced_complete_protocol_required')
+    return raw,protocol,corpus,jobs
+
+
+def assess_output(job,text,receipt):
+    unsafe=len(text)>64000 or bool(ed.REASONING.search(text)) or sensitive(text)
+    if unsafe:text=''
+    version=job['version'];syntax=None;summary=None;failure=None
+    if version!='legacy-v1' and text and not unsafe:
+        try:json.loads(text);syntax=True
+        except (ValueError,TypeError):syntax=False
+    try:summary=ed.parse_summary(text,version);status='text_requires_human_classification' if version=='legacy-v1' else 'ok'
+    except ValueError as exc:
+        failure='unsafe_or_oversized_output_omitted' if unsafe else receipt.get('kind') if receipt.get('kind') not in (None,'success') else str(exc)
+        status='refused' if failure=='summary_source_insufficient' else 'failed'
+    return {'case_id':job['case_id'],'version':version,'repetition':job['repetition'],
+        'request_id':receipt.get('request_id'),'prompt_sha256':job['prompt_sha256'],'receipt':receipt,
+        'output':text,'summary':summary,'status':status,'error':failure,'unsafe_output_omitted':unsafe,
+        'json_syntax_valid':syntax,'reference_status':job['expected_status'],
+        'unjustified_refusal_by_corpus_label':status=='refused' and job['expected_status']=='ok',
+        'legitimate_refusal_by_corpus_label':status=='refused' and job['expected_status']=='insufficient_source',
+        'summary_words':len(summary.split()) if summary else 0,
+        'human_review':{'french_quality_0_to_4':None,'invented_information':None,'missing_facts':None,'evidence_quotes':None,'reviewer':None}}
+
+
+def export_measurements(raw,protocol,corpus,jobs,auth,results,output,plan_path,authorization_path,interrupted=False):
+    summaries=[]
+    for version in VERSIONS:
+        selected=[r for r in results if r['version']==version]
+        times=[r['receipt'].get('response_duration_ms') for r in selected if r['receipt'].get('response_duration_ms') is not None]
+        summaries.append({'version':version,'observed_runs':len(selected),
+            'structured_refusals':sum(r['status']=='refused' for r in selected) if version!='legacy-v1' else None,
+            'unjustified_refusals_by_corpus_label':sum(r['unjustified_refusal_by_corpus_label'] for r in selected) if version!='legacy-v1' else None,
+            'legitimate_refusals_by_corpus_label':sum(r['legitimate_refusal_by_corpus_label'] for r in selected) if version!='legacy-v1' else None,
+            'invalid_json_syntax':sum(r['json_syntax_valid'] is False for r in selected) if version!='legacy-v1' else None,
+            'invalid_contract_or_content':sum(r['error']=='summary_invalid_contract' for r in selected),
+            'mean_response_duration_ms':sum(times)/len(times) if times else None,
+            'french_quality':None,'invented_information':None,'human_review_required':True})
+    report={'schema':1,'kind':'operator_authorized_measurement','model_environment':auth,
+            'environment_mode':auth.get('mode','isolated'),
+            'model_environment_provenance':'operator_declaration plus recorded preflight; shared mode is not isolated',
+            'plan_sha256':sha(raw),'parameters':PARAMETERS,'summaries':summaries,
+            'cases':[{'id':c['id'],'title':c['title'],'category':c.get('category','qualification'),
+                      'source_transmitted':c['source'][:3000],'expected_status':c['expected_status'],
+                      'reference_facts':c['reference_facts'],'notes':c['notes']} for c in corpus['cases']],
+            'runs':results,'planned_runs':len(jobs),
+            'completed_runs':len(results),'complete_scope':'all planned attempts, not a quality pass',
+            'finished_provider_responses':sum(r['receipt'].get('http_status')==200 and r['receipt'].get('finish_reason') in ('stop','length','tool_calls','content_filter') for r in results),
+            'complete':len(results)==len(jobs),'interrupted':interrupted,
+            'truth_scores':None,'human_review_required':True,'deployment_authorized':False}
+    lines=['# Essai réel Ornith — revue humaine requise','','Environnement : '+auth.get('mode','isolated')+'.','','Aucune note automatique de vérité ni autorisation de déploiement.',
+           f"Appels observés : {len(results)} / {len(jobs)}. Seed non envoyé ; sorties non garanties identiques.",'']
+    for case in report['cases']:
+        lines.extend(['## '+case['id'],'Source synthétique CC0 ; seule cette fenêtre a été transmise.',
+                      '```json',json.dumps(case,ensure_ascii=False,indent=2),'```',''])
+        for row in [r for r in results if r['case_id']==case['id']]:
+            lines.extend(['### '+row['version']+' / répétition '+str(row['repetition']),
+                          f"État : {row['status']}. JSON syntaxiquement valide : {row['json_syntax_valid']}.",
+                          '```json',json.dumps({'output':row['output'],'receipt':row['receipt'],'human_review':row['human_review']},ensure_ascii=False,indent=2),'```',''])
+    output_bundle(output,{'measurements.json':json_text(report),'review.md':'\n'.join(lines)+'\n'},(plan_path,authorization_path))
+    return {'status':'measured_review_required','runs':len(results),'complete':report['complete'],'quality_validated':False}
+
+
+def measure(plan_path,authorization_path,output,*,execute=False):
+    if not execute:raise ExportError('explicit_execute_required')
+    auth=authorization(authorization_path) # Validate before any model listing or generation.
+    raw,protocol,corpus,jobs=validated_protocol(plan_path)
     output=Path(output)
     if output.exists() or not output.parent.is_dir() or any(p.is_symlink() for p in (output,*output.parents)):raise ExportError('new_private_output_required')
     if any((p/'.git').is_file() or (p/'.git/HEAD').is_file() for p in (output,*output.parents)):raise ExportError('private_output_outside_git_required')
@@ -124,65 +188,22 @@ def measure(plan_path,authorization_path,output,*,execute=False):
                 text=client.call(job['prompt'],caller='fetch',timeout=min(PARAMETERS['timeout_seconds'],remaining),
                                  use_cache=False,request_id=identity,metrics=receipt)
             except KeyboardInterrupt:interrupted=True;break
-            unsafe=len(text)>64000 or bool(ed.REASONING.search(text)) or sensitive(text)
-            if unsafe:text=''
-            version=job['version'];syntax=None;summary=None;failure=None
-            if version!='legacy-v1' and text and not unsafe:
-                try:json.loads(text);syntax=True
-                except (ValueError,TypeError):syntax=False
-            try:summary=ed.parse_summary(text,version);status='text_requires_human_classification' if version=='legacy-v1' else 'ok'
-            except ValueError as exc:
-                failure='unsafe_or_oversized_output_omitted' if unsafe else receipt.get('kind') if receipt.get('kind') not in (None,'success') else str(exc)
-                status='refused' if failure=='summary_source_insufficient' else 'failed'
-            results.append({'case_id':job['case_id'],'version':version,'repetition':job['repetition'],
-                'request_id':identity,'prompt_sha256':job['prompt_sha256'],'receipt':receipt,
-                'output':text,'summary':summary,'status':status,'error':failure,'unsafe_output_omitted':unsafe,
-                'json_syntax_valid':syntax,'reference_status':job['expected_status'],
-                'unjustified_refusal_by_corpus_label':status=='refused' and job['expected_status']=='ok',
-                'legitimate_refusal_by_corpus_label':status=='refused' and job['expected_status']=='insufficient_source',
-                'summary_words':len(summary.split()) if summary else 0,
-                'human_review':{'french_quality_0_to_4':None,'invented_information':None,'missing_facts':None,'evidence_quotes':None,'reviewer':None}})
-    summaries=[]
-    for version in VERSIONS:
-        selected=[r for r in results if r['version']==version]
-        times=[r['receipt'].get('response_duration_ms') for r in selected if r['receipt'].get('response_duration_ms') is not None]
-        summaries.append({'version':version,'observed_runs':len(selected),
-            'structured_refusals':sum(r['status']=='refused' for r in selected) if version!='legacy-v1' else None,
-            'unjustified_refusals_by_corpus_label':sum(r['unjustified_refusal_by_corpus_label'] for r in selected) if version!='legacy-v1' else None,
-            'legitimate_refusals_by_corpus_label':sum(r['legitimate_refusal_by_corpus_label'] for r in selected) if version!='legacy-v1' else None,
-            'invalid_json_syntax':sum(r['json_syntax_valid'] is False for r in selected) if version!='legacy-v1' else None,
-            'invalid_contract_or_content':sum(r['error']=='summary_invalid_contract' for r in selected),
-            'mean_response_duration_ms':sum(times)/len(times) if times else None,
-            'french_quality':None,'invented_information':None,'human_review_required':True})
-    report={'schema':1,'kind':'operator_authorized_measurement','model_environment':auth,
-            'model_environment_provenance':'operator_declaration; API model ID checked; weights/hardware not remotely attested',
-            'plan_sha256':sha(raw),'parameters':PARAMETERS,'summaries':summaries,
-            'cases':[{'id':c['id'],'title':c['title'],'category':c.get('category','qualification'),
-                      'source_transmitted':c['source'][:3000],'expected_status':c['expected_status'],
-                      'reference_facts':c['reference_facts'],'notes':c['notes']} for c in corpus['cases']],
-            'runs':results,'planned_runs':len(jobs),
-            'completed_runs':len(results),'complete':len(results)==len(jobs),'interrupted':interrupted,
-            'truth_scores':None,'human_review_required':True,'deployment_authorized':False}
-    lines=['# Essai réel Ornith — revue humaine requise','','Aucune note automatique de vérité ni autorisation de déploiement.',
-           f"Appels observés : {len(results)} / {len(jobs)}. Seed non envoyé ; sorties non garanties identiques.",'']
-    for case in report['cases']:
-        lines.extend(['## '+case['id'],'Source synthétique CC0 ; seule cette fenêtre a été transmise.',
-                      '```json',json.dumps(case,ensure_ascii=False,indent=2),'```',''])
-        for row in [r for r in results if r['case_id']==case['id']]:
-            lines.extend(['### '+row['version']+' / répétition '+str(row['repetition']),
-                          f"État : {row['status']}. JSON syntaxiquement valide : {row['json_syntax_valid']}.",
-                          '```json',json.dumps({'output':row['output'],'receipt':row['receipt'],'human_review':row['human_review']},ensure_ascii=False,indent=2),'```',''])
-    output_bundle(output,{'measurements.json':json_text(report),'review.md':'\n'.join(lines)+'\n'},(plan_path,authorization_path))
-    return {'status':'measured_review_required','runs':len(results),'complete':report['complete'],'quality_validated':False}
+            results.append(assess_output(job,text,receipt))
+    return export_measurements(raw,protocol,corpus,jobs,auth,results,output,plan_path,authorization_path,interrupted)
 
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='command',required=True)
     a=sub.add_parser('prepare');a.add_argument('--output',type=Path,required=True);a.add_argument('--repetitions',type=int,default=1)
     a=sub.add_parser('measure');a.add_argument('--plan',type=Path,required=True);a.add_argument('--authorization',type=Path,required=True);a.add_argument('--output',type=Path,required=True);a.add_argument('--execute',action='store_true')
+    a=sub.add_parser('measure-shared');a.add_argument('--plan',type=Path,required=True);a.add_argument('--authorization',type=Path,required=True);a.add_argument('--output',type=Path,required=True);a.add_argument('--execute',action='store_true');a.add_argument('--resume',action='store_true')
     args=p.parse_args()
     try:
-        result=prepare(args.output,args.repetitions) if args.command=='prepare' else measure(args.plan,args.authorization,args.output,execute=args.execute)
+        if args.command=='prepare':result=prepare(args.output,args.repetitions)
+        elif args.command=='measure-shared':
+            from deploy.editorial_shared_trial import measure_shared
+            result=measure_shared(args.plan,args.authorization,args.output,execute=args.execute,resume=args.resume)
+        else:result=measure(args.plan,args.authorization,args.output,execute=args.execute)
     except (ExportError,ValueError,OSError):raise SystemExit('Trial refused or interrupted by an input/transport error; inspect configuration privately. No provider body logged.') from None
     print(json.dumps(result))
 

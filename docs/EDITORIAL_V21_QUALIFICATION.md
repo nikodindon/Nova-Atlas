@@ -211,3 +211,56 @@ une future autorisation, serait `fetch.editorial.prompt_version: editorial-v2.1`
 Les anciens prompts et caches restent disponibles. Le rollback News actuel reste
 inchangé. Il n'existe ni migration, ni purge, ni modification d'Ornith, Radio,
 V1/V2, des horaires, des secrets ou des données persistantes.
+
+## Mode partagé explicitement autorisé (PC principal)
+
+La commande `measure-shared` est distincte de `measure`. Elle accepte uniquement
+le serveur local 8080 avec un fichier déclarant **mode=shared**, accord explicite
+et **isolated_from_atlas_lab=false**. Elle ne fait pas passer un serveur partagé
+pour une instance isolée. L'ancien mode dédié et son refus du port 8080 restent
+inchangés.
+
+Le préflight relève le modèle chargé et sa quantification, l'empreinte du GGUF,
+le PID/build du serveur, ses paramètres, le matériel et les ressources disponibles.
+Les paramètres serveur ne sont jamais modifiés. Les trois prompts utilisent les
+mêmes paramètres de requête (température 0,3, plafond 4096, seed non envoyé). Le
+cache de **réponses** est désactivé ; le cache KV existant n'est pas purgé et ses
+métriques disponibles sont conservées.
+
+Conditions contrôlées avant chaque appel et surveillées pendant celui-ci :
+News arrêté, services existants sains, calendrier radio inchangé et fenêtre libre,
+absence de travail Radio admis/en génération, nombre de threads du worker Radio
+au repos, modèle/processus inchangés et mémoire disponible suffisante. Les slots
+serveur doivent être libres avant admission. Une autre requête concurrente ou un
+besoin Radio/News interrompt notre socket, sans arrêter ces services. L'annulation
+côté fournisseur reste une propriété du serveur ; les slots sont recontrôlés avant
+un nouvel appel.
+
+Le verrou utilisé est exactement le `ollama.lock` existant, ouvert en lecture seule
+et pris en `flock` non bloquant par appel. Aucun `.lock` ni `.meta` de production
+n'est créé, remplacé ou modifié. Le verrou est libéré avant une pause de courtoisie
+de deux secondes. Il n'est jamais détenu pour les 39 appels en bloc. Les fenêtres
+radio sont conservatrices, incluent les deux folds DST et réservent une marge
+avant l'admission anticipée et après le créneau.
+
+Chaque tentative est inscrite atomiquement dans un checkpoint privé avant l'envoi.
+Un résultat terminé n'est jamais relancé par `--resume`. Une tentative interrompue
+avec issue inconnue reste marquée inconnue et n'est pas rejouée silencieusement.
+Les reports et refus d'admission ne déclenchent aucune génération. Les timeouts,
+refus et JSON invalides sont conservés sans retry automatique. Le texte final
+exact (y compris espaces) est conservé lorsqu'il est disponible et sans raisonnement
+interne ; les sorties tronquées restent signalées par leur finish_reason.
+
+```sh
+python -m deploy.editorial_prompt_trial measure-shared \
+  --plan /DOSSIER_PRIVE/plan/plan.json \
+  --authorization /DOSSIER_PRIVE/autorisation-partagee.json \
+  --output /DOSSIER_PRIVE/run --execute
+# Même commande + --resume après interruption, sans refaire les appels terminés.
+```
+
+L'agent prépare le fichier d'autorisation après l'accord opérateur ; les identifiants
+et paramètres réels restent privés. Un fichier STOP dans le dossier de sortie
+arrête l'admission et interrompt notre requête surveillée. Le budget global reste
+compté depuis le premier démarrage, y compris après reprise. Aucun endpoint de
+contrôle de conteneur, modèle ou fichier applicatif n'est modifié par cette commande.
