@@ -220,3 +220,8 @@ Snapshots arrêtés, restauration neuve ; archivage terminal avec tombstones ava
 compactage. Cache texte public content-addressed borné à deux versions, décisions
 de droits revalidées par page, octets média toujours contrôlés. Export statique
 stage sous site/media sur le même filesystem. Dossier et limites : RELEASE_CANDIDATE.md.
+
+Sprint 16A : le transport llama-server conserve le verrou exclusif et le contrat
+texte/échec vide ; les réponses passent par llm_response (validation, usage sans
+contenu), budgets par tâche et admission mesurée. Aucun nouveau service, aucun
+routage de production modifié ; voir LLM_RELIABILITY.md et SPRINT_16_AUDIT.md.
