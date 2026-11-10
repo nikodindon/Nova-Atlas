@@ -20,6 +20,7 @@ export ATLAS_STATE="$HOME/atlas-lab/state"
 git status --short
 git branch --show-current
 git rev-parse HEAD
+gh pr view 22 --repo nikodindon/Nova-Atlas --json state,mergeCommit
 gh pr view 23 --repo nikodindon/Nova-Atlas --json state,mergeCommit
 gh pr view 24 --repo nikodindon/Nova-Atlas --json state,mergeCommit
 # Remplacer NUMERO_16E par la PR livrée ; aucun gh pr merge.
@@ -36,6 +37,14 @@ La disponibilité du domaine public peut dépendre de Cloudflare ; distinguer so
 refus et une panne locale.
 
 Au départ de 16E : dev `0e8752622bbbe16cf9b3b187bb7d69a9b1e4533b`, PR #23/#24 ouvertes.
+La PR #22 de qualification reste également ouverte au départ. L'installation peut
+utiliser un checkout/des images issus d'une branche non encore intégrée à dev.
+Avant toute construction destinée à la remplacer, inventorier ces différences et
+conserver notamment les correctifs d'images/sécurité qu'elle porte. Une image
+construite depuis cette seule branche basée sur dev n'est pas automatiquement
+équivalente à l'image opérateur. L'ordre d'intégration/rebase et la conservation
+de ces correctifs doivent être validés avant le déploiement, sans fusion automatique.
+
 Vérifier de nouveau ces faits : ne jamais supposer une fusion. 16E fonctionne sans
 elles ; les métriques/erreurs HTTP 16A et l'outil de comparaison 24 ne sont disponibles
 que si effectivement intégrés. Si des conflits Git apparaissent après leur fusion
