@@ -270,7 +270,8 @@ def test_editorial_events_provenance_hostile_title_and_audio(browser_page,app):
     assert page.evaluate('window.savedEventAudio===window._novaAudio && !window._novaAudio.paused')
 
 
-def test_image_review_public_local_image_csp_and_audio(browser_page,app):
+@pytest.mark.parametrize('defer_preview', [False, True], ids=['normal', 'response-held-until-card-visible'])
+def test_image_review_public_local_image_csp_and_audio(browser_page,app,defer_preview):
     from tests.test_news_images import image,candidate
     from modules.media.worker import prepare
     page,errors,requests,injections=browser_page
@@ -281,13 +282,43 @@ def test_image_review_public_local_image_csp_and_audio(browser_page,app):
     page.goto('https://atlas.invalid/admin/login')
     page.locator('[name="username"]').fill('admin-test');page.locator('[name="password"]').fill('synthetic-test-password')
     page.evaluate("async()=>{const form=document.querySelector('form');await fetch(form.action,{method:'POST',body:new FormData(form),redirect:'manual'});}")
-    page.goto('https://atlas.invalid/config/feeds/page')
-    card=page.locator('[data-media="'+identity+'"]');card.wait_for()
-    assert card.locator('img').evaluate('(img)=>img.complete && img.naturalWidth>0')
+    preview_path='/api/admin/media/'+identity+'/preview/320.jpg'
+    held=[];image_failures=[]
+    is_image=lambda request: urlsplit(request.url).path==preview_path or urlsplit(request.url).path.startswith('/media/images/')
+    page.on('requestfailed',lambda request:image_failures.append(request.failure) if is_image(request) else None)
+    if defer_preview:
+        # Gate the real Flask image response, without sleeps or modified bytes.
+        page.route('https://atlas.invalid'+preview_path,lambda route:held.append(route))
+    with page.expect_response(lambda response:urlsplit(response.url).path==preview_path,timeout=5000) as preview:
+        with page.expect_request(lambda request:urlsplit(request.url).path==preview_path,timeout=5000):
+            page.goto('https://atlas.invalid/config/feeds/page')
+            card=page.locator('[data-media="'+identity+'"]');card.wait_for()
+            card.locator('img').scroll_into_view_if_needed()
+        if defer_preview:
+            assert len(held)==1
+            # Reproduce the old assertion's false negative while HTTP is pending.
+            assert not card.locator('img').evaluate('(img)=>img.complete && img.naturalWidth>0')
+            held.pop().fallback()
+        preview_image=card.locator('img').element_handle()
+        page.wait_for_function('(img)=>img.complete && img.naturalWidth>0',arg=preview_image,timeout=5000)
+        preview_image.evaluate('(img)=>img.decode()')
+    assert preview.value.status==200
+    assert preview.value.headers['content-type'].startswith('image/jpeg')
+    assert preview.value.finished() is None
+    assert image_failures==[] and page.evaluate('window.violations')==[]
     card.locator('.media-ack').check();card.locator('[data-media-action="approve"]').click()
     page.wait_for_function("()=>document.querySelector('#media-records').textContent.includes('approved')")
-    page.goto('https://atlas.invalid/live');page.wait_for_selector('.news-image img')
-    assert page.locator('.news-image img').evaluate_all('(images)=>images.some(img=>img.src.includes("/media/images/")&&img.complete&&img.naturalWidth>0)')
+    with page.expect_response(lambda response:urlsplit(response.url).path.startswith('/media/images/'),timeout=5000) as public:
+        page.goto('https://atlas.invalid/live')
+        public_image=page.locator('.news-image img[src^="/media/images/"]').first
+        public_image.scroll_into_view_if_needed()
+        handle=public_image.element_handle()
+        page.wait_for_function('(img)=>img.complete && img.naturalWidth>0',arg=handle,timeout=5000)
+        handle.evaluate('(img)=>img.decode()')
+    assert public.value.status==200
+    assert public.value.headers['content-type'].startswith('image/jpeg')
+    assert public.value.finished() is None
+    assert image_failures==[] and page.evaluate('window.violations')==[]
     assert 'CC BY 4.0' in page.locator('.news-image').all_text_contents()[0] or page.locator('.news-image').filter(has_text='CC BY 4.0').count()>0
     page.locator('[data-action="radio-toggle"]').click();page.evaluate('window.savedAudio=window._novaAudio')
     page.locator('.topbar-nav a[href="/archives"]').click();page.wait_for_url('**/archives')
