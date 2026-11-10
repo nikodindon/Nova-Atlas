@@ -152,7 +152,9 @@ La clé SHA-256 inclut tâche, version de prompt, langue, catégorie, prompt com
 (donc tous les caractères réellement transmis), identité/configuration du modèle,
 révision/empreinte déclarée si renseignée, paramètres disponibles et politique
 passerelle. L'endpoint participe à l'identité sous empreinte, pas aux logs/traces.
-Le snapshot du client tient compte du modèle détecté avant l'appel et des budgets
+Le snapshot du client est lié à l'appel pour qu'un remplacement du client global
+ne génère pas avec B sous l'identité de A ; un test reproduit cette race de reload.
+Il tient compte du modèle détecté avant l'appel et des budgets
 16A lorsqu'ils sont présents. Une politique globale passerelle changée peut
 invalider plus de résultats que strictement nécessaire : choix conservateur.
 

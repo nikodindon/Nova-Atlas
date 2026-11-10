@@ -472,9 +472,10 @@ def ollama_call(prompt: str,
                 caller:      str = "atlas",
                 cache_key:   str = None,
                 use_cache:   bool = True,
-                cancel_event=None, operation=None, cache_validator=None) -> str:
+                cancel_event=None, operation=None, cache_validator=None, client_snapshot=None) -> str:
     """Raccourci global."""
-    return get_client().call(prompt, model=model, timeout=timeout, caller=caller,
+    selected = client_snapshot if client_snapshot is not None else get_client()
+    return selected.call(prompt, model=model, timeout=timeout, caller=caller,
                              cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event, operation=operation, cache_validator=cache_validator)
 
 

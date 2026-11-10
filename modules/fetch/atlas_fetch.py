@@ -283,12 +283,18 @@ class ArticleFetcher:
 
     # ── Résumé Ollama ─────────────────────────────────────────────────────────
 
-    def _generation_identity(self, task='fetch'):
+    @staticmethod
+    def _generation_client():
+        from modules.core.llm_client import get_client
+        try:return get_client()
+        except RuntimeError:return None
+
+    def _generation_identity(self, task='fetch', client_snapshot=None):
         from modules.core import llm_client
         cfg = getattr(self, 'config', {}).get('llm', {})
         identity = {k: cfg.get(k) for k in ('provider','model','base_url','model_revision','model_sha256','max_tokens_by_task')}
         try:
-            client = llm_client.get_client()
+            client = client_snapshot if client_snapshot is not None else llm_client.get_client()
             identity.update(effective_provider=client.provider, effective_model=client.model,
                             effective_tokens=getattr(client, '_tokens_by_task', {}).get(task),
                             gateway_policy=getattr(getattr(client, '_gateway', None), 'policy', None))
@@ -304,9 +310,10 @@ class ArticleFetcher:
             return ''
         if policy['prompt_version'] == 'editorial-v2' and not any(c.isalnum() for c in content):
             raise ArticleAttemptError('summary_source_insufficient')
+        snapshot = self._generation_client()
         lang = get_language()
         prompt = ed.summary_prompt(title, content, category, lang, policy)
-        identity = self._generation_identity()
+        identity = self._generation_identity(client_snapshot=snapshot)
         key = ed.cache_key(prompt, policy['prompt_version'], lang, category, identity)
         evidence = {'prompt_version': policy['prompt_version'], 'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(),
                     'source_transmitted': content[:3000], 'cache_identity': key,
@@ -323,7 +330,7 @@ class ArticleFetcher:
         self._summary_evidence = evidence
         started = time.monotonic()
         try:
-            output = ollama_call(prompt, timeout=get_fetch_timeout(), caller='fetch', cache_key=key,
+            output = ollama_call(prompt, timeout=get_fetch_timeout(), caller='fetch', cache_key=key, client_snapshot=snapshot,
                                  cancel_event=getattr(self, '_feed_stop_event', None),
                                  cache_validator=lambda raw: ed.summary_cacheable(raw, policy['prompt_version']))
             # Do not archive a reasoning channel, even if an old provider put it in content.
@@ -454,10 +461,11 @@ class ArticleFetcher:
         if not title.strip() or not ed.translate_needed(title,lang,source_language,policy['title_policy'],force):
             self._title_evidence['status']='original_preserved_without_call'
             return title
+        snapshot=self._generation_client()
         prompt=ed.title_prompt(title,lang)
-        key=ed.cache_key(prompt,'title-translate-v2',lang,'',self._generation_identity('translate'),'title')
+        key=ed.cache_key(prompt,'title-translate-v2',lang,'',self._generation_identity('translate',snapshot),'title')
         self._title_evidence.update(prompt_version='title-translate-v2',prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest(),cache_identity=key)
-        result=ollama_call(prompt, timeout=30, caller='fetch', operation='translate',cache_key=key,
+        result=ollama_call(prompt, timeout=30, caller='fetch', operation='translate',cache_key=key,client_snapshot=snapshot,
                            cancel_event=getattr(self, '_feed_stop_event', None),
                            cache_validator=lambda raw: ed.clean_title(raw,title)[1] not in ('invalid_translation','translation_new_number'))
         if isinstance(result,str) and not ed.REASONING.search(result):self._title_evidence['raw_response']=result
@@ -495,8 +503,9 @@ class ArticleFetcher:
             f"rien d'autre :\n{title}"
         )
         from modules.fetch.editorial import cache_key, REASONING
-        key = cache_key(prompt, 'title-legacy-v1', lang, '', self._generation_identity('translate'), 'title')
-        translated = ollama_call(prompt, timeout=30, caller="fetch", operation="translate", cache_key=key,
+        snapshot = self._generation_client()
+        key = cache_key(prompt, 'title-legacy-v1', lang, '', self._generation_identity('translate',snapshot), 'title')
+        translated = ollama_call(prompt, timeout=30, caller="fetch", operation="translate", cache_key=key, client_snapshot=snapshot,
             cache_validator=lambda raw: len(raw.strip())>3 and any(c.isalnum() for c in raw) and not REASONING.search(raw) and not raw.lstrip().startswith("[") and not self._is_wrong_language(raw,lang))
         from modules.fetch.editorial import REASONING
         self._title_evidence = {'original':title,'prompt_version':'title-legacy-v1',

@@ -218,3 +218,22 @@ def test_translated_title_divergence_is_an_explainable_private_signal():
 @pytest.mark.parametrize('value',['!!!!','[Timeout]','   '])
 def test_legacy_unpublishable_outputs_cannot_enter_editorial_cache(value):
     assert ed.summary_cacheable(value,'legacy-v1') is False
+
+
+def test_reload_cannot_generate_with_another_client_than_cache_identity(tmp_path,monkeypatch):
+    from modules.core import llm_client
+    cfg={'paths':{'data_dir':str(tmp_path),'articles_dir':str(tmp_path/'articles')},
+         'llm':{'provider':'ollama','model':'fixture-a'}}
+    old=llm_client.OllamaClient(cfg)
+    new=llm_client.OllamaClient({**cfg,'llm':{'provider':'ollama','model':'fixture-b'}})
+    old._call_ollama_cli=Mock(return_value='Sortie du modèle A.')
+    new._call_ollama_cli=Mock(return_value='Sortie du modèle B.')
+    monkeypatch.setattr(llm_client,'_client',old)
+    def reloaded_timeout():
+        monkeypatch.setattr(llm_client,'_client',new)
+        return 30
+    monkeypatch.setattr('modules.fetch.atlas_fetch.get_fetch_timeout',reloaded_timeout)
+    obj=ArticleFetcher.__new__(ArticleFetcher);obj._apply_config(cfg);obj.log=Mock()
+    assert obj._summarize('Titre synthétique','Une source autorisée pour un essai isolé. '*4,'science')=='Sortie du modèle A.'
+    assert old._call_ollama_cli.call_count==1 and new._call_ollama_cli.call_count==0
+    assert obj._summary_evidence['model']['name']=='fixture-a'
