@@ -14,6 +14,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 import yaml
+from modules.core.llm_cache import cache_accepts
 from modules.core.llm_lock import LocalLLMLock, resource_path
 
 ALIASES=('atlas-fast','atlas-translate','atlas-editorial','atlas-radio-script','atlas-verify')
@@ -163,7 +164,7 @@ class GatewayClient:
             if cancel.wait(seconds):raise GatewayError('cancelled')
         else:self.sleep(seconds)
 
-    def call(self,prompt,caller,timeout,*,operation=None,cache_key=None,use_cache=True,cancel_event=None,model=None):
+    def call(self,prompt,caller,timeout,*,operation=None,cache_key=None,use_cache=True,cancel_event=None,model=None,cache_validator=None):
         use_cache=use_cache and self.enabled
         alias=alias_for(caller,operation)
         if caller=='atlas' and model in ALIASES:alias=model
@@ -175,6 +176,8 @@ class GatewayClient:
         deadline=self.clock()+min(timeout,float(route.get('timeout',900)))
         required_output=self.policy['deployments'][route['deployments'][0]].get('max_output_tokens',4096)
         task=operation or caller
+        if cache_key:
+            task=task+':caller-cache-v2:'+hashlib.sha256(str(cache_key).encode()).hexdigest()
         fingerprint=cache_identity(prompt,self.language,alias,self.policy['deployments'],self.prompt_version,task)
         lock=LocalLLMLock(self.directory/(fingerprint+'.lock'))
         if not lock.acquire(caller,max(0,deadline-self.clock()),cancel_event=cancel_event):raise GatewayError('cancelled' if cancel_event is not None and cancel_event.is_set() else 'timeout')
@@ -187,7 +190,7 @@ class GatewayClient:
                     identity=cache_identity(prompt,self.language,alias,{'id':name,'config':d,'required_output':required_output},self.prompt_version,task)
                     try:
                         record=json.loads((self.directory/(identity+'.json')).read_text())
-                        if record['identity']==identity and record['deployment']==name and (self.ttl<=0 or 0<=time.time()-record['ts']<=self.ttl) and isinstance(record['text'],str) and record['text'].strip():return record['text']
+                        if record['identity']==identity and record['deployment']==name and (self.ttl<=0 or 0<=time.time()-record['ts']<=self.ttl) and isinstance(record['text'],str) and record['text'].strip() and cache_accepts(record['text'],cache_validator):return record['text']
                     except (OSError,ValueError,KeyError,TypeError):pass
             last=GatewayError('unavailable')
             for index,name in enumerate(route['deployments']):
@@ -199,7 +202,7 @@ class GatewayClient:
                 if use_cache and cache_key:
                     try:
                         record=json.loads(path.read_text())
-                        if record['identity']==identity and record['deployment']==name and (self.ttl<=0 or 0<=time.time()-record['ts']<=self.ttl) and isinstance(record['text'],str) and record['text'].strip():return record['text']
+                        if record['identity']==identity and record['deployment']==name and (self.ttl<=0 or 0<=time.time()-record['ts']<=self.ttl) and isinstance(record['text'],str) and record['text'].strip() and cache_accepts(record['text'],cache_validator):return record['text']
                     except (OSError,ValueError,KeyError,TypeError):pass
                 for attempt in range(route.get('max_attempts',2)):
                     if cancel_event is not None and cancel_event.is_set():raise GatewayError('cancelled')
@@ -215,7 +218,7 @@ class GatewayClient:
                         usage=data.get('usage',{})
                         tokens={k:v for k,v in usage.items() if k in ('prompt_tokens','completion_tokens','total_tokens') and type(v) is int and v>=0} if isinstance(usage,dict) else {}
                         log.info('LLM alias=%s deployment=%s provider=%s duration=%.3f success=true tokens=%s cost_estimate=unknown',alias,name,d['provider'],self.clock()-started,tokens)
-                        if use_cache and cache_key and data.get('model',d['model'])==d['model']:
+                        if use_cache and cache_key and data.get('model',d['model'])==d['model'] and cache_accepts(text,cache_validator):
                             from modules.fetch.article_state import atomic_json
                             try:atomic_json(path,{'identity':identity,'deployment':name,'effective_model':data.get('model',d['model']),'text':text,'ts':time.time()})
                             except OSError:log.warning('Gateway cache write failed; generated text retained')

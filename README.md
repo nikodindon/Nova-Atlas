@@ -384,3 +384,8 @@ préflight en lecture seule, maintenance Studio et validation sur fixtures.
 **No-Go exploitation publique/multi-machine** tant que qualification, droits et
 portes opérateur ne sont pas levés. Aucun déploiement V2 annoncé.
 [Changelog V2](CHANGELOG_V2.md) · [mesures CPU synthétiques](docs/measurements/rc/README.md).
+
+Le [pipeline éditorial 16E](docs/EDITORIAL_PIPELINE.md) sépare nettoyage de publication
+et TTS, propose un prompt de qualification opt-in et des traces privées bornées.
+La [procédure terrain](docs/SPRINT_16E_FIELD_TEST.md) distingue les vérifications en
+lecture seule des opérations qui nécessitent un accord de mise à jour.

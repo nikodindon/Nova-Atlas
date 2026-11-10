@@ -135,127 +135,9 @@ FETCH_TIMEOUT_HTTP = 10
 # ─── NETTOYAGE DES RÉSUMÉS ────────────────────────────────────────────────────
 
 def _clean_summary(text: str) -> str:
-    """
-    Supprime les artefacts de répétition / bégaiement produits par Ollama.
-
-    Problème racine : Ollama (via subprocess CLI) stream sa réponse et
-    coupe parfois en milieu de mot avec un saut de ligne, puis recommence
-    le mot complet sur la ligne suivante.
-    Exemples réels observés :
-      "ainsi u\\nune étape"          → "ainsi une étape"
-      "crypto-mon\\ncrypto-monnaies" → "crypto-monnaies"
-      "de l\\nl'offre totale"        → "de l'offre totale"
-      "des e\\nexperts"              → "des experts"
-      "contre l失败的establishm\\nestablishment" → "contre l'établissement"
-
-    Cas traités :
-    0. TRONCATURE + \n + mot complet (PRIORITAIRE — nettoie d'abord)
-    1. Préfixe≥2 + mot complet  : "avr avril"  → "avril"
-    2. Consonne isolée + mot    : "r responsables" "n ne" "b baissé" → mot complet
-    3. Article/prép. doublé     : "à à" "de de" → un seul
-    4. Mot entier répété        : "titre titre" → un seul
-    5. Nombre partiel           : "202 2026" → "2026"
-    6. Parenthèse non fermée    : "(heu (heure)" → "(heure)"
-    7. Consonne tronquée en fin → supprime
-    8. Caractères non-latins parasites (CJK, etc.) dans texte fr/en
-    """
-    import re as _re
-
-    if not text:
-        return text
-
-    # ── 8. Nettoyage CJK / caractères non-latins parasites ────────────────────
-    # Ollama injecte parfois des fragments CJK (bug modèle)
-    text = _re.sub(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uff00-\uffef]', '', text)
-
-    # ── 0. TRONCATURE + \n + reprise du mot (CAS PRINCIPAL) ──────────────────
-    # Pattern : fragment de mot (1+ chars) + \n + mot complet qui commence
-    # par ce même fragment. Le fragment tronqué peut contenir un tiret.
-    # Ex: "crypto-mon\ncrypto-monnaies" → "crypto-monnaies"
-    # Ex: "u\nune" → "une"
-    # Ex: "l\nl'offre" → "l'offre"
-    # Ex: "e\nexperts" → "experts"
-    # Ex: "d'\nd'une" → "d'une"
-    changed = True
-    while changed:
-        changed = False
-        # Cas avec apostrophe : "l\nl'offre" → "l'offre"
-        new = _re.sub(
-            r"(?<!\S)([A-Za-zÀ-ÿ'-]{1,20})\n\1([A-Za-zÀ-ÿà-ÿ'-]+)",
-            r"\1\2", text
-        )
-        if new != text:
-            text = new
-            changed = True
-            continue
-        # Cas standard : "mottronqué\nmotcomplet"
-        # Le fragment tronqué (2-30 chars) est un préfixe du mot suivant
-        new = _re.sub(
-            r'(?<!\S)([A-Za-zÀ-ÿ]{2,30})\n\1([A-Za-zÀ-ÿ]+)',
-            r'\1\2', text
-        )
-        if new != text:
-            text = new
-            changed = True
-            continue
-        # Cas espace+newline : "obtenu \n54%" → "obtenu 54%"
-        # (espace avant \n suivi de texte)
-        new = _re.sub(r' \n(\S)', r' \1', text)
-        if new != text:
-            text = new
-            changed = True
-
-    # Normalise les sauts de ligne résiduels en espaces
-    text = text.replace('\n', ' ')
-    # Nettoie les espaces multiples
-    text = _re.sub(r'  +', ' ', text)
-
-    # ── 6. Parenthèse orpheline ───────────────────────────────────────────────
-    text = _re.sub(r'\([A-Za-zÀ-ÿ]{2,6}\s+\(', '(', text)
-    text = _re.sub(r'\s*\([^)]*$', '', text.rstrip())
-
-    # ── 1. Préfixe≥2 + mot complet : "avr avril" "heu heure" ─────────────────
-    changed = True
-    while changed:
-        changed = False
-        new = _re.sub(r'\b([A-Za-zÀ-ÿ]{2,})\s+(\1[A-Za-zÀ-ÿ]+)', r'\2', text)
-        if new != text:
-            text = new
-            changed = True
-
-    # ── 5. Nombre partiel : "202 2026" → "2026" ───────────────────────────────
-    text = _re.sub(r'\b(\d{2,})\s+\1(\d+)\b', r'\1\2', text)
-
-    # ── 2. Consonne seule + mot : "r responsables" "n ne" "b baissé" ──────────
-    _consonnes = r'(?:(?<=\s)|(?<=\())([bcdfghjklmnpqrstvwxzBCDFGHJKLMNPQRSTVWXZ])\s+(\1[A-Za-zÀ-ÿ]+)'
-    text = _re.sub(_consonnes, r'\2', text)
-
-    # ── 3. Article/préposition doublé : "à à" → "à" ───────────────────────────
-    text = _re.sub(
-        r'\b(à|de|du|le|la|les|un|une|des|au|aux|en)\s+\1\b',
-        r'\1', text, flags=_re.IGNORECASE
-    )
-
-    # ── 4. Mot entier répété ≥2 chars : "titre titre" ─────────────────────────
-    changed = True
-    while changed:
-        changed = False
-        new = _re.sub(r'\b([A-Za-zÀ-ÿ]{2,})\s+\1\b', r'\1', text)
-        if new != text:
-            text = new
-            changed = True
-
-    # ── 7. Consonne(s) tronquée(s) en fin de texte ────────────────────────────
-    text = text.rstrip()
-    words = text.split()
-    if words:
-        last = words[-1]
-        if (len(last) <= 2
-                and last.isalpha()
-                and _re.match(r'^[bcdfghjklmnpqrstvwxz]+$', last.lower())):
-            text = " ".join(words[:-1])
-
-    return text.strip()
+    """Compatibility entry point: preserve uncertain words, numbers and scripts."""
+    from modules.fetch.editorial import clean_editorial
+    return clean_editorial(text)
 
 
 # ─── CLASSE PRINCIPALE ────────────────────────────────────────────────────────
@@ -276,6 +158,10 @@ class ArticleFetcher:
     def _apply_config(self, config: dict):
         """Applique (ou reapplique) la config — appelé au __init__ et au reload."""
         self.config=config
+        from modules.fetch.editorial import options
+        self.editorial = options(config)
+        from modules.fetch.editorial_trace import options as trace_options
+        trace_options(self.editorial['trace'])
         paths = config.get("paths", {})
         self.data_dir  = Path(paths.get("articles_dir", "data/articles"))
         self.seen_file = Path(paths.get("data_dir", "data")) / "seen_hashes.json"
@@ -397,37 +283,61 @@ class ArticleFetcher:
 
     # ── Résumé Ollama ─────────────────────────────────────────────────────────
 
+    def _generation_identity(self, task='fetch'):
+        from modules.core import llm_client
+        cfg = getattr(self, 'config', {}).get('llm', {})
+        identity = {k: cfg.get(k) for k in ('provider','model','base_url','model_revision','model_sha256','max_tokens_by_task')}
+        try:
+            client = llm_client.get_client()
+            identity.update(effective_provider=client.provider, effective_model=client.model,
+                            effective_tokens=getattr(client, '_tokens_by_task', {}).get(task),
+                            gateway_policy=getattr(getattr(client, '_gateway', None), 'policy', None))
+        except RuntimeError:
+            pass
+        return identity
+
     def _summarize(self, title: str, content: str, category: str) -> str:
+        from modules.fetch import editorial as ed
+        from modules.fetch.article_state import ArticleAttemptError
+        policy = ed.options(getattr(self, 'config', {}))
         if not content.strip():
-            return ""
-        from modules.core.llm_cache import cache_key as _cache_key
-        # La clé ne dépend PAS du prompt (qui peut évoluer) ni de la
-        # catégorie (peut être reclassifiée). Uniquement du contenu
-        # de l'article (title + content tronqué = signature stable).
-        key = _cache_key(title, content[:500])
+            return ''
+        if policy['prompt_version'] == 'editorial-v2' and not any(c.isalnum() for c in content):
+            raise ArticleAttemptError('summary_source_insufficient')
         lang = get_language()
-        prompt = (
-            f"Tu es un journaliste de qualité. Résume cet article de manière claire et complète.\n"
-            f"Catégorie : {category}\n"
-            f"Titre : {title}\n\n"
-            f"Contenu :\n{content[:3000]}\n\n"
-            f"Consignes :\n"
-            f"- Commence par l'information LA PLUS IMPORTANTE (qui, quoi, où, quand)\n"
-            f"- Donne les détails clés (scores, chiffres, dates, noms)\n"
-            f"- Ajoute le contexte nécessaire pour comprendre l'article\n"
-            f"- Ton neutre et factuel\n"
-            f"- Réponds en {lang}\n"
-            f"- N'invente rien qui ne soit pas dans le texte\n"
-            f"- Texte brut, sans markdown : pas d'astérisques (**), pas de dièses (#), "
-            f"pas de backticks (`), pas de liens [texte](url). Juste des phrases.\n\n"
-            f"Résumé :"
-        )
-        output = ollama_call(prompt, timeout=get_fetch_timeout(),
-                             caller="fetch", cache_key=key)
-        if not output:
-            self.log.warning("LLM summary empty or timed out")
-            return output
-        return _clean_summary(output)
+        prompt = ed.summary_prompt(title, content, category, lang, policy)
+        identity = self._generation_identity()
+        key = ed.cache_key(prompt, policy['prompt_version'], lang, category, identity)
+        evidence = {'prompt_version': policy['prompt_version'], 'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(),
+                    'source_transmitted': content[:3000], 'cache_identity': key,
+                    'model_configuration_sha256': ed.digest(identity), 'language': lang,
+                    'model': {'provider': identity.get('effective_provider') or identity.get('provider'),
+                              'name': 'atlas-fast' if (identity.get('effective_provider') or identity.get('provider'))=='litellm' else Path(identity.get('effective_model') or identity.get('model') or 'unknown').name,
+                              'revision': None if (identity.get('effective_provider') or identity.get('provider'))=='litellm' else identity.get('model_revision'),
+                              'weights_sha256': None if (identity.get('effective_provider') or identity.get('provider'))=='litellm' else identity.get('model_sha256'),
+                              'attestation': 'client_configuration_not_provider_attestation'},
+                    'request_parameters': {'max_tokens': identity.get('effective_tokens') or (4096 if identity.get('provider')=='llama-server' else None),
+                                           'temperature': .3 if identity.get('provider')=='llama-server' else None},
+                    'raw_response': None, 'cleaned_summary': None, 'tokens': None, 'finish_reason': None,
+                    'duration_scope': 'application_call_including_lock_and_possible_cache', 'cache_hit': None}
+        self._summary_evidence = evidence
+        started = time.monotonic()
+        try:
+            output = ollama_call(prompt, timeout=get_fetch_timeout(), caller='fetch', cache_key=key,
+                                 cancel_event=getattr(self, '_feed_stop_event', None),
+                                 cache_validator=lambda raw: ed.summary_cacheable(raw, policy['prompt_version']))
+            # Do not archive a reasoning channel, even if an old provider put it in content.
+            if isinstance(output, str) and not ed.REASONING.search(output):evidence['raw_response'] = output
+            result = ed.parse_summary(output, policy['prompt_version'])
+            evidence['cleaned_summary'] = result
+            evidence['cleaned_words_whitespace'] = len(result.split())
+            return result
+        except ValueError as exc:
+            code = str(exc)
+            evidence['failure'] = code if code in ('summary_empty','summary_invalid_contract','summary_reasoning_or_oversized','summary_source_insufficient') else 'summary_invalid'
+            raise ArticleAttemptError(evidence['failure']) from None
+        finally:
+            evidence['duration_ms'] = round((time.monotonic()-started)*1000)
 
     # ── Retry résumés en attente ───────────────────────────────────────────────
 
@@ -533,7 +443,32 @@ class ArticleFetcher:
         # trop de faux positifs.
         return hits >= 2
 
-    def _translate_title(self, title: str, force: bool = False) -> str:
+    def _translate_title(self, title: str, force: bool = False, *, source_language=None) -> str:
+        from modules.fetch import editorial as ed
+        policy=ed.options(getattr(self, 'config', {}))
+        if policy['prompt_version']=='legacy-v1':
+            return self._translate_title_legacy(title, force)
+        from modules.core.llm_client import get_language
+        lang=get_language()
+        self._title_evidence={'original':title,'source_language_hint':source_language,'raw_response':None,'translated':title}
+        if not title.strip() or not ed.translate_needed(title,lang,source_language,policy['title_policy'],force):
+            self._title_evidence['status']='original_preserved_without_call'
+            return title
+        prompt=ed.title_prompt(title,lang)
+        key=ed.cache_key(prompt,'title-translate-v2',lang,'',self._generation_identity('translate'),'title')
+        self._title_evidence.update(prompt_version='title-translate-v2',prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest(),cache_identity=key)
+        result=ollama_call(prompt, timeout=30, caller='fetch', operation='translate',cache_key=key,
+                           cancel_event=getattr(self, '_feed_stop_event', None),
+                           cache_validator=lambda raw: ed.clean_title(raw,title)[1] not in ('invalid_translation','translation_new_number'))
+        if isinstance(result,str) and not ed.REASONING.search(result):self._title_evidence['raw_response']=result
+        cleaned,status=ed.clean_title(result,title)
+        self._title_evidence.update(translated=cleaned,status=status)
+        if status in ('invalid_translation','translation_new_number'):
+            self.log.warning('Title translation rejected (%s); original retained',status)
+        return cleaned
+
+    def _translate_title_legacy(self, title: str, force: bool = False) -> str:
+
         """Traduit le titre dans la langue cible.
 
         On traduit TOUJOURS (meme si le titre semble deja lisible),
@@ -559,7 +494,16 @@ class ArticleFetcher:
             f"varier le style. Reponds UNIQUEMENT avec le titre reformule, "
             f"rien d'autre :\n{title}"
         )
-        translated = ollama_call(prompt, timeout=30, caller="fetch", operation="translate")
+        from modules.fetch.editorial import cache_key, REASONING
+        key = cache_key(prompt, 'title-legacy-v1', lang, '', self._generation_identity('translate'), 'title')
+        translated = ollama_call(prompt, timeout=30, caller="fetch", operation="translate", cache_key=key,
+            cache_validator=lambda raw: bool(raw.strip()) and not REASONING.search(raw) and not raw.lstrip().startswith("[") and not self._is_wrong_language(raw,lang))
+        from modules.fetch.editorial import REASONING
+        self._title_evidence = {'original':title,'prompt_version':'title-legacy-v1',
+            'prompt_sha256':hashlib.sha256(prompt.encode()).hexdigest(),
+            'raw_response':translated if isinstance(translated,str) and not REASONING.search(translated) else None,
+            'translated':title,'status':'legacy_original_fallback'}
+        if isinstance(translated,str) and REASONING.search(translated):return title
         if translated and len(translated) > 3 and not translated.startswith("["):
             cleaned = translated.strip().strip('"').strip("'")
             # Filet de securite multi-langues : detecte si la traduction
@@ -569,6 +513,7 @@ class ArticleFetcher:
                     "Title translation language mismatch; original retained"
                 )
                 return title
+            self._title_evidence.update(translated=cleaned,status='legacy_translation_unverified')
             return cleaned
         return title  # fallback sur l'original si echec
 
@@ -747,6 +692,40 @@ class ArticleFetcher:
         return True  # Reconciled publications also request a public site rebuild.
 
     def _process_item(self, item, category, seen, existing_hashes, articles):
+        self._attempt_evidence = None
+        self._summary_evidence = {}
+        self._title_evidence = {}
+        try:
+            return self._process_item_impl(item, category, seen, existing_hashes, articles)
+        finally:
+            if self._attempt_evidence is not None:
+                try:
+                    from modules.fetch.editorial_trace import save, options as trace_options
+                    cfg=trace_options(getattr(self, 'editorial', {}).get('trace', {}))
+                    if cfg['enabled']:
+                        h=self._hash(item['link'])
+                        rec=getattr(self,'_state',{}).get('records',{}).get(h,{})
+                        evidence={**self._attempt_evidence,'article_hash':h,'original_title':item['title'],
+                            'pipeline_status':rec.get('status'),'status_scope':'in_memory_attempt_not_publication_receipt','failure_reason':rec.get('reason'),
+                            'review':rec.get('editorial_review'),
+                            'summary_generation':dict(self._summary_evidence),
+                            'title_generation':dict(self._title_evidence),
+                            'final_article':getattr(self,'_final_evidence',None)}
+                        if not cfg['include_source']:
+                            evidence.pop('extracted_text',None)
+                            evidence['summary_generation'].pop('source_transmitted',None)
+                        if not cfg['include_raw_response']:
+                            evidence['summary_generation'].pop('raw_response',None)
+                            evidence['title_generation'].pop('raw_response',None)
+                        save(self.seen_file.parent,evidence,cfg)
+                except Exception:
+                    self.log.warning('Editorial trace unavailable; normal pipeline continues')
+            self._attempt_evidence = None
+            self._summary_evidence = {}
+            self._title_evidence = {}
+            self._final_evidence = None
+
+    def _process_item_impl(self, item, category, seen, existing_hashes, articles):
         h = self._hash(item['link'])
         if not hasattr(self, '_state'):
             self._state = self._load_state()
@@ -769,6 +748,8 @@ class ArticleFetcher:
                        self.retry_cap, self.retry_base * 2 ** rec['attempts']))
         self._save_state()
         generation_started = False
+        self._attempt_evidence = {'kind':'article_attempt','attempt':rec['attempts']}
+        self._final_evidence = None
         try:
             image_args={}
             if getattr(self,'config',{}).get('media',{}).get('mode','disabled')!='disabled':
@@ -781,20 +762,40 @@ class ArticleFetcher:
                 raise ArticleAttemptError('collection_cancelled')
             if not content.strip():
                 raise ArticleAttemptError('empty_extraction')
-            from modules.utils.helpers import clean_for_tts
+            self._attempt_evidence['extracted_text'] = content
             generation_started = True
-            summary = clean_for_tts(self._summarize(item['title'], content, category) or '')
-            if not summary.strip() or summary.lstrip().startswith('[') or len(summary) > 16000:
+            summary = self._summarize(item['title'], content, category) or ''
+            if not summary.strip() or not any(c.isalnum() for c in summary) or summary.lstrip().startswith('[') or len(summary) > 16000:
                 raise ArticleAttemptError('invalid_summary')
             try:
                 stopping = getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set()
-                title = item['title'] if stopping else (self._translate_title(item['title'], force=False) or item['title'])
+                title = item['title'] if stopping else (self._translate_title(item['title'], force=False, source_language=getattr(self,'editorial',{}).get('source_languages',{}).get(urlparse(item['link']).hostname)) or item['title'])
             except Exception:
                 title = item['title']
+            from modules.fetch.editorial import review
+            policy=getattr(self,'editorial',{})
+            if policy.get('checks','observe')!='off':
+                rec['editorial_review']={**review(item['title'],content,summary,title),
+                    'attempt':rec['attempts'],'observed_at':self._now().timestamp(),'policy':policy.get('checks','observe'),
+                    'source_sha256':hashlib.sha256(content.encode()).hexdigest(),
+                    'summary_sha256':hashlib.sha256(summary.encode()).hexdigest()}
+                self._save_state()
+                if rec['editorial_review']['status']=='needs_review':
+                    self.log.warning('Editorial observation: %s', ','.join(rec['editorial_review']['reasons']))
+                    if policy.get('checks')=='strict' and 'numeric_disagreement' in rec['editorial_review']['reasons']:
+                        raise ArticleAttemptError('editorial_needs_review')
+            else:
+                rec['editorial_review']={'version':1,'status':'not_checked','reasons':[],'factually_verified':False,
+                    'attempt':rec['attempts'],'policy':'off'}
             article = {'hash': h, 'timestamp': self._now().isoformat(), 'category': category,
-                       'title': title, 'title_original': item['title'] if title != item['title'] else '',
+                       'title': title, 'title_original': item['title'] if title != item['title'] or getattr(self,'editorial',{}).get('prompt_version')=='editorial-v2' else '',
                        'link': item['link'], 'source': urlparse(item['link']).netloc.replace('www.', ''),
                        'pub_date': item.get('pub_date', ''), 'summary': summary}
+            self._final_evidence = dict(article)
+            # Trace records never need query strings/credentials from public links.
+            from urllib.parse import urlsplit, urlunsplit
+            u=urlsplit(article['link'])
+            self._final_evidence['link']=urlunsplit((u.scheme,u.hostname or '',u.path,'',''))
             if not valid_article(article):
                 raise ArticleAttemptError('invalid_article')
         except Exception as exc:
