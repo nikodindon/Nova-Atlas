@@ -225,3 +225,10 @@ Sprint 16A : le transport llama-server conserve le verrou exclusif et le contrat
 texte/échec vide ; les réponses passent par llm_response (validation, usage sans
 contenu), budgets par tâche et admission mesurée. Aucun nouveau service, aucun
 routage de production modifié ; voir LLM_RELIABILITY.md et SPRINT_16_AUDIT.md.
+## Qualification terrain
+
+Les outils deploy.qualification/field_metrics/field_radio/field_report sont
+opérateur, exclus de l’image runtime, sans contrôle automatique des services.
+SBOM des candidats et diagnostics Android privés ne modifient pas les contrats
+métier. Aucune promotion automatique en PASS ou autorisation publique ; voir
+FIELD_QUALIFICATION.md.

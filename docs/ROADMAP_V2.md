@@ -108,3 +108,8 @@ LLM_RELIABILITY.md. 16B (après fusion opérateur de 16A) : calendrier 24/7 et i
 radio déterministe. 16C : illustrations auto de qualification avec garde-fou des
 droits. 16D : dates V1/V2 et corrections reproduites. Aucune fusion ni mise à jour
 automatique de la configuration persistante.
+## Sprint 15 — qualification préparée, NO-GO public
+
+Registre de preuves, métriques et sondes radio bornées, instrumentation Android,
+SBOM/CVE des candidats et corrections ciblées. A/B, trois smartphones, endurance,
+TTS réel et droits restent des portes opérateur. Voir FIELD_QUALIFICATION.md.

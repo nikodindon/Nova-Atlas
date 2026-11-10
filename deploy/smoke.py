@@ -1,4 +1,4 @@
-"""Disposable GitHub CI only: builds images, runs Web/Icecast, never News/Radio engines."""
+"""Disposable GitHub CI only: builds images, runs Web/Icecast and synthetic sources, never business schedulers."""
 import json
 import os
 import re
@@ -34,6 +34,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='atlas-compose-smoke-') as temporary:
         state=Path(temporary)/'state'
         initialize(state,'synthetic-ci-admin',secrets.token_urlsafe(32))
+        from deploy.field_source import initialize as initialize_field
+        field_run_id=initialize_field(state)
         _REDACTIONS[:]=[p.read_text().strip() for p in (state/'secrets').iterdir() if p.is_file()]
         with (state/'compose.env').open('a') as out:out.write('ATLAS_WEB_PORT=0\n')
         command=['docker','compose','-p','atlas-ci-'+uuid.uuid4().hex[:10],'-f',str(ROOT/'docker-compose.yml'),'--env-file',str(state/'compose.env'),'--profile','full']
@@ -98,7 +100,7 @@ publish_audio(source,target,inspect_audio(source),1)
             run(command+['exec','-T','web','python','-c',audio])
             run(command+['run','--rm','--no-deps','--entrypoint','python','radio','-c',"from pathlib import Path;from modules.radio.audio_integrity import validated_publication;assert all(validated_publication(p) for p in Path('/app/audio_queue').glob('bulletin_*.mp3'))"])
             from deploy.radio_probe_smoke import exercise
-            exercise(command,run)
+            exercise(command,run,field_run_id=field_run_id)
             print('Smoke: atomic audio and cooperative restart',flush=True)
             inode=(state/'data/service-web.lock').stat().st_ino
             run(command+['stop','web'])
@@ -116,7 +118,7 @@ publish_audio(source,target,inspect_audio(source),1)
             logs=run(command+['logs','--no-color','web','icecast']).stdout
             for name in ('admin_password_hash','session_secret','icecast_source_password'):
                 assert (state/'secrets'/name).read_text().strip() not in logs
-            print('Docker smoke PASS: builds, non-root binaries, closed secrets, health, shared locks/audio, persistence and SIGTERM. No engines started.')
+            print('Docker smoke PASS: builds, non-root binaries, closed secrets, health, shared locks/audio, persistence and SIGTERM. Only explicit synthetic sources; no News/LLM/TTS.')
         except BaseException:
             diagnostic(run(command+['logs','--no-color','--tail','60','web','icecast'],check=False).stdout)
             raise

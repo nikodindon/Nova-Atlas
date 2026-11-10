@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "date": "2026-11-09T10:21:50.116675+00:00",
+  "code_references": {
+    "server": "ee6a9d2fe2367f109fb3b502482030332eadf657",
+    "android": "c925e89972f40cf462c2965ba10573b3ba3e7b4a"
+  },
+  "server_tests": {
+    "passed": 1653,
+    "added": 53,
+    "failed": 0,
+    "source": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+    "log_sha256": "d8841cc353bcbd2e4329db99ba69d90b0e84b1b83bbb456a0d895a6636dcd150"
+  },
+  "android_tests": {
+    "jvm_passed": 46,
+    "instrumented_passed": 4,
+    "physical": "NOT_TESTED",
+    "source": "https://github.com/nikodindon/nova-atlas-android/actions/runs/42596905818",
+    "emulator_source": "https://github.com/nikodindon/nova-atlas-android/actions/runs/42596905962"
+  },
+  "synthetic_source_and_restore": {
+    "status": "PASS_CI_ONLY",
+    "source": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467978",
+    "log_sha256": "079da23c2dde21c7afa7d7fea12992a1315e637c1dc77005032e610576c81692",
+    "limits": "short synthetic test, not A/B, phone, human listening or 24h"
+  },
+  "image_inventory": {
+    "targets": 6,
+    "source": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42599467924",
+    "result": "potential_matches_remain_public_NO_GO"
+  },
+  "field_tests": {
+    "A": "NOT_TESTED",
+    "B": "NOT_TESTED",
+    "phones": "NOT_TESTED",
+    "radio_24h": "NOT_TESTED",
+    "tts_real": "NOT_TESTED"
+  },
+  "decision": "NO_GO_PUBLIC; PRIVATE_TESTS_REQUIRE_SEPARATE_OPERATOR_AUTHORIZATION"
+}
