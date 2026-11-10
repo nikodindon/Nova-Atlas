@@ -88,3 +88,12 @@ def test_complete_operator_identity_remains_a_declared_measurement(corpus,tmp_pa
     report=run_compare(corpus,data,tmp_path)
     assert report['models'][0]['timing_evidence']=='operator_declared_not_independently_verified'
     assert report['automatic_truth_scores'] is False
+
+@pytest.mark.parametrize('command',['plan','compare'])
+def test_invalid_json_root_is_a_generic_cli_error(tmp_path,monkeypatch,capsys,command):
+    import sys
+    p=tmp_path/'a.json';p.write_text('[]');r=tmp_path/'b.json';r.write_text('{}')
+    args=['--corpus',str(p),'--models',str(r)] if command=='plan' else ['--plan',str(p),'--runs',str(r)]
+    monkeypatch.setattr(sys,'argv',['benchmark',command,*args,'--output',str(tmp_path/'report')])
+    with pytest.raises(SystemExit) as error:b.main()
+    assert error.value.code==1 and 'refused' in capsys.readouterr().out

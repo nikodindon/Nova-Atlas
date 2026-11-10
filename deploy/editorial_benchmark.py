@@ -15,6 +15,8 @@ def plan(corpus_path, models_path, output, repetitions=3):
         raise ExportError('repetition_limit')
     corpus_raw, models_raw = read(corpus_path), read(models_path)
     corpus, models = decode(corpus_raw), decode(models_raw)
+    if not isinstance(corpus, dict) or not isinstance(models, dict):
+        raise ExportError('invalid_schema')
     if corpus.get('version') != 1 or models.get('version') != 1:
         raise ExportError('invalid_schema')
     cases, candidates = corpus.get('cases'), models.get('models')
@@ -72,6 +74,8 @@ def plan(corpus_path, models_path, output, repetitions=3):
 def compare(plan_path, runs_path, output):
     raw = read(plan_path)
     protocol, runs = decode(raw), decode(read(runs_path))
+    if not isinstance(protocol, dict) or not isinstance(runs, dict):
+        raise ExportError('invalid_schema')
     if protocol.get('version') != 1 or runs.get('version') != 1 or runs.get('plan_sha256') != sha(raw):
         raise ExportError('plan_version_conflict')
     if runs.get('kind') not in ('fixture_replay', 'operator_measurement'):
@@ -158,7 +162,7 @@ def main():
     try:
         result = plan(args.corpus,args.models,args.output,args.repetitions) if args.command=='plan' else compare(args.plan,args.runs,args.output)
         print(json.dumps(result))
-    except (ValueError, OSError, TypeError, KeyError, RecursionError):
+    except (ValueError, OSError, TypeError, KeyError, RecursionError, AttributeError):
         print(json.dumps({'status':'refused','reason':'invalid_or_incomparable_input','network_calls':0}))
         raise SystemExit(1)
 

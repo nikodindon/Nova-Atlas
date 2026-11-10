@@ -142,7 +142,10 @@ def prompt_reference(repo):
 
 def observed_model(state):
     import yaml
-    cfg = yaml.safe_load(read(state / 'config/config.yaml', 256 * 1024))
+    try:
+        cfg = yaml.safe_load(read(state / 'config/config.yaml', 256 * 1024))
+    except yaml.YAMLError:
+        raise ExportError('invalid_config') from None
     if not isinstance(cfg, dict) or not isinstance(cfg.get('llm', {}), dict):
         raise ExportError('invalid_config')
     llm = cfg.get('llm', {})
@@ -250,6 +253,10 @@ def share(private, review, destination):
     raw = read(private)
     report = decode(raw)
     approvals = decode(read(review))
+    if not isinstance(report, dict) or not isinstance(approvals, dict):
+        raise ExportError('invalid_report_or_review')
+    if not isinstance(report.get('examples'), list) or not isinstance(approvals.get('approvals'), dict):
+        raise ExportError('invalid_report_or_review')
     if approvals.get('private_sha256') != sha(raw) or approvals.get('version') != 1:
         raise ExportError('review_version_conflict')
     result = []
@@ -287,7 +294,7 @@ def main():
     try:
         result = export(args.state, args.repo, args.output, args.count) if args.command == 'export' else share(args.private, args.review, args.output)
         print(json.dumps(result))  # Never content, paths or provider errors.
-    except (ValueError, OSError, KeyError, TypeError, RecursionError):
+    except (ValueError, OSError, KeyError, TypeError, RecursionError, SyntaxError, AttributeError):
         print(json.dumps({'status': 'refused', 'reason': 'invalid_or_unsafe_input_output', 'uploaded': False}))
         raise SystemExit(1)
 

@@ -149,3 +149,21 @@ def test_changed_input_is_not_exported_as_a_consistent_snapshot(tmp_path,monkeyp
             st_size=info.st_size,st_ino=info.st_ino,st_mtime_ns=info.st_mtime_ns+(counter[0]>1))
     monkeypatch.setattr(q.os,'fstat',changing)
     with pytest.raises(q.ExportError,match='changed'):q.read(p)
+
+
+def test_malformed_yaml_never_prints_configuration_secrets(installation,tmp_path,monkeypatch,capsys):
+    import sys
+    state,repo,_=installation
+    (state/'config/config.yaml').write_text('llm: [\n  secret: PRIVATE-CONFIG-CONTENT\n')
+    monkeypatch.setattr(sys,'argv',['qualification','export','--state',str(state),'--repo',str(repo),'--output',str(tmp_path/'report')])
+    with pytest.raises(SystemExit) as error:q.main()
+    assert error.value.code==1
+    assert 'PRIVATE-CONFIG-CONTENT' not in capsys.readouterr().out
+
+
+def test_invalid_review_root_is_a_generic_cli_error(tmp_path,monkeypatch,capsys):
+    import sys
+    p=tmp_path/'private.json';p.write_text('{}');r=tmp_path/'review.json';r.write_text('[]')
+    monkeypatch.setattr(sys,'argv',['qualification','share','--private',str(p),'--review',str(r),'--output',str(tmp_path/'report')])
+    with pytest.raises(SystemExit) as error:q.main()
+    assert error.value.code==1 and 'refused' in capsys.readouterr().out
