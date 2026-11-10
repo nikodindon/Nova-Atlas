@@ -389,3 +389,9 @@ Le [pipeline éditorial 16E](docs/EDITORIAL_PIPELINE.md) sépare nettoyage de pu
 et TTS, propose un prompt de qualification opt-in et des traces privées bornées.
 La [procédure terrain](docs/SPRINT_16E_FIELD_TEST.md) distingue les vérifications en
 lecture seule des opérations qui nécessitent un accord de mise à jour.
+La [qualification éditoriale des LLM](docs/EDITORIAL_QUALIFICATION.md) fournit un
+export privé en lecture seule et un protocole de comparaison hors ligne. Aucun
+exemple réel n'est publié sans revue et accord explicite ; aucun benchmark ne
+sollicite automatiquement la radio en fonctionnement.
+Le [dossier de qualification terrain](docs/FIELD_QUALIFICATION.md) prépare la RC-1
+conditionnelle : aucun PASS A/B, smartphone ou endurance n’est déduit des CI.

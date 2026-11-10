@@ -22,6 +22,7 @@ import threading
 from pathlib import Path
 
 from modules.core.llm_cache import cache_accepts
+from modules.core.llm_response import budgets, task_for, parse_response, Response
 
 from modules.core.llm_lock import LocalLLMLock, LOCAL_EXCLUSIVE_PROVIDERS, resource_path, safe_caller
 
@@ -58,6 +59,8 @@ class OllamaClient:
         llm_cfg = config.get("llm", {})
 
         self._gateway = None
+        self._tokens_by_task, self._wait_by_task = budgets(llm_cfg)
+        self._request_context = threading.local()
         self.provider = llm_cfg.get("provider", "ollama")
         self.model    = llm_cfg.get("model", "mistral:7b")
         self.base_url = llm_cfg.get("base_url", "http://localhost:8080")
@@ -192,54 +195,52 @@ class OllamaClient:
     # ── Provider : llama-server (HTTP) ─────────────────────────────────────────
 
     def _call_llama_server(self, prompt: str, model: str, timeout: int) -> str:
-        url = f"{self.base_url.rstrip('/')}/v1/chat/completions"
-        # max_tokens large : modèles "thinking" (Qwen3, DeepSeek-R1, etc.) brûlent
-        # 500-2000 tokens de réflexion AVANT la réponse utile. À 256 ou 512, le
-        # serveur tronque et on reçoit du texte vide / tronqué.
-        payload = json.dumps({
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": False,
-            "max_tokens": 4096,
-            "temperature": 0.3,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-        # Cold-start: le 1er appel après boot du serveur ou swap de modèle
-        # peut renvoyer du vide. On retente 1 fois après 5s pour confirmer
-        # que c'est bien un cold-start et pas un vrai échec.
-        for attempt in range(2):
-            try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    content = (data.get("choices", [{}])[0]
-                                   .get("message", {})
-                                   .get("content", "")).strip()
-                    if content:
-                        return content
-                    # Contenu vide : c'est peut-être le cold-start. On retente.
-                    self.log.warning(
-                        f"llama-server a renvoyé un contenu vide "
-                        f"(attempt {attempt+1}/2) — "
-                        f"probable cold-start, retry dans 5s"
-                    )
-                    if attempt == 0:
-                        time.sleep(5)
-                        continue
-                    return ""
-            except urllib.error.HTTPError as e:
-                self.log.error('llama-server HTTP %s', e.code)
-                return ""
-            except Exception as e:
-                self.log.error('Erreur llama-server (%s)', type(e).__name__)
-                return ""
-        return ""
+        task = getattr(self._request_context, 'task', 'atlas')
+        started = time.monotonic()
+        outcome = Response(kind='transport_error')
+        status = None
+        limit = 4 * 1024 * 1024
+        try:
+            payload = json.dumps({
+                'model': model, 'messages': [{'role': 'user', 'content': prompt}],
+                'stream': False, 'max_tokens': self._tokens_by_task[task],
+                'temperature': 0.3,
+            }).encode('utf-8')
+            req = urllib.request.Request(
+                f"{self.base_url.rstrip('/')}/v1/chat/completions", data=payload,
+                headers={'Content-Type': 'application/json'}, method='POST')
+            # One application attempt. Article processing owns persisted retries.
+            # An empty response is not evidence of a cold start.
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read(limit + 1)
+                if len(raw) > limit:
+                    outcome = Response(kind='response_too_large')
+                else:
+                    outcome = parse_response(json.loads(raw.decode('utf-8')))
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            outcome = Response(kind={401: 'authentication', 402: 'payment',
+                403: 'forbidden', 429: 'rate_limited'}.get(status,
+                'provider_unavailable' if 500 <= status <= 599 else 'http_error'))
+            exc.close()
+        except TimeoutError:
+            outcome = Response(kind='timeout')
+        except urllib.error.URLError as exc:
+            outcome = Response(kind='timeout' if isinstance(exc.reason, TimeoutError) else 'transport_error')
+        except (ValueError, UnicodeError, TypeError, RecursionError):
+            outcome = Response(kind='invalid_response')
+        except Exception:
+            outcome = Response(kind='transport_error')
+        finally:
+            log = self.log.info if outcome.kind == 'success' else self.log.warning
+            log('LLM response task=%s kind=%s duration_ms=%d max_tokens=%d '
+                'finish_reason=%s prompt_tokens=%s completion_tokens=%s '
+                'reasoning_tokens=%s reasoning_present=%s http_status=%s',
+                task, outcome.kind, round((time.monotonic()-started)*1000),
+                self._tokens_by_task[task], outcome.finish, outcome.prompt_tokens,
+                outcome.completion_tokens, outcome.reasoning_tokens,
+                outcome.reasoning_present, status)
+        return outcome.text
 
     # ── Appel principal ────────────────────────────────────────────────────────
 
@@ -294,7 +295,12 @@ class OllamaClient:
                 self.log.info('LLM cache hit caller=%s', caller)
                 return cached
 
-        acquired = self._acquire_lock(caller, wait_max=timeout + 60, cancel_event=cancel_event)
+        task = task_for(caller, operation)
+        waiting = time.monotonic()
+        wait_max = self._wait_by_task.get(task, timeout + 60)
+        acquired = self._acquire_lock(caller, wait_max=wait_max, cancel_event=cancel_event)
+        self.log.info('LLM admission task=%s acquired=%s wait_ms=%d wait_budget_s=%s',
+                      task, acquired, round((time.monotonic()-waiting)*1000), wait_max)
         if not acquired:
             return ""
 
@@ -308,7 +314,11 @@ class OllamaClient:
                     self.log.info('LLM cache hit after wait caller=%s', caller)
                     return cached
             if self.provider == "llama-server":
-                result = self._call_llama_server(prompt, model, timeout)
+                self._request_context.task = task
+                try:
+                    result = self._call_llama_server(prompt, model, timeout)
+                finally:
+                    del self._request_context.task
             else:
                 result = self._call_ollama_cli(prompt, model, timeout)
 

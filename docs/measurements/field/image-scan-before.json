@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "classification": "potential_matches_not_confirmed_exploits",
+  "ci": "https://github.com/nikodindon/Nova-Atlas/actions/runs/42593304759",
+  "tools": {
+    "syft": "1.55.0",
+    "grype": "0.121.2"
+  },
+  "images": [
+    {
+      "target": "nginx",
+      "commit": "ebcefa67c9cf65685bc901344a0c3014b632f2f8",
+      "image_identity": "sha256:d6152a96dbeb59792bffb092d41760a12006eee1e79c74179b9364f9664fa04c",
+      "packages": 71,
+      "summary": {
+        "status": "WARNING",
+        "matches": 4,
+        "severity": {
+          "Critical": 1,
+          "Medium": 3
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database_built": "2026-11-08T06:19:57Z",
+      "database_schema": "v6.1.10",
+      "artifacts_sha256": {
+        "sbom.cdx.json": "2ebc9b8991ca4a5fe8accecdf24b651a37e9711b025e33d91d9bc2034519c222",
+        "grype.json": "7f8d0f6d16f7a45e1983ae4c2c30a9001c94ea547a7adfa292179a36438811d6",
+        "sbom.syft.json": "c346f41c5959f63d53afeda9c8e1174a39542af6a6f0ca0a5898bbcf36ec23f5"
+      }
+    },
+    {
+      "target": "litellm",
+      "commit": "ebcefa67c9cf65685bc901344a0c3014b632f2f8",
+      "image_identity": "sha256:c4a72cd14996f47b3cd234a988633ba81f5b0334e8c3d646b8d38c034ccc9de9",
+      "packages": 308,
+      "summary": {
+        "status": "WARNING",
+        "matches": 25,
+        "severity": {
+          "High": 4,
+          "Medium": 17,
+          "Low": 4
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database_built": "2026-11-08T06:19:57Z",
+      "database_schema": "v6.1.10",
+      "artifacts_sha256": {
+        "sbom.cdx.json": "44f1f13df98d4f4999ddc02ec62537d50da07388fec586ebba3fff89c03f86a7",
+        "grype.json": "a86994d8c02a07992ebad0630eba71ea8e05ca456dbc0b725ec203b6c7100548",
+        "sbom.syft.json": "bf5f6ac5284bdebfba4d3f40868dce0076a40ff4e928ef876b01943d3717261c"
+      }
+    },
+    {
+      "target": "postgres",
+      "commit": "ebcefa67c9cf65685bc901344a0c3014b632f2f8",
+      "image_identity": "postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+      "packages": 149,
+      "summary": {
+        "status": "WARNING",
+        "matches": 392,
+        "severity": {
+          "Negligible": 106,
+          "High": 125,
+          "Critical": 4,
+          "Medium": 121,
+          "Low": 36
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database_built": "2026-11-08T06:19:57Z",
+      "database_schema": "v6.1.10",
+      "artifacts_sha256": {
+        "sbom.cdx.json": "70f003624f7d54c57b72f5ec050b9f733571077132fe5f84264cd76e571b9b2d",
+        "grype.json": "52e0759a7ee826adf273c816509d2ebebc551728f92671e5ec64e7b38a02da73",
+        "sbom.syft.json": "df8408bbdcaaff0408578f0a206506a35f54637b85e3407f145af3ae9c7324a5"
+      }
+    },
+    {
+      "target": "icecast",
+      "commit": "ebcefa67c9cf65685bc901344a0c3014b632f2f8",
+      "image_identity": "sha256:0cab947bbaa5d23700c7520ea10113e6045df2868c70f4bc14cfa50b098b0981",
+      "packages": 136,
+      "summary": {
+        "status": "WARNING",
+        "matches": 354,
+        "severity": {
+          "Negligible": 102,
+          "Critical": 18,
+          "High": 136,
+          "Low": 16,
+          "Medium": 82
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database_built": "2026-11-08T06:19:57Z",
+      "database_schema": "v6.1.10",
+      "artifacts_sha256": {
+        "sbom.cdx.json": "f504168fe0bed63be684afdbb6e4690572a9f0ae2fa1596b828796043e576f8f",
+        "grype.json": "514328600f0343d272b78d1e4b91da822062d42cbbe3848a8b58c79128c7f57e",
+        "sbom.syft.json": "f8bb742aa5edcad9fb9e15f8fee5411823caee51559f5d6def5d73e606ec6def"
+      }
+    },
+    {
+      "target": "frontend",
+      "commit": "ebcefa67c9cf65685bc901344a0c3014b632f2f8",
+      "image_identity": "sha256:ba24473fee10dd3211b28b7d574ccdee544af20f768d55042b761eed2cdd93b6",
+      "packages": 236,
+      "summary": {
+        "status": "WARNING",
+        "matches": 225,
+        "severity": {
+          "Negligible": 64,
+          "High": 55,
+          "Medium": 90,
+          "Critical": 2,
+          "Low": 14
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database_built": "2026-11-08T06:19:57Z",
+      "database_schema": "v6.1.10",
+      "artifacts_sha256": {
+        "sbom.cdx.json": "268535d01aeb513ae257674a56edda25a810e32861d3b00bb15ec1c60bb2b750",
+        "grype.json": "1586144e75a219a95e6c966ba703c4c1399bcaf0d6115d72d9c6efc65ddcd7c7",
+        "sbom.syft.json": "8c5395e8588948a7cf518890787d6cf72fde4dfc121edad63365616a01167856"
+      }
+    },
+    {
+      "target": "runtime",
+      "commit": "ebcefa67c9cf65685bc901344a0c3014b632f2f8",
+      "image_identity": "sha256:e1c08e7711b8e31a162695098801d3296240942837f7c26b1f33d6527fd6df8c",
+      "packages": 341,
+      "summary": {
+        "status": "WARNING",
+        "matches": 864,
+        "severity": {
+          "Negligible": 167,
+          "High": 321,
+          "Critical": 13,
+          "Medium": 312,
+          "Low": 35,
+          "Unknown": 16
+        },
+        "classification": "potential_pending_applicability_review",
+        "automatic_suppressions": 0,
+        "public_release_authorized": false
+      },
+      "database_built": "2026-11-08T06:19:57Z",
+      "database_schema": "v6.1.10",
+      "artifacts_sha256": {
+        "sbom.cdx.json": "c99834ffdace3a8c2d5e228dd8198db1953ded70910a3a569a5a38dd0f587ff3",
+        "grype.json": "48ef202663e5f3f8aaf5e7bd119bfc1bb199134d574d9c382c7d7925123c0f51",
+        "sbom.syft.json": "943e7a9b77b02ac7eb6a490e8e07a390659353327ae272dc0686d40da7958e19"
+      }
+    }
+  ]
+}

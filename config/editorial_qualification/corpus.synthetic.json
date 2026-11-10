@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "summary-a",
+      "task": "summary",
+      "prompt": "Résume cet article clairement et complètement en français. N’invente rien.\nFixture fictive : Val-des-Lunes met deux bus électriques en circulation le 12 juin. Le budget est de 600 000 euros. La fréquentation future et le coût par voyage ne sont pas connus.",
+      "prompt_version": "synthetic-baseline-v1",
+      "reference_excerpt": "Fixture fictive : Val-des-Lunes met deux bus électriques en circulation le 12 juin. Le budget est de 600 000 euros. La fréquentation future et le coût par voyage ne sont pas connus.",
+      "reference_status": "synthetic_author_owned"
+    },
+    {
+      "id": "summary-b",
+      "task": "summary",
+      "prompt": "Rédige un résumé journalistique français en 80 à 120 mots au maximum. Commence directement par le fait principal, sans préambule. Ne complète pas les informations absentes. Préserve les nombres, les dates, les incertitudes et les attributions. Ne crée aucune citation. Une source courte peut donner un résumé plus court.\nSOURCE :\nFixture fictive : Val-des-Lunes met deux bus électriques en circulation le 12 juin. Le budget est de 600 000 euros. La fréquentation future et le coût par voyage ne sont pas connus.",
+      "prompt_version": "synthetic-candidate-v2",
+      "reference_excerpt": "Fixture fictive : Val-des-Lunes met deux bus électriques en circulation le 12 juin. Le budget est de 600 000 euros. La fréquentation future et le coût par voyage ne sont pas connus.",
+      "reference_status": "synthetic_author_owned"
+    },
+    {
+      "id": "radio-structure",
+      "task": "radio",
+      "prompt": "Rédige uniquement deux blocs français pour un journal fictif, balisés [VOIX1] puis [VOIX2]. N’invente aucun fait. Ne génère pas les phrases fixes de la station.\nSOURCE :\nFixture fictive : Val-des-Lunes met deux bus électriques en circulation le 12 juin. Le budget est de 600 000 euros. La fréquentation future et le coût par voyage ne sont pas connus.",
+      "prompt_version": "synthetic-radio-contract-v1",
+      "reference_excerpt": "Fixture fictive : Val-des-Lunes met deux bus électriques en circulation le 12 juin. Le budget est de 600 000 euros. La fréquentation future et le coût par voyage ne sont pas connus.",
+      "reference_status": "synthetic_author_owned"
+    }
+  ]
+}

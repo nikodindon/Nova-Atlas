@@ -6,8 +6,7 @@ tests/test_llm_client.py — tests du client LLM (avec mock HTTP).
 Couvre :
   - construction du client, lecture des paramètres config
   - dispatch llama-server (on mocke urllib.request.urlopen)
-  - retry cold-start : 1er appel vide → retry → 2e appel renvoie contenu
-  - retry cold-start : 2 appels vides → on abandonne et retourne ""
+  - réponse vide : échec explicite sans nouvelle génération identique
   - gestion d'erreur HTTP (5xx, 4xx)
   - extraction du bon champ `choices[0].message.content`
   - use_cache=False bypass le cache
@@ -149,25 +148,12 @@ def test_call_llama_server_sends_correct_payload(client):
 # ── Cold-start retry ────────────────────────────────────────────────────
 
 
-def test_call_retries_on_empty_response(client):
-    """1er appel vide → 2e appel renvoie du texte → on garde le 2e."""
-    responses = [_make_response(""), _make_response("Final answer")]
-    with patch("urllib.request.urlopen", side_effect=responses), \
-         patch("time.sleep") as _sleep:  # on évite le vrai sleep
-        out = client._call_llama_server("q", "m", 30)
-    assert out == "Final answer"
-    # Le sleep n'est appelé qu'une fois (entre les 2 tentatives)
-    assert _sleep.call_count == 1
-    assert _sleep.call_args[0][0] == 5
-
-
-def test_call_gives_up_after_two_empty(client):
-    """2 appels vides consécutifs → on abandonne et retourne ''."""
-    with patch("urllib.request.urlopen",
-               return_value=_make_response("")), \
-         patch("time.sleep"):
-        out = client._call_llama_server("q", "m", 30)
-    assert out == ""
+def test_call_empty_is_not_retried(client):
+    with patch("urllib.request.urlopen", return_value=_make_response("")) as send, \
+         patch("time.sleep") as sleep:
+        assert client._call_llama_server("q", "m", 30) == ""
+    assert send.call_count == 1
+    sleep.assert_not_called()
 
 
 # ── Error handling ──────────────────────────────────────────────────────

@@ -159,3 +159,11 @@ sortie acquiert le même resource_path/UID/data pour chaque ressource locale,
 coordonnant les appels directs historiques du même hôte. Le cloud a des slots
 séparés par fournisseur. Le cache gateway a des verrous par requête. Aucun appel
 direct externe sur un autre hôte n'est couvert ; voir LLM_GATEWAY.md.
+
+## Sprint 16A — observation et budgets
+
+Le retry historique « cold-start » mentionné ci-dessus est retiré pour llama-server :
+une seule tentative, erreurs et usage structurés, attente du bail mesurée séparément.
+`llm.lock_wait_seconds` permet une attente explicite par tâche ; sans configuration,
+`timeout + 60` est conservé. Aucun changement de propriété, d'inode ou de priorité.
+Voir [LLM_RELIABILITY.md](LLM_RELIABILITY.md).

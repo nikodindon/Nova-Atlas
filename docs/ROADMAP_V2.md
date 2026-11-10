@@ -108,3 +108,16 @@ observations et traces privées bornées. Les comparaisons réelles de prompts/m
 restent à autoriser et exécuter sur ressources isolées après intégration des outils
 nécessaires. Aucun ancien article réécrit, aucun exemple privé publié. Voir
 EDITORIAL_PIPELINE.md et SPRINT_16E_FIELD_TEST.md.
+## Sprint 16 — lots soumis séparément
+
+16A : diagnostic LLM local, budgets par tâche, suppression du retry identique sur
+réponse vide ; audit réel en lecture seule, voir SPRINT_16_AUDIT.md et
+LLM_RELIABILITY.md. 16B (après fusion opérateur de 16A) : calendrier 24/7 et identité
+radio déterministe. 16C : illustrations auto de qualification avec garde-fou des
+droits. 16D : dates V1/V2 et corrections reproduites. Aucune fusion ni mise à jour
+automatique de la configuration persistante.
+## Sprint 15 — qualification préparée, NO-GO public
+
+Registre de preuves, métriques et sondes radio bornées, instrumentation Android,
+SBOM/CVE des candidats et corrections ciblées. A/B, trois smartphones, endurance,
+TTS réel et droits restent des portes opérateur. Voir FIELD_QUALIFICATION.md.

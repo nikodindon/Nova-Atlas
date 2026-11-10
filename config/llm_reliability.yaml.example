@@ -1,0 +1,18 @@
+# Fragment à fusionner sous llm dans state/config/config.yaml, après revue.
+# Aucun remplacement automatique du fichier persistant.
+# Profil court EXPÉRIMENTAL : défaut inchangé = 4096 pour chaque tâche.
+# À qualifier sur le modèle utilisé avant activation.
+llm:
+  max_tokens_by_task:
+    fetch: 1024
+    translate: 512
+    posts: 1024
+    flash: 1536
+    bulletin: 4096
+    report: 4096
+    editions: 4096
+    atlas: 4096
+  # Facultatif : ne change pas le détenteur ni la priorité du flock.
+  # lock_wait_seconds:
+  #   fetch: 60
+  #   bulletin: 180
