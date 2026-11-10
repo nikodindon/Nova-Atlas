@@ -170,6 +170,6 @@ def review(title,content,summary='',translated=''):
 def summary_cacheable(raw,version):
     try:
         result=parse_summary(raw,version)
-        return bool(result.strip()) and not result.lstrip().startswith('[') and len(result)<=16000
+        return bool(result.strip()) and any(c.isalnum() for c in result) and not result.lstrip().startswith('[') and len(result)<=16000
     except (ValueError,TypeError):
         return False

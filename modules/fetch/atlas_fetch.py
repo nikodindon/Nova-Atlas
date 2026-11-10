@@ -497,7 +497,7 @@ class ArticleFetcher:
         from modules.fetch.editorial import cache_key, REASONING
         key = cache_key(prompt, 'title-legacy-v1', lang, '', self._generation_identity('translate'), 'title')
         translated = ollama_call(prompt, timeout=30, caller="fetch", operation="translate", cache_key=key,
-            cache_validator=lambda raw: bool(raw.strip()) and not REASONING.search(raw) and not raw.lstrip().startswith("[") and not self._is_wrong_language(raw,lang))
+            cache_validator=lambda raw: len(raw.strip())>3 and any(c.isalnum() for c in raw) and not REASONING.search(raw) and not raw.lstrip().startswith("[") and not self._is_wrong_language(raw,lang))
         from modules.fetch.editorial import REASONING
         self._title_evidence = {'original':title,'prompt_version':'title-legacy-v1',
             'prompt_sha256':hashlib.sha256(prompt.encode()).hexdigest(),

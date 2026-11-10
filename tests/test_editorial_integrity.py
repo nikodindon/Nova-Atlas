@@ -213,3 +213,8 @@ def test_translated_title_divergence_is_an_explainable_private_signal():
         'Une usine étrangère annonce une fermeture complète')
     assert 'low_translated_title_summary_overlap' in check['reasons']
     assert check['factually_verified'] is False
+
+
+@pytest.mark.parametrize('value',['!!!!','[Timeout]','   '])
+def test_legacy_unpublishable_outputs_cannot_enter_editorial_cache(value):
+    assert ed.summary_cacheable(value,'legacy-v1') is False
