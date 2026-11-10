@@ -99,3 +99,17 @@ export read-only corrigé et charge synthétique. **No-Go qualification publique
 multi-machine, radio 24 h, licences/droits, revue opérateur et scan OS restent
 à réaliser. Les limites de l'index (500) et de stockage ne sont pas levées.
 Voir RELEASE_CANDIDATE.md et CHANGELOG_V2.md ; aucun cutover PostgreSQL.
+
+## Sprint 16 — lots soumis séparément
+
+16A : diagnostic LLM local, budgets par tâche, suppression du retry identique sur
+réponse vide ; audit réel en lecture seule, voir SPRINT_16_AUDIT.md et
+LLM_RELIABILITY.md. 16B (après fusion opérateur de 16A) : calendrier 24/7 et identité
+radio déterministe. 16C : illustrations auto de qualification avec garde-fou des
+droits. 16D : dates V1/V2 et corrections reproduites. Aucune fusion ni mise à jour
+automatique de la configuration persistante.
+## Sprint 15 — qualification préparée, NO-GO public
+
+Registre de preuves, métriques et sondes radio bornées, instrumentation Android,
+SBOM/CVE des candidats et corrections ciblées. A/B, trois smartphones, endurance,
+TTS réel et droits restent des portes opérateur. Voir FIELD_QUALIFICATION.md.

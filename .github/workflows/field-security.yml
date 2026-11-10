@@ -1,0 +1,29 @@
+name: Candidate image inventory
+on:
+  push:
+    branches: [dev, feature/v2-field-qualification]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        target: [runtime, frontend, nginx, icecast, litellm, postgres]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inventory final candidate image, no services started
+        run: python -m deploy.security_inventory --execute --target '${{ matrix.target }}' --output '/tmp/inventory-${{ matrix.target }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-${{ matrix.target }}
+          path: /tmp/inventory-${{ matrix.target }}/*.json
+          retention-days: 14

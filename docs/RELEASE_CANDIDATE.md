@@ -369,3 +369,10 @@ aucun catalogue utilisateur inspecté, droits de diffusion non établis.
 
 La validation multi-machine, la radio 24 h, les comptes cloud et l'écoute TTS restent
 **non effectués**, même si tous les contrôles de cette PR sont verts.
+
+## Complément Sprint 15
+
+La préparation RC-1 et les nouveaux scans/correctifs ciblés sont décrits dans
+FIELD_QUALIFICATION.md. Les constats de ce dossier RC-0 sont historiques : le scan
+d’images désormais exécuté révèle des correspondances à qualifier et ne lève pas
+le NO-GO public. Aucune installation physique A/B ou endurance n’est revendiquée.
