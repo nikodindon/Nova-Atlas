@@ -202,7 +202,8 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
          'edition': edition_and_rebuild, 'posts': posts_job,
          'rebuild': lambda: generate_static_site(config, full=True)},
         stop_event, runner=runner, clock=lambda: datetime.now(),
-        before_tick=lambda now: _check_reload(), startup=initial_fetch_and_rebuild,
+        before_tick=lambda now: _check_reload(),
+        startup=initial_fetch_and_rebuild if config.get('fetch', {}).get('startup_fetch', True) is not False else None,
     )
 
 

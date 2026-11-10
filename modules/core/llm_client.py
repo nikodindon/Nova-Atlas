@@ -21,6 +21,7 @@ import urllib.error
 import threading
 from pathlib import Path
 
+from modules.core.llm_cache import cache_accepts
 from modules.core.llm_response import budgets, task_for, parse_response, Response
 
 from modules.core.llm_lock import LocalLLMLock, LOCAL_EXCLUSIVE_PROVIDERS, resource_path, safe_caller
@@ -249,7 +250,7 @@ class OllamaClient:
              caller:  str = "atlas",
              cache_key: str = None,
              use_cache: bool = True,
-             cancel_event=None, operation=None) -> str:
+             cancel_event=None, operation=None, cache_validator=None) -> str:
         """
         Appel LLM thread-safe avec verrou fichier.
         Dispatch vers _call_ollama_cli() ou _call_llama_server() selon provider.
@@ -267,7 +268,7 @@ class OllamaClient:
             from modules.core.llm_gateway import GatewayError
             try:
                 return self._gateway.call(prompt, caller, self.timeout_fetch if timeout is None else timeout,
-                    operation=operation, cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event, model=model)
+                    operation=operation, cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event, model=model, cache_validator=cache_validator)
             except GatewayError as exc:
                 self.log.warning('Gateway request failed kind=%s', exc.kind)
                 return ''
@@ -290,7 +291,7 @@ class OllamaClient:
         # ── Cache hit (pas de lock, lecture seule) ─────────────────────────
         if cache_key and use_cache and self._cache is not None:
             cached = self._cache.get(cache_key)
-            if cached is not None:
+            if cached is not None and cache_accepts(cached, cache_validator):
                 self.log.info('LLM cache hit caller=%s', caller)
                 return cached
 
@@ -309,7 +310,7 @@ class OllamaClient:
             # A contender may have populated the cache while this call waited.
             if cache_key and use_cache and self._cache is not None:
                 cached = self._cache.get(cache_key)
-                if cached is not None:
+                if cached is not None and cache_accepts(cached, cache_validator):
                     self.log.info('LLM cache hit after wait caller=%s', caller)
                     return cached
             if self.provider == "llama-server":
@@ -322,7 +323,7 @@ class OllamaClient:
                 result = self._call_ollama_cli(prompt, model, timeout)
 
             # ── Cache write (seulement si on a un contenu utile) ──────────
-            if cache_key and use_cache and self._cache is not None and result:
+            if cache_key and use_cache and self._cache is not None and cache_accepts(result, cache_validator):
                 self._cache.put(cache_key, result, caller=caller, model=model)
                 self.log.info('LLM cache stored caller=%s', caller)
             return result
@@ -481,10 +482,11 @@ def ollama_call(prompt: str,
                 caller:      str = "atlas",
                 cache_key:   str = None,
                 use_cache:   bool = True,
-                cancel_event=None, operation=None) -> str:
+                cancel_event=None, operation=None, cache_validator=None, client_snapshot=None) -> str:
     """Raccourci global."""
-    return get_client().call(prompt, model=model, timeout=timeout, caller=caller,
-                             cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event, operation=operation)
+    selected = client_snapshot if client_snapshot is not None else get_client()
+    return selected.call(prompt, model=model, timeout=timeout, caller=caller,
+                             cache_key=cache_key, use_cache=use_cache, cancel_event=cancel_event, operation=operation, cache_validator=cache_validator)
 
 
 def get_language() -> str:

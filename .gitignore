@@ -135,6 +135,8 @@ frontend/.env*
 # Optional operator verification environment
 .venv-operator/
 
+# Private optional editorial generation evidence, never public CI artifacts
+/data/editorial_traces/
 # Optional private editorial evidence (CLI also refuses output inside Git)
 /data/radio_scripts/
 /editorial-private*/

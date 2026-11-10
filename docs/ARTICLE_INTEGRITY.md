@@ -195,3 +195,11 @@ validées en cache avant déduplication ; le hash URL, les sept jours et les rè
 prepared/target_day/publication ne changent pas. Les téléchargements de flux seuls
 sont parallèles. Arrêt observé avant traitement du prochain article ; les records
 non traités restent découverts/reprenables. Voir RSS_INGESTION.md.
+
+## Sprint 16E — qualité des nouvelles tentatives
+
+Le texte publié est nettoyé de manière conservatrice et séparé de l'adaptation TTS.
+Le prompt editorial-v2 et les traces privées sont opt-in ; les observations sont
+privées et ne changent pas les champs JSON publics. Les refus structurés et le
+mode strict numérique réutilisent le journal/retry existant, sans inscription seen
+ni purge de cache. Voir EDITORIAL_PIPELINE.md et SPRINT_16E_FIELD_TEST.md.

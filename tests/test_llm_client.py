@@ -216,3 +216,26 @@ def test_call_use_cache_false_bypasses_cache(cfg, tmp_path):
                return_value=_make_response("FRESH")):
         out = c.call("prompt", caller="fetch", cache_key="k", use_cache=False)
     assert out == "FRESH"  # le cache est bypassé
+
+
+def test_cache_validator_does_not_delete_rejected_entries_or_hide_fresh_diagnosis(client):
+    from modules.core.llm_cache import LLMCache
+    client._cache=LLMCache(client.lock_file.parent/'cache')
+    client._cache.put('key','invalid old cached result')
+    before=(client._cache.cache_dir/'key.txt').read_bytes()
+    with patch.object(client,'_call_llama_server',return_value='invalid fresh result') as provider:
+        assert client.call('prompt',cache_key='key',cache_validator=lambda value:value=='valid')=='invalid fresh result'
+    assert provider.call_count==1 and (client._cache.cache_dir/'key.txt').read_bytes()==before
+    with patch.object(client,'_call_llama_server',return_value='valid') as provider:
+        assert client.call('prompt',cache_key='key',cache_validator=lambda value:value=='valid')=='valid'
+        assert client.call('prompt',cache_key='key',cache_validator=lambda value:value=='valid')=='valid'
+    assert provider.call_count==1
+
+
+def test_exception_in_cache_validator_cannot_authorize_cache_reuse(client):
+    from modules.core.llm_cache import LLMCache
+    client._cache=LLMCache(client.lock_file.parent/'cache');client._cache.put('key','cached text')
+    def broken(value):raise ValueError('private test message')
+    with patch.object(client,'_call_llama_server',return_value='fresh text') as provider:
+        assert client.call('prompt',cache_key='key',cache_validator=broken)=='fresh text'
+    assert provider.call_count==1

@@ -100,6 +100,14 @@ multi-machine, radio 24 h, licences/droits, revue opérateur et scan OS restent
 à réaliser. Les limites de l'index (500) et de stockage ne sont pas levées.
 Voir RELEASE_CANDIDATE.md et CHANGELOG_V2.md ; aucun cutover PostgreSQL.
 
+### Sprint 16E — pipeline éditorial
+
+Proposé indépendamment des PR #23/#24 encore ouvertes : nettoyage conservateur,
+prompt versionné opt-in, caches validés par tâche, titres avec langue déclarée,
+observations et traces privées bornées. Les comparaisons réelles de prompts/modèles
+restent à autoriser et exécuter sur ressources isolées après intégration des outils
+nécessaires. Aucun ancien article réécrit, aucun exemple privé publié. Voir
+EDITORIAL_PIPELINE.md et SPRINT_16E_FIELD_TEST.md.
 ## Sprint 16 — lots soumis séparément
 
 16A : diagnostic LLM local, budgets par tâche, suppression du retry identique sur

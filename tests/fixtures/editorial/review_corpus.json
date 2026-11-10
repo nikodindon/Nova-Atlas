@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "scope": "synthetic_author_annotated_not_real_news",
+  "cases": [
+    {
+      "id": "budget-fr",
+      "title": "La commune adopte son nouveau budget",
+      "content": "La commune adopte son nouveau budget de 120 euros. Les élus annoncent la décision et publient le calendrier du conseil municipal.",
+      "summary": "La commune adopte un budget de 120 euros.",
+      "expected_anomaly": false
+    },
+    {
+      "id": "short-fact",
+      "title": "Deux bus municipaux arrivent",
+      "content": "La mairie a reçu deux bus.",
+      "summary": "Deux bus municipaux ont été reçus.",
+      "expected_anomaly": false
+    },
+    {
+      "id": "multilingual-japanese",
+      "title": "東京の大学が新しい研究施設を開設",
+      "content": "東京の大学が新しい研究施設を開設しました。研究者は地域と協力します。",
+      "summary": "東京の大学が研究施設を開設しました。",
+      "expected_anomaly": false
+    },
+    {
+      "id": "names-arabic",
+      "title": "مشروع جديد في المدينة",
+      "content": "أعلنت المدينة عن مشروع جديد للنقل العام.",
+      "summary": "أعلنت المدينة مشروعاً جديداً للنقل العام.",
+      "expected_anomaly": false
+    },
+    {
+      "id": "translated-english",
+      "title": "Town council approves electric buses service",
+      "content": "The town council approves electric buses service. The municipal committee reports a timetable and explains the transport plan to residents.",
+      "summary": "Le conseil municipal approuve un service de transports électriques pour les habitants.",
+      "expected_anomaly": false
+    },
+    {
+      "id": "several-budgets",
+      "title": "Le conseil publie plusieurs budgets",
+      "content": "Un premier budget est de 120 euros et un autre de 130 euros. Le conseil explique les deux enveloppes dans une note publique.",
+      "summary": "Le second budget est de 130 euros.",
+      "expected_anomaly": false
+    },
+    {
+      "id": "number-localisation",
+      "title": "La commune vote son budget annuel",
+      "content": "La commune vote son budget annuel de 10 000 euros. Le conseil annonce les investissements et précise la répartition des crédits.",
+      "summary": "La commune vote un budget de 10000 euros.",
+      "expected_anomaly": false
+    },
+    {
+      "id": "proper-names",
+      "title": "Sony et NVIDIA annoncent un partenariat technique",
+      "content": "Sony et NVIDIA annoncent un partenariat technique. Les deux entreprises présentent un programme commun de recherche et de formation.",
+      "summary": "Sony et NVIDIA annoncent un partenariat technique de recherche et de formation.",
+      "expected_anomaly": false
+    },
+    {
+      "id": "figure-contradiction",
+      "title": "La commune vote son nouveau budget",
+      "content": "La commune vote son nouveau budget de 120 euros. Le conseil explique cette somme et confirme le calendrier de ses investissements.",
+      "summary": "La commune vote son nouveau budget de 130 euros.",
+      "expected_anomaly": true
+    },
+    {
+      "id": "topic-discordance",
+      "title": "Deux fruits améliorent la santé des artères en huit semaines",
+      "content": "Un examen de dépistage compare la pression à la cheville et au bras chez les adultes. Les artères sont examinées par les médecins.",
+      "summary": "Le dépistage compare la pression de la cheville et du bras chez les adultes.",
+      "expected_anomaly": true
+    },
+    {
+      "id": "event-discordance",
+      "title": "Un aéroport inaugure une nouvelle piste internationale",
+      "content": "Le club de football organise un tournoi municipal. Les joueurs et les supporters se réunissent au stade pour une rencontre sportive ouverte au public.",
+      "summary": "Le club de football organise un tournoi au stade avec des joueurs et des supporters.",
+      "expected_anomaly": true
+    }
+  ]
+}

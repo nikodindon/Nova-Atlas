@@ -1,0 +1,17 @@
+# Fragment à fusionner sous fetch dans state/config/config.yaml après sauvegarde.
+# Aucun outil ne modifie automatiquement la configuration persistante.
+fetch:
+  editorial:
+    prompt_version: legacy-v1 # Défaut. Qualification explicite : editorial-v2
+    checks: observe         # off / observe / strict (numérique uniquement)
+    length_profile: auto    # auto / brief / standard / complex
+    title_policy: preserve_unknown # translate_unknown / preserve_all
+    source_languages: {}    # hostnames exacts en minuscules, valeurs fr/en/ja/...
+    trace:
+      enabled: false
+      include_source: false
+      include_raw_response: false
+      retention_days: 7
+      max_records: 200
+      max_bytes: 16777216
+      entry_max_bytes: 65536

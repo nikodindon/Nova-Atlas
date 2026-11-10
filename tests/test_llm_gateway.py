@@ -372,3 +372,25 @@ def test_web_update_preserves_gateway_provider(tmp_path):
     path=tmp_path/'config.yaml';path.write_text('llm:\n  provider: litellm\n  model: atlas-fast\n')
     update_yaml(path,'llm','provider','litellm')
     assert yaml.safe_load(path.read_text())['llm']['provider']=='litellm'
+
+
+def test_caller_prompt_namespace_is_not_ignored_by_gateway_cache(setup):
+    cfg,_=setup
+    transport=Mock(return_value=response())
+    client=gw.GatewayClient(cfg,transport=transport)
+    assert client.call('identical rendered prompt','fetch',20,cache_key='summary-v1')
+    assert client.call('identical rendered prompt','fetch',20,cache_key='summary-v1')
+    assert transport.call_count==1
+    assert client.call('identical rendered prompt','fetch',20,cache_key='summary-v2')
+    assert transport.call_count==2
+
+
+def test_gateway_invalid_task_contract_is_not_cached_or_retried_implicitly(setup):
+    cfg,_=setup;transport=Mock(side_effect=[response('invalid task contract'),response('valid')])
+    client=gw.GatewayClient(cfg,transport=transport)
+    validator=lambda value:value=='valid'
+    assert client.call('prompt','fetch',20,cache_key='summary',cache_validator=validator)=='invalid task contract'
+    assert not list(client.directory.glob('*.json'))
+    assert client.call('prompt','fetch',20,cache_key='summary',cache_validator=validator)=='valid'
+    assert client.call('prompt','fetch',20,cache_key='summary',cache_validator=validator)=='valid'
+    assert transport.call_count==2

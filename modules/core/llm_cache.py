@@ -152,3 +152,19 @@ class LLMCache:
         size_bytes = sum(p.stat().st_size for p in self.cache_dir.glob("*.txt"))
         return {"entries": n, "size_bytes": size_bytes,
                 "dir": str(self.cache_dir), "ttl_days": self.ttl_seconds // 86400}
+
+
+def cache_accepts(value, validator=None):
+    """A task may decline cache reuse/storage without changing the string API.
+
+    A fresh invalid response still reaches its caller for typed diagnosis. The
+    validator never deletes cache entries and must be pure/bounded.
+    """
+    if not isinstance(value,str) or not value.strip():
+        return False
+    if validator is None:
+        return True
+    try:
+        return validator(value) is True
+    except Exception:
+        return False
