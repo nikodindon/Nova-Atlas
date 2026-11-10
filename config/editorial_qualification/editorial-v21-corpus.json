@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "provenance": "Original synthetic texts authored for this repository; no private or Internet articles.",
+  "license": "CC0-1.0",
+  "reference_scope": "Annotations concern only source[:3000], not hidden trailing facts. Human review remains required.",
+  "cases": [
+    {
+      "id": "breve-fr",
+      "title": "Un pont rénové à Valmer",
+      "source": "Le conseil de Valmer, commune fictive, a voté mardi 240 000 euros pour rénover le pont des Saules. Les travaux commenceront en mai 2027.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Vote de 240 000 euros",
+        "Début en mai 2027"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "incomplet-fr",
+      "title": "La bibliothèque ouvre une salle",
+      "source": "La bibliothèque de Mont-Lilas, ville fictive, ouvre une salle de lecture de 30 places. La date et le coût ne sont pas précisés.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Nouvelle salle de 30 places",
+        "Date et coût inconnus"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "declaration",
+      "title": "Une entreprise annonce un prototype",
+      "source": "La société fictive Alizé annonce avoir testé un bus électrique sur 180 kilomètres. Cette autonomie est une déclaration de l’entreprise, non vérifiée indépendamment. Aucun prix ni calendrier commercial n’est annoncé.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Annonce attribuée à Alizé",
+        "180 kilomètres déclarés",
+        "Pas de vérification indépendante"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "anglais",
+      "title": "Un musée prolonge ses horaires",
+      "source": "The fictional city of Bellford says its museum will close at 8 p.m. on Fridays from 3 April 2027. Admission prices will remain unchanged. No visitor forecast was released.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Vendredi fermeture à 20 h",
+        "À partir du 3 avril 2027",
+        "Prix inchangés"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "japonais",
+      "title": "Une nouvelle ligne de bus à Aono",
+      "source": "架空の青野市は、2027年4月1日から図書館と駅を結ぶバス路線を開設すると発表した。平日は1日12便を運行する。運賃はまだ公表されていない。",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Ville fictive Aono",
+        "Ligne bibliothèque-gare le 1 avril 2027",
+        "12 trajets les jours de semaine",
+        "Tarif non annoncé"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "arabe",
+      "title": "Une salle pour les enfants dans une bibliothèque",
+      "source": "أعلنت مكتبة مدينة النور الخيالية افتتاح قاعة للأطفال تضم 40 مقعدًا يوم السبت. لم تعلن المكتبة تكلفة المشروع.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Ville fictive Al-Nour",
+        "Salle enfants de 40 places",
+        "Ouverture samedi",
+        "Coût inconnu"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "russe",
+      "title": "Un musée fictif restaure des tableaux",
+      "source": "В вымышленном городе Лесной музей сообщил о реставрации 12 картин. Работы завершатся в июне 2027 года. Стоимость проекта не объявлена.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Musée de la ville fictive Lesnoï",
+        "12 tableaux",
+        "Fin en juin 2027",
+        "Coût non annoncé"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "long-fr",
+      "title": "Valmer finance un jardin public",
+      "source": "La commune fictive de Valmer a adopté un budget de 90 000 euros pour un jardin public. Le vote a eu lieu lundi.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Les élus expliquent que les habitants pourront consulter les plans à la mairie. Le jardin conservera les arbres existants.  Une décision distincte sur un parking sera examinée en septembre 2028.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Budget de 90 000 euros",
+        "Vote lundi",
+        "Plans consultables en mairie"
+      ],
+      "notes": "Le fait final sur le parking est hors des 3000 caractères transmis : son absence ne doit pas être notée comme perte."
+    },
+    {
+      "id": "navigation",
+      "title": "Un budget municipal voté",
+      "source": "Accueil. Se connecter. Paramètres des cookies. Accepter ou refuser les cookies. Newsletter. Plan du site. Conditions générales.",
+      "expected_status": "insufficient_source",
+      "reference_facts": [],
+      "notes": ""
+    },
+    {
+      "id": "vide",
+      "title": "Une information à confirmer",
+      "source": "",
+      "expected_status": "insufficient_source",
+      "reference_facts": [],
+      "notes": ""
+    },
+    {
+      "id": "hors-sujet",
+      "title": "Une élection municipale à Valmer",
+      "source": "Le club fictif des Ours de Belrive a remporté une rencontre de hockey 3 à 2 dimanche. Son entraîneur annonce un déplacement mardi.",
+      "expected_status": "insufficient_source",
+      "reference_facts": [],
+      "notes": "Le texte contient des faits sportifs mais aucun sur le sujet annoncé."
+    },
+    {
+      "id": "fait-unique",
+      "title": "Une bibliothèque ouvre samedi",
+      "source": "La bibliothèque de la ville fictive de Belrive ouvrira samedi.",
+      "expected_status": "ok",
+      "reference_facts": [
+        "Ouverture samedi"
+      ],
+      "notes": "Une phrase suffit ; aucune longueur minimale ni nouveau détail à inventer."
+    },
+    {
+      "id": "preambule-tronque",
+      "title": "Le conseil finance un pont",
+      "source": "Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies. Paramètres de confidentialité. Connexion. Navigation. Choisir les cookies.  Le conseil fictif de Valmer a voté 240 000 euros pour le pont.",
+      "expected_status": "insufficient_source",
+      "reference_facts": [],
+      "notes": "Seul le préambule est visible dans la fenêtre de 3000 caractères. Test de perte d’entrée, distinct d’un refus injustifié."
+    }
+  ]
+}

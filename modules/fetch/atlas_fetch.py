@@ -18,6 +18,7 @@ import logging
 import re
 import time
 import math
+import uuid
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from modules.fetch.article_state import (atomic_json, backup, read_json, calendar_day,
@@ -255,13 +256,16 @@ class ArticleFetcher:
     # ── Article content ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None, image_sink=None) -> str:
+    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None, image_sink=None, editorial_version='legacy-v1') -> str:
         try:
             r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP, host_budget=host_budget, cancel_event=cancel_event)
             r.raise_for_status()
             if image_sink is not None:
                 try:image_sink(r.content,r.url)
                 except Exception:logging.getLogger('nova.fetch').warning('Optional image metadata capture unavailable')
+            if editorial_version=='editorial-v2.1':
+                from modules.fetch.extraction import extract_article_text
+                return extract_article_text(r.text)[:MAX_ARTICLE_CHARS]
             soup = BeautifulSoup(r.text, "html.parser")
             for tag in soup(["script","style","nav","header","footer",
                               "aside","form","iframe","noscript"]):
@@ -308,7 +312,7 @@ class ArticleFetcher:
         policy = ed.options(getattr(self, 'config', {}))
         if not content.strip():
             return ''
-        if policy['prompt_version'] == 'editorial-v2' and not any(c.isalnum() for c in content):
+        if policy['prompt_version'] != 'legacy-v1' and not any(c.isalnum() for c in content):
             raise ArticleAttemptError('summary_source_insufficient')
         snapshot = self._generation_client()
         lang = get_language()
@@ -317,20 +321,28 @@ class ArticleFetcher:
         key = ed.cache_key(prompt, policy['prompt_version'], lang, category, identity)
         evidence = {'prompt_version': policy['prompt_version'], 'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(),
                     'source_transmitted': content[:3000], 'cache_identity': key,
+                    'extracted_characters': len(content), 'transmitted_characters': len(content[:3000]),
+                    'source_sha256': hashlib.sha256(content.encode()).hexdigest(),
+                    'transmitted_sha256': hashlib.sha256(content[:3000].encode()).hexdigest(),
+                    'source_window_limit': 3000,
                     'model_configuration_sha256': ed.digest(identity), 'language': lang,
                     'model': {'provider': identity.get('effective_provider') or identity.get('provider'),
                               'name': 'atlas-fast' if (identity.get('effective_provider') or identity.get('provider'))=='litellm' else Path(identity.get('effective_model') or identity.get('model') or 'unknown').name,
                               'revision': None if (identity.get('effective_provider') or identity.get('provider'))=='litellm' else identity.get('model_revision'),
                               'weights_sha256': None if (identity.get('effective_provider') or identity.get('provider'))=='litellm' else identity.get('model_sha256'),
                               'attestation': 'client_configuration_not_provider_attestation'},
-                    'request_parameters': {'max_tokens': identity.get('effective_tokens') or (4096 if identity.get('provider')=='llama-server' else None),
-                                           'temperature': .3 if identity.get('provider')=='llama-server' else None},
+                    'request_parameters': {'max_tokens': (identity.get('effective_tokens') or 4096) if (identity.get('effective_provider') or identity.get('provider'))=='llama-server' else None,
+                                           'temperature': .3 if (identity.get('effective_provider') or identity.get('provider'))=='llama-server' else None},
+                    'request_parameters_scope':'client_configuration_not_provider_attestation',
                     'raw_response': None, 'cleaned_summary': None, 'tokens': None, 'finish_reason': None,
                     'duration_scope': 'application_call_including_lock_and_possible_cache', 'cache_hit': None}
+        evidence['request_id']=uuid.uuid4().hex
+        receipt={}
         self._summary_evidence = evidence
         started = time.monotonic()
         try:
             output = ollama_call(prompt, timeout=get_fetch_timeout(), caller='fetch', cache_key=key, client_snapshot=snapshot,
+                                 request_id=evidence['request_id'],metrics=receipt,
                                  cancel_event=getattr(self, '_feed_stop_event', None),
                                  cache_validator=lambda raw: ed.summary_cacheable(raw, policy['prompt_version'],
                                      title=title, content=content, checks=policy['checks']))
@@ -346,6 +358,11 @@ class ArticleFetcher:
             raise ArticleAttemptError(evidence['failure']) from None
         finally:
             evidence['duration_ms'] = round((time.monotonic()-started)*1000)
+            if receipt.get('request_id')==evidence['request_id']:
+                evidence['generation_receipt']=dict(receipt)
+                evidence['tokens']={'prompt':receipt.get('prompt_tokens'),'completion':receipt.get('completion_tokens')}
+                evidence['finish_reason']=receipt.get('finish_reason')
+                evidence['cache_hit']=receipt.get('cache_hit')
 
     # ── Retry résumés en attente ───────────────────────────────────────────────
 
@@ -466,9 +483,13 @@ class ArticleFetcher:
         prompt=ed.title_prompt(title,lang)
         key=ed.cache_key(prompt,'title-translate-v2',lang,'',self._generation_identity('translate',snapshot),'title')
         self._title_evidence.update(prompt_version='title-translate-v2',prompt_sha256=hashlib.sha256(prompt.encode()).hexdigest(),cache_identity=key)
+        self._title_evidence['request_id']=uuid.uuid4().hex
+        receipt={}
         result=ollama_call(prompt, timeout=30, caller='fetch', operation='translate',cache_key=key,client_snapshot=snapshot,
+                           request_id=self._title_evidence['request_id'],metrics=receipt,
                            cancel_event=getattr(self, '_feed_stop_event', None),
                            cache_validator=lambda raw: ed.clean_title(raw,title)[1] not in ('invalid_translation','translation_new_number'))
+        if receipt.get('request_id')==self._title_evidence['request_id']:self._title_evidence['generation_receipt']=dict(receipt)
         if isinstance(result,str) and not ed.REASONING.search(result):self._title_evidence['raw_response']=result
         cleaned,status=ed.clean_title(result,title)
         self._title_evidence.update(translated=cleaned,status=status)
@@ -765,6 +786,8 @@ class ArticleFetcher:
             if getattr(self,'config',{}).get('media',{}).get('mode','disabled')!='disabled':
                 from modules.media.capture import capture
                 image_args['image_sink']=lambda body,url:capture(self.seen_file.parent,body,url,h,self.config)
+            if getattr(self,'editorial',{}).get('prompt_version')=='editorial-v2.1':
+                image_args['editorial_version']='editorial-v2.1'
             content = self._fetch_content(item['link'], raise_errors=True,
                 host_budget=getattr(getattr(self, '_ingestion', None), 'host_budget', None),
                 cancel_event=getattr(self, '_feed_stop_event', None),**image_args)
@@ -798,7 +821,7 @@ class ArticleFetcher:
                 rec['editorial_review']={'version':1,'status':'not_checked','reasons':[],'factually_verified':False,
                     'attempt':rec['attempts'],'policy':'off'}
             article = {'hash': h, 'timestamp': self._now().isoformat(), 'category': category,
-                       'title': title, 'title_original': item['title'] if title != item['title'] or getattr(self,'editorial',{}).get('prompt_version')=='editorial-v2' else '',
+                       'title': title, 'title_original': item['title'] if title != item['title'] or getattr(self,'editorial',{}).get('prompt_version','legacy-v1')!='legacy-v1' else '',
                        'link': item['link'], 'source': urlparse(item['link']).netloc.replace('www.', ''),
                        'pub_date': item.get('pub_date', ''), 'summary': summary}
             self._final_evidence = dict(article)

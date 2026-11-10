@@ -232,3 +232,11 @@ reprise, strict/observe, traces/quota/corruption/permissions et non-exposition A
 Aucun benchmark Ornith/Qwen/Gemma ni gain qualitatif réel revendiqué à partir de
 mocks. Aucun modèle gagnant. Voir [SPRINT_16E_FIELD_TEST.md](SPRINT_16E_FIELD_TEST.md)
 pour la procédure opérateur et le rollback, sans exécution automatique.
+
+## Proposition editorial-v2.1, non qualifiée sur modèle réel
+
+Voir [EDITORIAL_V21_QUALIFICATION.md](EDITORIAL_V21_QUALIFICATION.md) : prompt court
+à refus limité, extraction opt-in, corrélation par requête et corpus synthétique
+pour trois prompts. Le défaut reste legacy-v1. Les tests de contrat ne remplacent
+pas les mesures Ornith sur une instance dédiée autorisée ; aucun déploiement
+atlas-lab n'est effectué.
