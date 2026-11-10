@@ -332,7 +332,8 @@ class ArticleFetcher:
         try:
             output = ollama_call(prompt, timeout=get_fetch_timeout(), caller='fetch', cache_key=key, client_snapshot=snapshot,
                                  cancel_event=getattr(self, '_feed_stop_event', None),
-                                 cache_validator=lambda raw: ed.summary_cacheable(raw, policy['prompt_version']))
+                                 cache_validator=lambda raw: ed.summary_cacheable(raw, policy['prompt_version'],
+                                     title=title, content=content, checks=policy['checks']))
             # Do not archive a reasoning channel, even if an old provider put it in content.
             if isinstance(output, str) and not ed.REASONING.search(output):evidence['raw_response'] = output
             result = ed.parse_summary(output, policy['prompt_version'])

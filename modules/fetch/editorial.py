@@ -167,9 +167,10 @@ def review(title,content,summary='',translated=''):
             'reasons':flags,'factually_verified':False}
 
 
-def summary_cacheable(raw,version):
+def summary_cacheable(raw,version,*,title='',content='',checks='observe'):
     try:
         result=parse_summary(raw,version)
-        return bool(result.strip()) and any(c.isalnum() for c in result) and not result.lstrip().startswith('[') and len(result)<=16000
+        structurally_valid=bool(result.strip()) and any(c.isalnum() for c in result) and not result.lstrip().startswith('[') and len(result)<=16000
+        return structurally_valid and not (checks=='strict' and 'numeric_disagreement' in review(title,content,result)['reasons'])
     except (ValueError,TypeError):
         return False

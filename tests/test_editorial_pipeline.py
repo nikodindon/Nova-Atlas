@@ -141,3 +141,20 @@ def test_sensitive_trace_is_refused_without_printing_text(tmp_path,caplog,payloa
     assert save(tmp_path,payload,{'enabled':True}) is False
     assert 'synthetic-secret' not in caplog.text and 'private</think>' not in caplog.text
     assert not (tmp_path/'editorial_traces').exists()
+
+
+def test_strict_rejection_is_not_frozen_in_llm_cache_between_cycles(engine,monkeypatch):
+    from modules.core import llm_client
+    enable(engine,checks='strict')
+    cfg={**engine.config,'llm':{'provider':'ollama','model':'fixture-model'}}
+    client=llm_client.OllamaClient(cfg);monkeypatch.setattr(llm_client,'_client',client)
+    client._call_ollama_cli=Mock(side_effect=[
+        '{"status":"ok","summary":"Le conseil adopte un budget de 130 euros."}',
+        '{"status":"ok","summary":"Le conseil adopte un budget de 120 euros."}'])
+    monkeypatch.setattr(engine,'_summarize',atlas_fetch.ArticleFetcher._summarize.__get__(engine))
+    engine._fetch_content.return_value='Le conseil adopte un budget de 120 euros. Les élus expliquent leur vote et publient le calendrier.'
+    assert engine.run()==0 and record(engine)['reason']=='editorial_needs_review'
+    assert not list(client._cache.cache_dir.glob('*.txt'))
+    engine.advance(minutes=30)
+    assert engine.run()==1 and record(engine)['status']=='succeeded'
+    assert client._call_ollama_cli.call_count==2
