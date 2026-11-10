@@ -100,6 +100,16 @@ pg_dump distinct ; --exclude-pgdata n'est pas une sauvegarde SQL. Tester une
 restauration dans un **nouveau** répertoire/projet avant de considérer la sauvegarde
 restaurable. Ne jamais restaurer sur l'installation active ni faire down -v.
 
+## Redémarrage News sans collecte supplémentaire
+
+Pour une qualification limitée aux cycles RSS ordinaires, fusionner
+`fetch.startup_fetch: false` dans la configuration active **uniquement lors de la
+mise à jour autorisée**. Ce réglage supprime le fetch initial du processus News,
+mais conserve les créneaux planifiés et les autres tâches. Sans cette option (ou
+avec true), le comportement historique de collecte au démarrage reste inchangé.
+Une collecte déjà en cours doit finir avant l'arrêt gracieux ; ce réglage ne
+l'annule pas. Il ne change ni la radio, ni son calendrier, ni le modèle LLM.
+
 ## 3. Déploiement choisi et configuration exacte — écritures autorisées séparément
 
 Après revue/fusion manuelle de 16E, construire/qualifier une image dans un checkout

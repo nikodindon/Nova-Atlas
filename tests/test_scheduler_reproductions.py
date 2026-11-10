@@ -96,3 +96,17 @@ def test_autumn_repeated_hour_does_not_duplicate_civil_slots(monkeypatch):
         datetime(2026, 10, 25, 2, 30, tzinfo=zone, fold=1),
     ])
     assert fetch_count == 2
+
+
+def test_qualification_restart_waits_for_regular_rss_slot(monkeypatch):
+    _, waits, count = run_probe(monkeypatch, [datetime(2026, 11, 3, 10, 10)] * 4,
+        config={'fetch': {'startup_fetch': False}})
+    assert count == 0
+    assert waits
+
+
+def test_qualification_restart_preserves_regular_rss_slot(monkeypatch):
+    _, _, count = run_probe(monkeypatch, [datetime(2026, 11, 3, 10, 29),
+        datetime(2026, 11, 3, 10, 30), datetime(2026, 11, 3, 10, 30)],
+        config={'fetch': {'startup_fetch': False}})
+    assert count == 1
