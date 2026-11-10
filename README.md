@@ -385,5 +385,9 @@ préflight en lecture seule, maintenance Studio et validation sur fixtures.
 portes opérateur ne sont pas levés. Aucun déploiement V2 annoncé.
 [Changelog V2](CHANGELOG_V2.md) · [mesures CPU synthétiques](docs/measurements/rc/README.md).
 
+La [qualification éditoriale des LLM](docs/EDITORIAL_QUALIFICATION.md) fournit un
+export privé en lecture seule et un protocole de comparaison hors ligne. Aucun
+exemple réel n'est publié sans revue et accord explicite ; aucun benchmark ne
+sollicite automatiquement la radio en fonctionnement.
 Le [dossier de qualification terrain](docs/FIELD_QUALIFICATION.md) prépare la RC-1
 conditionnelle : aucun PASS A/B, smartphone ou endurance n’est déduit des CI.

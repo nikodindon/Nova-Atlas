@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "models": [
+    {
+      "id": "ornith-15-35b",
+      "upstream": "https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B",
+      "revision": null,
+      "quantization": null,
+      "weights_sha256": null,
+      "runtime_version": null,
+      "hardware": null,
+      "compatibility": "not_tested",
+      "reasoning_mode": null
+    },
+    {
+      "id": "qwen36-35b-a3b",
+      "upstream": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B",
+      "revision": null,
+      "quantization": null,
+      "weights_sha256": null,
+      "runtime_version": null,
+      "hardware": null,
+      "compatibility": "not_tested",
+      "reasoning_mode": null
+    },
+    {
+      "id": "gemma4-26b-a4b",
+      "upstream": "https://huggingface.co/google/gemma-4-26B-A4B-it",
+      "revision": null,
+      "quantization": null,
+      "weights_sha256": null,
+      "runtime_version": null,
+      "hardware": null,
+      "compatibility": "not_tested",
+      "reasoning_mode": null
+    }
+  ]
+}
