@@ -263,7 +263,7 @@ class ArticleFetcher:
             if image_sink is not None:
                 try:image_sink(r.content,r.url)
                 except Exception:logging.getLogger('nova.fetch').warning('Optional image metadata capture unavailable')
-            if editorial_version=='editorial-v2.1':
+            if editorial_version in ('editorial-v2.1','editorial-v2.2'):
                 from modules.fetch.extraction import extract_article_text
                 return extract_article_text(r.text)[:MAX_ARTICLE_CHARS]
             soup = BeautifulSoup(r.text, "html.parser")
@@ -786,8 +786,8 @@ class ArticleFetcher:
             if getattr(self,'config',{}).get('media',{}).get('mode','disabled')!='disabled':
                 from modules.media.capture import capture
                 image_args['image_sink']=lambda body,url:capture(self.seen_file.parent,body,url,h,self.config)
-            if getattr(self,'editorial',{}).get('prompt_version')=='editorial-v2.1':
-                image_args['editorial_version']='editorial-v2.1'
+            if getattr(self,'editorial',{}).get('prompt_version') in ('editorial-v2.1','editorial-v2.2'):
+                image_args['editorial_version']=self.editorial['prompt_version']
             content = self._fetch_content(item['link'], raise_errors=True,
                 host_budget=getattr(getattr(self, '_ingestion', None), 'host_budget', None),
                 cancel_event=getattr(self, '_feed_stop_event', None),**image_args)
@@ -815,7 +815,7 @@ class ArticleFetcher:
                 self._save_state()
                 if rec['editorial_review']['status']=='needs_review':
                     self.log.warning('Editorial observation: %s', ','.join(rec['editorial_review']['reasons']))
-                    if policy.get('checks')=='strict' and 'numeric_disagreement' in rec['editorial_review']['reasons']:
+                    if policy.get('checks')=='strict' and rec['editorial_review'].get('blocking_reasons'):
                         raise ArticleAttemptError('editorial_needs_review')
             else:
                 rec['editorial_review']={'version':1,'status':'not_checked','reasons':[],'factually_verified':False,

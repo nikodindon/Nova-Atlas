@@ -15,18 +15,23 @@ from modules.fetch.editorial_trace import sensitive
 from deploy.editorial_qualification import ExportError,read,sha,json_text,output_bundle
 
 CORPUS=Path(__file__).resolve().parents[1]/'config/editorial_qualification/editorial-v21-corpus.json'
+FOCUSED_CORPUS=CORPUS.with_name('editorial-v22-corpus.json')
+FOCUSED_VERSIONS=('editorial-v2.1','editorial-v2.2')
 VERSIONS=('legacy-v1','editorial-v2','editorial-v2.1')
 ENDPOINT='http://127.0.0.1:18081'
 PARAMETERS={'temperature':0.3,'max_tokens':4096,'seed':None,'seed_policy':'not_sent_server_default','timeout_seconds':240}
 
 
-def prepare(output,repetitions=1):
+def prepare(output,repetitions=1,suite='original'):
+    if suite not in ('original','v22-focused'):raise ExportError('unknown_suite')
+    corpus_path,versions=(CORPUS,VERSIONS) if suite=='original' else (FOCUSED_CORPUS,FOCUSED_VERSIONS)
     if type(repetitions) is not int or not 1<=repetitions<=3:raise ExportError('repetition_limit')
-    raw=read(CORPUS);corpus=json.loads(raw);jobs=[]
+    raw=read(corpus_path);corpus=json.loads(raw);jobs=[]
     for index,case in enumerate(corpus['cases']):
         # Rotate version order to avoid always warming the same variant first.
         for repetition in range(1,repetitions+1):
-            order=VERSIONS[index%3:]+VERSIONS[:index%3]
+            offset=index%len(versions)
+            order=versions[offset:]+versions[:offset]
             for version in order:
                 prompt=ed.summary_prompt(case['title'],case['source'],case.get('category','qualification'),'fr',ed.options({'fetch':{'editorial':{'prompt_version':version}}}))
                 jobs.append({'case_id':case['id'],'version':version,'repetition':repetition,
@@ -36,7 +41,8 @@ def prepare(output,repetitions=1):
     protocol={'schema':1,'kind':'offline_plan_not_executed','corpus_sha256':sha(raw),'jobs':jobs,
               'parameters':PARAMETERS,'seed_controlled':False,'truth_scores':None,
               'reference_scope':corpus['reference_scope'],'model_results':None}
-    output_bundle(output,{'plan.json':json_text(protocol)},(CORPUS,))
+    if suite!='original':protocol['suite']=suite
+    output_bundle(output,{'plan.json':json_text(protocol)},(corpus_path,))
     return {'status':'prepared_not_measured','cases':len(corpus['cases']),'calls':len(jobs),'network_calls':0}
 
 
@@ -93,18 +99,21 @@ def validated_protocol(plan_path):
         raise ExportError('invalid_or_changed_protocol')
     jobs=protocol.get('jobs')
     if not isinstance(jobs,list) or not 1<=len(jobs)<=117:raise ExportError('bounded_jobs_required')
-    corpus=json.loads(read(CORPUS));cases={c['id']:c for c in corpus['cases']}
-    if protocol.get('corpus_sha256')!=sha(read(CORPUS)):raise ExportError('corpus_changed')
+    suite=protocol.get('suite','original')
+    if suite not in ('original','v22-focused'):raise ExportError('unknown_suite')
+    corpus_path,versions=(CORPUS,VERSIONS) if suite=='original' else (FOCUSED_CORPUS,FOCUSED_VERSIONS)
+    corpus=json.loads(read(corpus_path));cases={c['id']:c for c in corpus['cases']}
+    if protocol.get('corpus_sha256')!=sha(read(corpus_path)):raise ExportError('corpus_changed')
     seen=set()
     for job in jobs:
-        if not isinstance(job,dict) or job.get('case_id') not in cases or job.get('version') not in VERSIONS or type(job.get('repetition')) is not int or not 1<=job['repetition']<=3:raise ExportError('invalid_job')
+        if not isinstance(job,dict) or job.get('case_id') not in cases or job.get('version') not in versions or type(job.get('repetition')) is not int or not 1<=job['repetition']<=3:raise ExportError('invalid_job')
         key=(job['case_id'],job['version'],job['repetition'])
         if key in seen:raise ExportError('duplicate_job')
         seen.add(key);case=cases[job['case_id']]
         expected=ed.summary_prompt(case['title'],case['source'],case.get('category','qualification'),'fr',ed.options({'fetch':{'editorial':{'prompt_version':job['version']}}}))
         if job.get('prompt')!=expected or job.get('prompt_sha256')!=sha(expected.encode()) or job.get('expected_status')!=case['expected_status']:raise ExportError('changed_prompt_or_reference')
     repetitions={job['repetition'] for job in jobs}
-    matrix={(case,version,repetition) for case in cases for version in VERSIONS for repetition in range(1,max(repetitions)+1)}
+    matrix={(case,version,repetition) for case in cases for version in versions for repetition in range(1,max(repetitions)+1)}
     if seen!=matrix:raise ExportError('balanced_complete_protocol_required')
     return raw,protocol,corpus,jobs
 
@@ -132,7 +141,8 @@ def assess_output(job,text,receipt):
 
 def export_measurements(raw,protocol,corpus,jobs,auth,results,output,plan_path,authorization_path,interrupted=False):
     summaries=[]
-    for version in VERSIONS:
+    versions=tuple(dict.fromkeys(job['version'] for job in jobs))
+    for version in versions:
         selected=[r for r in results if r['version']==version]
         times=[r['receipt'].get('response_duration_ms') for r in selected if r['receipt'].get('response_duration_ms') is not None]
         summaries.append({'version':version,'observed_runs':len(selected),
@@ -194,12 +204,12 @@ def measure(plan_path,authorization_path,output,*,execute=False):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='command',required=True)
-    a=sub.add_parser('prepare');a.add_argument('--output',type=Path,required=True);a.add_argument('--repetitions',type=int,default=1)
+    a=sub.add_parser('prepare');a.add_argument('--output',type=Path,required=True);a.add_argument('--repetitions',type=int,default=1);a.add_argument('--suite',choices=('original','v22-focused'),default='original')
     a=sub.add_parser('measure');a.add_argument('--plan',type=Path,required=True);a.add_argument('--authorization',type=Path,required=True);a.add_argument('--output',type=Path,required=True);a.add_argument('--execute',action='store_true')
     a=sub.add_parser('measure-shared');a.add_argument('--plan',type=Path,required=True);a.add_argument('--authorization',type=Path,required=True);a.add_argument('--output',type=Path,required=True);a.add_argument('--execute',action='store_true');a.add_argument('--resume',action='store_true')
     args=p.parse_args()
     try:
-        if args.command=='prepare':result=prepare(args.output,args.repetitions)
+        if args.command=='prepare':result=prepare(args.output,args.repetitions,args.suite)
         elif args.command=='measure-shared':
             from deploy.editorial_shared_trial import measure_shared
             result=measure_shared(args.plan,args.authorization,args.output,execute=args.execute,resume=args.resume)

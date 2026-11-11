@@ -264,3 +264,89 @@ et paramètres réels restent privés. Un fichier STOP dans le dossier de sortie
 arrête l'admission et interrompt notre requête surveillée. Le budget global reste
 compté depuis le premier démarrage, y compris après reprise. Aucun endpoint de
 contrôle de conteneur, modèle ou fichier applicatif n'est modifié par cette commande.
+
+## Révision ciblée V2.2 — préparation uniquement
+
+`editorial-v2.2` est une nouvelle identité de prompt, opt-in. Les trois anciennes
+variantes et les octets des prompts restent inchangés. Un jeu d'empreintes couvre
+les 13 sources historiques avec les quatre profils de longueur (156 combinaisons).
+Les caches restent distincts grâce à la version et au prompt effectif ; aucun
+ancien cache ni article n'est modifié. L'extraction V2.2 conserve le parcours V2.1.
+
+Le prompt demande une relecture dans **la même génération**, sans exposer le
+raisonnement : accords/conjugaison, rôles ville/institution, conservation des
+unités, attribution et absence d'ajouts tels qu'unanimité ou succès. Les exemples
+observés inspirent ces consignes ; elles ne prouvent pas qu'Ornith les suivra.
+Aucune réparation grammaticale regex ni appel correcteur supplémentaire.
+
+### Contrôle explicable de discordance
+
+La nouvelle règle `municipal_election_vs_standalone_match_v1` exige un titre
+annonçant explicitement une élection municipale (français/anglais), puis un bref
+corps (600 caractères maximum) dont la première phrase décrit un sport nommé,
+une victoire et un score. Toutes les phrases doivent rester dans un contexte
+sportif identifiable. Une mention du scrutin, d'un candidat, d'un vote ou du
+maire, une citation, une négation ou un récit long écarte ce signal bloquant.
+Les indices précis sont conservés dans le journal privé `editorial_review.evidence`.
+
+- `checks: observe` : signal `needs_review`, publication conservée.
+- `checks: strict` : ce signal bloque publication et cache, via le journal de
+  tentatives existant (`editorial_needs_review`), sans marquer l'URL comme publiée.
+- `checks: off` : aucun contrôle. Le comportement de cette option reste inchangé.
+
+Une faible intersection de mots reste **seulement une observation**, même en mode
+strict. Ni cette règle ni les contrôles numériques existants ne prouvent la vérité.
+La règle est délibérément étroite : elle ne reconnaît pas toute contradiction,
+les métaphores, ni toutes les traductions/langues. Les mentions d'un contexte
+électoral peuvent également empêcher de signaler un mauvais article. Le nombre
+de tests négatifs réussis n'est pas une mesure du taux de faux positifs réel.
+L'opérateur garde `observe` pour la qualification initiale. Aucune API publique
+n'expose le détail privé des indices.
+
+### Petit essai proposé, sans exécution autorisée
+
+Préparation hors ligne, sans accès au serveur ni à l'état de l'installation :
+
+```bash
+python -m deploy.editorial_prompt_trial prepare \
+  --suite v22-focused --output /tmp/atlas-v22-focused-plan
+```
+
+Le corpus CC0 séparé `editorial-v22-corpus.json` contient **8 sources, 16 appels** :
+V2.1 et V2.2 sur les mêmes fenêtres (3 000 caractères maximum), une répétition,
+ordre alterné. Il couvre brève exploitable, déclaration Alizé, prix traduits de
+l'anglais, musée/ville en russe, vote du jardin, navigation seule, élection/hockey,
+et article mixte avec un véritable fait électoral. Les 39 anciens résultats ne
+sont pas recalculés ; le corpus et la matrice historiques restent inchangés.
+
+**Budget à faire valider avant toute inférence :** 16 appels réels au maximum,
+un seul en cours, aucun pilote supplémentaire, aucun retry automatique,
+`temperature: 0.3`, `max_tokens: 4096`, seed non envoyée, cache de réponses désactivé.
+Timeout de 240 secondes par appel : plafond de 64 minutes d'appels, plus les
+contrôles et deux secondes de pause entre appels ; proposer un budget global de
+75 minutes. Ce plafond n'est pas une estimation de durée réelle. La charge reste
+celle d'un serveur partagé, jamais déclarée isolée artificiellement.
+
+Après accord distinct, refaire le préflight du mode partagé : News arrêté,
+services préservés, identité/empreinte/paramètres Ornith inchangés, slots libres,
+verrou disponible, mémoire suffisante, calendrier et jobs Radio relus. Il faut
+une fenêtre restant compatible avec le budget et la marge Radio de 15 minutes,
+sinon reporter l'essai. Ne pas réutiliser une ancienne autorisation signée par
+son empreinte pour une nouvelle matrice. Les protections du mode partagé restent
+identiques et la reprise ne répète jamais un appel déjà commencé.
+
+Comparer refus légitimes/injustifiés, JSON, faits ajoutés/perdus, qualité du
+français et rôles des entités avec citations, durées/tokens par request_id. Lire
+les sorties exactes avant nettoyage. Comparer séparément le comportement du prompt
+et le contrôle déterministe : un bon résumé du corps peut encore être impropre
+à la publication sous un titre sans rapport. Aucune note de vérité automatique.
+Une revue humaine/externe est requise avant de décider d'un déploiement.
+
+### État et rollback
+
+Aucun nouvel appel réel n'est effectué pour cette révision. Aucune amélioration
+mesurée de V2.2 n'est revendiquée. PR #27 reste ouverte, sans fusion ni déploiement.
+News reste volontairement arrêté ; modèle, horaires et configuration ne changent
+pas. Après une éventuelle installation autorisée, sélectionner une ancienne
+`prompt_version` restaure son prompt et son namespace de cache ; `checks: observe`
+restaure le traitement non bloquant. Ne supprimer aucun cache pour revenir en arrière.
