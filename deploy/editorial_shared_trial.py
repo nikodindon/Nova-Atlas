@@ -88,19 +88,21 @@ def protected_radio_window(now,hours,call_seconds,margin_seconds):
 class Guard:
     def __init__(self,authorization):self.auth=authorization
     def check(self,*,during=False):
-        a=self.auth;root=Path(a['state_root'])
+        a=self.auth;root=Path(a['state_root']);paused=a.get('radio_paused') is True
         if sha(read(root/'config/bulletins.yaml',65536))!=a['radio_calendar_sha256']:raise Deferred('radio_calendar_changed')
         hours=yaml.safe_load(read(root/'config/bulletins.yaml',65536)).get('post_hours')
-        if protected_radio_window(datetime.now(ZoneInfo('Europe/Paris')),hours,a['max_call_seconds'],a['radio_guard_seconds']):raise Deferred('radio_window_reserved')
+        if not paused and protected_radio_window(datetime.now(ZoneInfo('Europe/Paris')),hours,a['max_call_seconds'],a['radio_guard_seconds']):raise Deferred('radio_window_reserved')
         observed=states()
         if observed['news'].get('Running'):raise Deferred('news_running')
+        if paused and observed['radio'].get('Running'):raise Deferred('paused_radio_restarted')
         for service in SERVICES:
             current=observed[service]
             if current.get('StartedAt')!=a['service_started_at'][service]:raise Deferred('service_restarted')
-            if service!='news' and (not current.get('Running') or current.get('Health',{}).get('Status')!='healthy'):raise Deferred('service_unhealthy')
-        pid=a['radio_worker_pid'];status=Path(f'/proc/{pid}/status').read_text()
-        threads=int(next(line.split()[1] for line in status.splitlines() if line.startswith('Threads:')))
-        if threads!=a['radio_idle_threads']:raise Deferred('radio_worker_busy')
+            if service not in (('news','radio') if paused else ('news',)) and (not current.get('Running') or current.get('Health',{}).get('Status')!='healthy'):raise Deferred('service_unhealthy')
+        if not paused:
+            pid=a['radio_worker_pid'];status=Path(f'/proc/{pid}/status').read_text()
+            threads=int(next(line.split()[1] for line in status.splitlines() if line.startswith('Threads:')))
+            if threads!=a['radio_idle_threads']:raise Deferred('radio_worker_busy')
         journal=json.loads(read(root/'data/radio_studio/journal.json',4*1024*1024))
         if any(r.get('status') in ('admitted','generating') for r in journal.get('jobs',{}).values()):raise Deferred('radio_job_active')
         statline=Path(f"/proc/{a['server_pid']}/stat").read_text().split(') ',1)[1].split()
@@ -203,7 +205,8 @@ class SharedClient(OllamaClient):
 def authorize(path):
     a=json.loads(read(path,65536))
     required={'schema','mode','approved','isolated_from_atlas_lab','endpoint','family','model','quantization','weights_sha256','runtime_version','hardware','reasoning_mode','server_parameters','max_total_seconds','max_call_seconds','radio_guard_seconds','cooldown_seconds','min_available_memory_bytes','state_root','output_root','radio_calendar_sha256','service_started_at','radio_worker_pid','radio_idle_threads','server_pid','server_start_ticks','server_props_sha256','weights_stat'}
-    if not isinstance(a,dict) or set(a)!=required or a['schema']!=1:raise ExportError('invalid_shared_authorization')
+    if not isinstance(a,dict) or set(a)-{'radio_paused'}!=required or a['schema']!=1:raise ExportError('invalid_shared_authorization')
+    if 'radio_paused' in a and a['radio_paused'] is not True:raise ExportError('explicit_radio_pause_required')
     if a['mode']!='shared' or a['approved'] is not True or a['isolated_from_atlas_lab'] is not False or a['endpoint']!=SHARED_ENDPOINT:raise ExportError('explicit_shared_authorization_required')
     if a['family']!='Ornith-1.5-35B' or a['quantization']!='IQ2_M' or a['reasoning_mode'] not in ('off','on'):raise ExportError('exact_shared_model_required')
     for k in ('weights_sha256','radio_calendar_sha256','server_props_sha256'):

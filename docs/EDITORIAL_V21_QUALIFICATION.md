@@ -351,3 +351,15 @@ son état courant de cette procédure. Modèle, horaires et configuration ne son
 pas modifiés par cette révision. Après une éventuelle installation autorisée, sélectionner une ancienne
 `prompt_version` restaure son prompt et son namespace de cache ; `checks: observe`
 restaure le traitement non bloquant. Ne supprimer aucun cache pour revenir en arrière.
+
+### Variante avec Radio explicitement arrêté par l'opérateur
+
+Une autorisation supplémentaire peut permettre d'arrêter proprement Radio pour
+le benchmark. L'autorisation privée doit alors porter `radio_paused: true`.
+Le garde-fou exige **News et Radio arrêtés** avant chaque appel et pendant la
+réponse ; leur redémarrage interrompt notre requête. Les quatre autres services
+restent healthy et inchangés, les autres contrôles (calendrier inchangé, modèle,
+mémoire, slots, verrou partagé, budget et checkpoints) restent actifs. Le serveur
+reste partagé, jamais qualifié d'isolé. Sans ce champ explicite, le mode historique
+avec Radio actif et ses marges reste inchangé. Ne pas redémarrer Radio ou News
+à la fin sans instruction opérateur ; Icecast peut rester actif sans source audio.

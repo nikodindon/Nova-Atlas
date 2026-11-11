@@ -188,3 +188,29 @@ def test_exact_final_content_and_timings_are_kept_without_reasoning():
     assert client.exact_output==text and client.provider_response_id=='chatcmpl-fixture'
     assert client.server_timings=={'predicted_n':12,'predicted_ms':300.0}
     assert 'reasoning' not in repr(client.__dict__)
+
+
+def test_pause_requires_explicit_true_authorization(tmp_path):
+    p,a=shared_authorization(tmp_path)
+    for bad in (False,1,'yes',None):
+        a['radio_paused']=bad;p.write_text(json.dumps(a))
+        with pytest.raises(ValueError,match='explicit_radio_pause_required'):shared.authorize(p)
+    a['radio_paused']=True;p.write_text(json.dumps(a))
+    assert shared.authorize(p)['radio_paused'] is True
+
+
+def test_explicit_pause_checks_stopped_radio_instead_of_schedule(tmp_path,monkeypatch):
+    cfg=tmp_path/'config';cfg.mkdir();p=cfg/'bulletins.yaml';p.write_text('post_hours: [7]\n')
+    a={'state_root':str(tmp_path),'radio_calendar_sha256':shared.sha(p.read_bytes()),'radio_paused':True}
+    calendar=Mock(side_effect=AssertionError('paused schedule must not deny admission'))
+    monkeypatch.setattr(shared,'protected_radio_window',calendar)
+    monkeypatch.setattr(shared,'states',lambda:{'news':{'Running':False},'radio':{'Running':True}})
+    with pytest.raises(shared.Deferred,match='paused_radio_restarted'):shared.Guard(a).check()
+    calendar.assert_not_called()
+
+
+def test_pause_does_not_relax_news_guard(tmp_path,monkeypatch):
+    cfg=tmp_path/'config';cfg.mkdir();p=cfg/'bulletins.yaml';p.write_text('post_hours: [7]\n')
+    a={'state_root':str(tmp_path),'radio_calendar_sha256':shared.sha(p.read_bytes()),'radio_paused':True}
+    monkeypatch.setattr(shared,'states',lambda:{'news':{'Running':True},'radio':{'Running':False}})
+    with pytest.raises(shared.Deferred,match='news_running'):shared.Guard(a).check()
