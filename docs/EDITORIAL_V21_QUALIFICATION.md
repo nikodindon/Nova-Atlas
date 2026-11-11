@@ -346,7 +346,8 @@ Une revue humaine/externe est requise avant de décider d'un déploiement.
 
 Aucun nouvel appel réel n'est effectué pour cette révision. Aucune amélioration
 mesurée de V2.2 n'est revendiquée. PR #27 reste ouverte, sans fusion ni déploiement.
-News reste volontairement arrêté ; modèle, horaires et configuration ne changent
-pas. Après une éventuelle installation autorisée, sélectionner une ancienne
+Le prochain essai exige News arrêté et un préflight à jour ; ne jamais déduire
+son état courant de cette procédure. Modèle, horaires et configuration ne sont
+pas modifiés par cette révision. Après une éventuelle installation autorisée, sélectionner une ancienne
 `prompt_version` restaure son prompt et son namespace de cache ; `checks: observe`
 restaure le traitement non bloquant. Ne supprimer aucun cache pour revenir en arrière.
