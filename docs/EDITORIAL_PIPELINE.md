@@ -253,3 +253,9 @@ Elle donne priorité au corps explicitement balisé, même court, et retire
 les menus et dialogues de consentement. Une extraction vide suit le mécanisme
 de reprise existant. Les pages à structure atypique peuvent encore nécessiter
 une relecture. Retirer cette option rétablit l'extraction historique.
+
+Le mode d'extraction ciblée écarte aussi les encarts de recommandations et
+les articles imbriqués dans le sujet principal. Si plusieurs articles se
+disputent la page, seul un titre principal unique permet de choisir un corps.
+Ce contrôle porte sur la structure de la page. Une page mal balisée peut
+encore fournir un texte hors sujet.

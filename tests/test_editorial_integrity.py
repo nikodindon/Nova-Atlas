@@ -269,3 +269,28 @@ def test_navigation_only_produces_no_article_body():
     from modules.fetch.extraction import extract_article_text
 
     assert extract_article_text('<nav><p>Accueil. Cookies. Archives.</p></nav>') == ''
+
+
+def test_body_extraction_ignores_nested_story_and_related_panel():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><article><h1>La mémoire du climat</h1>
+    <article><div itemprop="articleBody"><p>La COP31 ouvre demain.</p></div></article>
+    <div class="related-articles"><div class="article-body"><p>Un autre sujet.</p></div></div>
+    <p>Les chercheurs ont étudié les cernes des arbres.</p></article></main>"""
+    assert extract_article_text(page) == 'Les chercheurs ont étudié les cernes des arbres.'
+
+
+def test_body_extraction_refuses_recommendation_only_page():
+    from modules.fetch.extraction import extract_article_text
+
+    page = '<main><article><h1>Le climat</h1><article><p>La COP31.</p></article></article><p>Abonnez-vous.</p></main>'
+    assert extract_article_text(page) == ''
+
+
+def test_body_extraction_prefers_article_with_main_headline_over_other_cards():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><article><h2>La COP31</h2><p>Un autre sujet.</p></article>
+    <article><h1>La mémoire du climat</h1><p>Les arbres gardent des traces.</p></article></main>"""
+    assert extract_article_text(page) == 'Les arbres gardent des traces.'

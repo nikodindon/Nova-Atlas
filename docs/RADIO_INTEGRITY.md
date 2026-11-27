@@ -208,3 +208,9 @@ processus possédés sont nettoyés et les reconnexions bornées. La durée maxi
 optionnelle d'inspection permet au bridge de partager son budget avec la validation,
 sans supprimer le décodage complet. Voir RADIO_STUDIO.md pour les observations,
 les changements de comportement et la différence intégrité/diffusion effective.
+
+Le prompt ouvre la conclusion par `[VOIX1]` et demande de terminer par
+le texte parlé. Une balise terminale sans texte reste invalide et produit
+`trailing_voice_tag_without_text`. Au-delà de 256 segments, le journal
+indique `too_many_voice_segments`. Ces motifs remplacent le diagnostic
+commun `empty_or_excessive_segments` et ne modifient pas les seuils audio.

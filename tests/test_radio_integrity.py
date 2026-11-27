@@ -412,3 +412,12 @@ def test_warn_default_preserves_overlong_bulletin_without_truncation(gen):
     assert result is not None and ai.validated_publication(result)
     assert sum(len(call.args[0].split()) for call in bg.synthesize_segment.call_args_list) == 3000
     assert bg.synthesize_segment.call_args_list[-1].args[0] == 'Conclusion.'
+
+
+@pytest.mark.parametrize(('script', 'reason'), [
+    ('[VOIX1] Bonjour. [VOIX2]', 'trailing_voice_tag_without_text'),
+    ('[VOIX1] Bonjour. ' * 257, 'too_many_voice_segments'),
+])
+def test_voice_split_distinguishes_trailing_tag_from_segment_limit(script, reason):
+    with pytest.raises(bg.AudioIntegrityError, match=reason):
+        bg.split_script_by_voice(script)
