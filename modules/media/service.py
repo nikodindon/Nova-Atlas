@@ -78,7 +78,20 @@ class MediaService:
         target=self.target(target)
         with self.operation():
             candidates=Commons(self.get).fetch(term=term)
-            return [self.store.add(c,target,trusted=True) for c in candidates]
+            identities = [self.store.add(c,target,trusted=True) for c in candidates]
+        if self.config.get('commons_auto_prepare') is True:
+            state, version = self.store.load()
+            for identity in identities:
+                row = state['records'][identity]
+                if row['status'] != 'rights_verified' or row.get('artifact'):
+                    continue
+                try:
+                    self.prepare(identity, version)
+                except MediaError:
+                    # Candidates remain available for review if preparation fails.
+                    pass
+                break
+        return identities
 
     def refresh(self,identity):
         if self.config.get('commons_enabled') is not True:raise MediaError('commons_not_configured')

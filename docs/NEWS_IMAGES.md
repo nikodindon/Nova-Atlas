@@ -199,3 +199,9 @@ Limites assumées : pas de licence universelle, pas de photo documentaire automa
 pas de trusted_illustrations, pas de revue juridique automatisée, pas de recherche
 Commons en arrière-plan, pas de refresh réseau public, pas de job persistant après
 crash. Les candidats/artefacts réussis persistent ; relance manuelle sûre.
+
+En mode Commons, `media.commons_auto_prepare: true` prépare au plus une
+miniature par recherche administrative, lorsqu'un candidat porte des droits
+vérifiés et qu'il n'a pas déjà de fichier préparé. L'association à l'article,
+la provenance et le crédit sont conservés. La mise en ligne passe toujours
+par l'approbation de la ressource exacte et le bouton Désactiver permet son retrait.
