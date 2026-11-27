@@ -158,7 +158,9 @@ def get_flash_articles(paths: dict, category: str, since_minute_of_day: int = 0)
                     ts = datetime.fromisoformat(ts_str)
                 except (ValueError, TypeError):
                     continue
-                if ts >= cutoff:
+                if ts.tzinfo is not None:
+                    ts = ts.astimezone().replace(tzinfo=None)
+                if cutoff <= ts <= now:
                     s = (art.get("summary") or "").strip()
                     if s and not s.startswith("["):
                         found.append(art)
@@ -207,22 +209,16 @@ def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
     """
     now = datetime.now()
     cutoff = now - timedelta(minutes=window_minutes)
-    today = now.strftime("%Y%m%d")
-    articles_root = paths["data"] / "articles"
-
-    if not articles_root.exists():
-        return []
-
-    # Collecte tous les fichiers JSON du jour (2 formats possibles)
+    articles_root = paths.get("articles", paths["data"] / "articles")
     json_files = []
-    # Format 1 : sous-dossier par jour
-    sub_dir = articles_root / today
-    if sub_dir.exists():
-        json_files.extend(sub_dir.glob("*.json"))
-    # Format 2 : fichier unique par jour
-    single_file = articles_root / f"{today}_articles.json"
-    if single_file.exists():
-        json_files.append(single_file)
+    day = cutoff.date()
+    while day <= now.date():
+        label = day.strftime("%Y%m%d")
+        json_files.extend((articles_root / label).glob("*.json"))
+        single_file = articles_root / f"{label}_articles.json"
+        if single_file.is_file():
+            json_files.append(single_file)
+        day += timedelta(days=1)
 
     found = []
     for f in json_files:
@@ -236,7 +232,9 @@ def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
                     ts = datetime.fromisoformat(ts_str)
                 except (ValueError, TypeError):
                     continue
-                if ts >= cutoff:
+                if ts.tzinfo is not None:
+                    ts = ts.astimezone().replace(tzinfo=None)
+                if cutoff <= ts <= now:
                     s = (art.get("summary") or "").strip()
                     if s and not s.startswith("["):
                         found.append(art)
@@ -806,7 +804,7 @@ class BulletinGenerator:
         }
         return aliases.get(lang, lang[:2])
 
-    def build(self, articles, script=None, *, profile='bulletin', publication_name=None, observer=None, cancel_event=None):
+    def build(self, articles, script=None, *, profile='bulletin', publication_name=None, observer=None, cancel_event=None, recap=False):
         """Return only a complete, validated, atomically published MP3."""
         cfg = self.bulletins_cfg
         manifest=[];tts_started=None
@@ -823,6 +821,9 @@ class BulletinGenerator:
                 script = generate_bulletin_script(articles, {**cfg, **self.config}, intros, transitions, outros)
             if cancel_event is not None and cancel_event.is_set():raise AudioIntegrityError('generation_cancelled')
             segments = split_script_by_voice(script)
+            if recap:
+                tag, text = segments[0]
+                segments[0] = (tag, "Voici un récapitulatif des dernières actualités disponibles. " + text)
             if profile not in ('bulletin', 'flash'):
                 raise AudioIntegrityError('invalid_profile')
             target = cfg.get('flash_target_words', 750) if profile == 'flash' else cfg.get('target_words', 1500)

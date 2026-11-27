@@ -314,7 +314,7 @@ class RadioStudio:
         primary_ok=self.primary.enqueue_bulletin(path)
         if not primary_ok and row['status']=='ready':self.journal.fail(identity,'admission_failed')
         return primary_ok or android_ok
-    def generate(self,slot,articles,builder,identity=None):
+    def generate(self,slot,articles,builder,identity=None,*,recap=False):
         try:
             with lease(self.journal.root/'generation.lock'):
                 row=self.journal.load()[0]['jobs'].get(identity) if identity else self.journal.admit(slot,references=[a.get('hash','unknown') for a in articles])
@@ -327,7 +327,8 @@ class RadioStudio:
                 self.journal.references(identity,articles)
                 self.journal.start(identity)
                 try:
-                    path=builder.build(articles,publication_name=row['publication_name'],observer=lambda phase,**values:(self.journal.tts_event if phase in ('tts_bridge_selected','tts_voice_planned') else self.journal.metrics)(identity,phase,**values),cancel_event=self.stop_event)
+                    options = {'recap': True} if recap else {}
+                    path=builder.build(articles,publication_name=row['publication_name'],observer=lambda phase,**values:(self.journal.tts_event if phase in ('tts_bridge_selected','tts_voice_planned') else self.journal.metrics)(identity,phase,**values),cancel_event=self.stop_event,**options)
                     if not path:self.journal.fail(identity,'interrupted' if self.stop_event.is_set() else 'generation_failed');return None
                     self.journal.attach(identity,path);self.enqueue(identity);return path
                 except Exception:self.journal.fail(identity);return None

@@ -18,17 +18,13 @@
     <h2>{article.title}</h2>
     <p class="summary">{article.summary}</p>
     <div class="article-meta">
-      <time
-        datetime={article.published_at || undefined}
-        title={article.published_at ? t.publication : t.collected}
-        >{dateLabel(
-          article.published_at ||
-            article.observed_at ||
-            article.published_raw ||
-            article.observed_raw,
-          locale,
-        )}</time
-      >{#if safeLink(article.link)}<a
+      {#if article.published_at || article.published_raw}
+        <span>{t.sourcePublished} <time datetime={article.published_at || undefined}>{dateLabel(article.published_at || article.published_raw, locale)}</time></span>
+      {/if}
+      {#if article.observed_at || article.observed_raw}
+        <span>{t.atlasProcessed} <time datetime={article.observed_at || undefined}>{dateLabel(article.observed_at || article.observed_raw, locale)}</time></span>
+      {/if}
+      {#if safeLink(article.link)}<a
           href={safeLink(article.link)}
           rel="noopener noreferrer"
           target="_blank">{t.origin} ↗</a

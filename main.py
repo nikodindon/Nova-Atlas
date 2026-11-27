@@ -264,6 +264,7 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
         except (ValueError,OSError):log.error('Radio Studio journal unavailable; new generations disabled')
         studio=RadioStudio(journal,streamer,android_streamer,stop_event)
     builder = BulletinGenerator(config, radio_paths)
+    from modules.radio.editorial_selection import ZONE as RADIO_ZONE, load_review_records, select_for_radio
 
     def generate_bulletin(slot=None,identity=None):
         """Génère un bulletin avec les articles des 30 dernières minutes."""
@@ -271,15 +272,28 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
             from modules.radio.bulletin_generator import load_bulletins_config
             bulletins_cfg = load_bulletins_config(radio_paths)
             window = bulletins_cfg.get("window_minutes", 30)
-            articles = get_recent_articles(radio_paths, window_minutes=window)
-            # Cap d'articles lu depuis config radio. Avant hardcode (20, puis 40),
-            # maintenant parametre configurable (defaut 40).
-            max_articles = config.get("radio", {}).get("max_articles_per_bulletin", 40)
-            articles = articles[:max_articles]
-            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap {max_articles})")
+            recap_window = bulletins_cfg.get("recap_minutes", 360)
+            if type(window) is not int or type(recap_window) is not int or not 1 <= window <= recap_window <= 1440:
+                raise ValueError("invalid_radio_freshness_window")
+            minimum = bulletins_cfg.get("min_articles", 3)
+            maximum = config.get("radio", {}).get("max_articles_per_bulletin", 40)
+            if type(minimum) is not int or type(maximum) is not int or not 1 <= minimum <= maximum:
+                raise ValueError("invalid_radio_article_limits")
+            articles, selection = select_for_radio(
+                get_recent_articles(radio_paths, window_minutes=recap_window),
+                now=datetime.now(RADIO_ZONE), minimum=minimum, limit=maximum,
+                fresh_minutes=window, recap_minutes=recap_window,
+                records=load_review_records(radio_paths["data"]),
+            )
+            log.info("Sélection radio : %s (%d articles)", selection, len(articles))
+            options = {"recap": True} if selection == "recap" else {}
             if studio:
-                studio.generate(slot,articles,builder,identity);return
-            path = builder.build(articles)
+                studio.generate(slot, articles, builder, identity, **options)
+                return
+            if not articles:
+                log.info("Bulletin sauté : pas assez de publications récentes vérifiables")
+                return
+            path = builder.build(articles, **options)
             if path:
                 # Cache Android before the primary can consume/delete the MP3.
                 android_streamer.enqueue_bulletin(path)
