@@ -254,3 +254,18 @@ def test_safe_title_policy_can_be_qualified_with_the_legacy_summary_prompt(tmp_p
 def test_gemma_preamble_is_removed_without_changing_editorial_text():
     text = 'À Aono, 12 passages sont prévus. La note « Résumé : horaires » reste valable.'
     assert ed.clean_editorial('Résumé :\n\n' + text) == text
+
+
+def test_body_extraction_prefers_short_body_over_recommendations():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<article><div class="cookie-banner">Cookies et préférences</div>
+    <div class="article-body"><p>Le pont rouvrira lundi.</p></div>
+    <section><p>Autres articles recommandés.</p></section></article>"""
+    assert extract_article_text(page) == 'Le pont rouvrira lundi.'
+
+
+def test_navigation_only_produces_no_article_body():
+    from modules.fetch.extraction import extract_article_text
+
+    assert extract_article_text('<nav><p>Accueil. Cookies. Archives.</p></nav>') == ''

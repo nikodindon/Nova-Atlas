@@ -247,3 +247,9 @@ et sa langue dans `fetch.editorial.source_languages`. Retirer la clé explicite
 Pour l'essai, activer éventuellement les traces privées et bornées décrites
 ci-dessus. Comparer les titres et résumés avant et après le nettoyage.
 Les anciens articles ne sont pas réécrits.
+
+L'extraction du corps se teste séparément avec `fetch.editorial.body_extraction: true`.
+Elle donne priorité au corps explicitement balisé, même court, et retire
+les menus et dialogues de consentement. Une extraction vide suit le mécanisme
+de reprise existant. Les pages à structure atypique peuvent encore nécessiter
+une relecture. Retirer cette option rétablit l'extraction historique.

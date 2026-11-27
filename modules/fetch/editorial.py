@@ -29,13 +29,15 @@ def language(value):
 
 def options(config):
     raw=config.get('fetch',{}).get('editorial',{})
-    if not isinstance(raw,dict) or set(raw)-{'prompt_version','checks','length_profile','title_policy','source_languages','trace'}:
+    if not isinstance(raw,dict) or set(raw)-{'prompt_version','checks','length_profile','title_policy','source_languages','trace','body_extraction'}:
         raise ValueError('invalid_editorial_configuration')
     result={'prompt_version':'legacy-v1','checks':'observe','length_profile':'auto',
-            'title_policy':'preserve_unknown','source_languages':{},'trace':{}}
+            'title_policy':'preserve_unknown','source_languages':{},'trace':{},'body_extraction':False}
     result.update(raw)
     if result['prompt_version'] not in VERSIONS or result['checks'] not in ('off','observe','strict') or result['length_profile'] not in ('auto','brief','standard','complex') or result['title_policy'] not in ('preserve_unknown','translate_unknown','preserve_all'):
         raise ValueError('invalid_editorial_policy')
+    if type(result['body_extraction']) is not bool:
+        raise ValueError('invalid_editorial_body_extraction')
     hints=result['source_languages']
     if not isinstance(hints,dict) or len(hints)>200 or any(not isinstance(k,str) or not re.fullmatch(r'[a-z0-9.-]{1,253}',k) or not isinstance(v,str) or len(v)>32 for k,v in hints.items()):
         raise ValueError('invalid_source_language_hints')

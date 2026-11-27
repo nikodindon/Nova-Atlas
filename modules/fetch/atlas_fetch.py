@@ -255,13 +255,16 @@ class ArticleFetcher:
     # ── Article content ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None, image_sink=None) -> str:
+    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None, image_sink=None, body_extraction=False) -> str:
         try:
             r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP, host_budget=host_budget, cancel_event=cancel_event)
             r.raise_for_status()
             if image_sink is not None:
                 try:image_sink(r.content,r.url)
                 except Exception:logging.getLogger('nova.fetch').warning('Optional image metadata capture unavailable')
+            if body_extraction:
+                from modules.fetch.extraction import extract_article_text
+                return extract_article_text(r.text)[:MAX_ARTICLE_CHARS]
             soup = BeautifulSoup(r.text, "html.parser")
             for tag in soup(["script","style","nav","header","footer",
                               "aside","form","iframe","noscript"]):
@@ -765,6 +768,8 @@ class ArticleFetcher:
         self._final_evidence = None
         try:
             image_args={}
+            if getattr(self, 'editorial', {}).get('body_extraction'):
+                image_args['body_extraction'] = True
             if getattr(self,'config',{}).get('media',{}).get('mode','disabled')!='disabled':
                 from modules.media.capture import capture
                 image_args['image_sink']=lambda body,url:capture(self.seen_file.parent,body,url,h,self.config)
