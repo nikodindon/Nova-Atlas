@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ url, depends }) => {
     articles: await api<Articles>(
       '/api/public/articles?per_page=20&page=' +
         page +
-        (category ? '&category=' + encodeURIComponent(category) : ''),
+        (category ? '&category=' + encodeURIComponent(category) : '&order=varied'),
     ),
   };
 };

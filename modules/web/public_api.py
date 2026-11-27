@@ -12,6 +12,7 @@ from flask import request,jsonify
 from modules.editorial.events import Coverage
 from modules.editorial.index import read,decode,EventIndex,public_event
 from modules.editorial.categories import registry
+from modules.editorial.source_order import diversify_sources
 from modules.media.store import MediaStore,FALLBACK,target_for_article,target_for_event
 from modules.web.web_security import render_markdown,safe_url
 
@@ -115,9 +116,14 @@ def install_public_api(app,paths,config):
     @app.get('/api/public/articles')
     @guarded
     def public_articles():
-        options(('date','page','per_page','category'));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
+        options(('date','page','per_page','category','order'));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
         rows=articles(day)
         if request.args.get('category'):rows=[r for r in rows if r['category']==request.args['category']]
+        order = request.args.get('order', 'chronological')
+        if order not in ('chronological', 'varied'):
+            raise PublicReadError('invalid_article_order')
+        if order == 'varied':
+            rows = diversify_sources(rows, lambda row: row['source'].lower().removeprefix('www.'))
         selected=rows[(page-1)*size:page*size]
         targets=[row.pop('_image_target') for row in selected]
         page_rows=[{**row,'image':image} for row,image in zip(selected,store.public_many(targets))]

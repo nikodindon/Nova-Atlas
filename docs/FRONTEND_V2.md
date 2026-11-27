@@ -244,3 +244,8 @@ Le sélecteur V2 choisit la paire complète par navigateur. En son absence, il
 affiche le contenu disponible et indique que la version anglaise manque.
 Les articles existants, les événements, les rapports, les éditions et la radio
 conservent leur langue. Désactiver l'option arrête les nouvelles traductions.
+
+Le Direct sans filtre demande `order=varied` à l'API des articles. L'ordre est
+calculé avant pagination, conserve la chronologie au sein de chaque source et
+évite les répétitions adjacentes lorsque les sources disponibles le permettent.
+Les filtres par catégorie et les archives utilisent l'ordre chronologique.

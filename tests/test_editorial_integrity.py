@@ -325,3 +325,13 @@ def test_english_edition_opt_in_uses_one_versioned_translation_call(tmp_path):
         call.assert_called_once()
         assert call.call_args.kwargs['operation'] == 'translate'
         assert call.call_args.kwargs['cache_validator'](raw)
+
+
+def test_source_diversity_applies_before_collection_category_cap():
+    from modules.editorial.source_order import diversify_sources
+
+    rows = [('verge', 1), ('verge', 2), ('verge', 3), ('ars', 4), ('wired', 5)]
+    assert diversify_sources(rows, lambda r: r[0], limit=3) == [
+        ('verge', 1), ('ars', 4), ('verge', 2),
+    ]
+    assert diversify_sources(rows[:3], lambda r: r[0]) == rows[:3]

@@ -116,3 +116,26 @@ def test_public_article_projects_valid_english_pair(client, app):
     row = get(client, '/api/public/articles?date='+day).json['articles'][0]
     assert row['english_edition'] == rows[0]['english_edition']
     assert '日本語' in row['title']
+
+
+def test_live_source_order_avoids_repeats_across_pages(client, app):
+    from datetime import timedelta
+
+    paths, day, _ = content(app)
+    now = datetime.now(timezone.utc)
+    sources = ['alpha', 'beta', 'gamma', 'alpha', 'alpha']
+    rows = [
+        article(i, when=now-timedelta(minutes=i), link=f'https://{source}.example/{i}',
+                source=f'{source}.example')
+        for i, source in enumerate(sources)
+    ]
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps(rows))
+
+    def sources_at(query):
+        return [r['source'].split('.')[0] for r in get(client, '/api/public/articles?'+query).json['articles']]
+
+    assert sources_at('') == sources
+    assert sources_at('order=varied&per_page=2&page=1') == ['alpha', 'beta']
+    assert sources_at('order=varied&per_page=2&page=2') == ['alpha', 'gamma']
+    assert sources_at('order=varied&per_page=2&page=3') == ['alpha']
+    assert get(client, '/api/public/articles?order=unknown').status_code == 400

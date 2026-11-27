@@ -26,6 +26,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from modules.http import external as source_http
+from modules.editorial.source_order import diversify_sources
 from bs4 import BeautifulSoup
 from lxml import etree
 
@@ -922,21 +923,35 @@ class ArticleFetcher:
             if rec['status'] in ('discovered', 'processing', 'retryable') and (
                     'prepared' in rec or rec['next_attempt_at'] <= now.timestamp()):
                 queue = queues.setdefault(rec['category'], [])
-                if not self.max_per_category or len(queue) < self.max_per_category:
-                    queue.append((rec['item'], rec['category']))
+                queue.append((rec['item'], rec['category']))
+        queues = {
+            category: diversify_sources(
+                queue, lambda entry: self._source_host(entry[0]),
+                limit=self.max_per_category or None,
+            )
+            for category, queue in queues.items()
+        }
         self._save_state()
         count = 0
+        previous_source = None
         while any(queues.values()):
             if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
                 break
             for queue in queues.values():
                 if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():break
                 if queue:
-                    item, category = queue.pop(0)
+                    index = next((i for i, (item, _) in enumerate(queue)
+                                  if self._source_host(item) != previous_source), 0)
+                    item, category = queue.pop(index)
+                    previous_source = self._source_host(item)
                     count += bool(self._process_item(item, category, seen, existing_hashes, articles))
         self._save_seen(seen)
         self.log.info('Article cycle completed: %d publications or reconciliations', count)
         return count
+
+    @staticmethod
+    def _source_host(item):
+        return (urlparse(item['link']).hostname or '').removeprefix('www.')
 
     @staticmethod
     def _cap_queues(queues: dict, cap: int) -> dict:
