@@ -79,14 +79,27 @@ class MediaService:
         with self.operation():
             candidates=Commons(self.get).fetch(term=term)
             identities = [self.store.add(c,target,trusted=True) for c in candidates]
-        if self.config.get('commons_auto_prepare') is True:
+        auto_approve = self.config.get('commons_auto_approve') is True and self.store.mode == 'approved_only'
+        if auto_approve or self.config.get('commons_auto_prepare') is True:
             state, version = self.store.load()
             for identity in identities:
                 row = state['records'][identity]
-                if row['status'] != 'rights_verified' or row.get('artifact'):
+                if row['status'] != 'rights_verified':
+                    continue
+                if auto_approve and not self.store.can_auto_approve(state, row):
+                    continue
+                if row.get('artifact') and not auto_approve:
                     continue
                 try:
-                    self.prepare(identity, version)
+                    if not row.get('artifact'):
+                        self.prepare(identity, version)
+                        if auto_approve:
+                            current, version = self.store.load()
+                            prepared = current['records'].get(identity)
+                            if not prepared or any(prepared[key] != row[key] for key in ('resource_version', 'caption')):
+                                break
+                    if auto_approve:
+                        self.store.auto_approve(identity, expected=version)
                 except MediaError:
                     # Candidates remain available for review if preparation fails.
                     pass

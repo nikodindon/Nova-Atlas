@@ -205,3 +205,13 @@ miniature par recherche administrative, lorsqu'un candidat porte des droits
 vérifiés et qu'il n'a pas déjà de fichier préparé. L'association à l'article,
 la provenance et le crédit sont conservés. La mise en ligne passe toujours
 par l'approbation de la ressource exacte et le bouton Désactiver permet son retrait.
+
+Pour un essai avec approbation automatique, configurer
+`media.commons_auto_approve: true` avec `mode: approved_only` et
+`commons_enabled: true`. Une recherche administrative peut alors préparer et
+afficher au plus une illustration Commons avec une licence CC BY 4.0 vérifiée.
+L’attribution reste affichée et le journal distingue l’approbation automatique
+de la revue manuelle. Une illustration déjà approuvée garde sa place et un
+candidat retiré ou refusé reste exclu de l’approbation automatique. Remettre
+l’option à `false` arrête les nouvelles approbations automatiques. Le bouton
+**Désactiver** retire une illustration déjà approuvée.

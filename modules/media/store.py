@@ -203,6 +203,32 @@ class MediaStore:
     @staticmethod
     def binding(record):return digest([record['resource_version'],{k:v for k,v in record['artifact'].items() if k!='metrics'} if record.get('artifact') else None,record['caption'],record['nature'],record['target']])
 
+    def can_auto_approve(self, state, row):
+        if (self.mode != 'approved_only' or row['status'] != 'rights_verified'
+                or row['rights']['status'] != 'rights_verified'
+                or row['candidate']['provider'] != 'commons' or not row['proof_trusted']
+                or not 0 <= self.clock() - row['checked_at'] <= 86400):
+            return False
+        if any(entry['candidate'] == row['id'] and entry['action'] in ('reject', 'disable')
+               for entry in state['audit']):
+            return False
+        return not any(other['target'] == row['target'] and other['status'] == 'approved'
+                       for other in state['records'].values())
+
+    def auto_approve(self, identity, *, expected):
+        def save(state):
+            row = state['records'].get(identity)
+            if not row or not row.get('artifact') or not self.can_auto_approve(state, row):
+                raise MediaError('automatic_approval_not_eligible')
+            binding = self.binding(row)
+            row['approval'] = {
+                'id': digest([identity, binding]), 'binding': binding, 'at': self.clock(),
+                'method': 'commons_auto', 'third_party_review_acknowledged': False,
+            }
+            row['status'] = 'approved'
+            state['audit'].append({'candidate': identity, 'action': 'auto_approve', 'at': self.clock()})
+        self.transaction(save, expected)
+
     def decide(self,identity,action,*,expected,binding=None,ack=False,caption=None):
         if action not in ('approve','reject','disable','caption'):raise MediaError('invalid_decision')
         def save(state):

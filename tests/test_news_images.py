@@ -288,3 +288,36 @@ def test_commons_search_can_prepare_but_does_not_publish(tmp_path, monkeypatch):
     row = service.store.load()[0]['records'][identity]
     assert row['artifact'] and not row.get('approval')
     assert service.store.public_for(TARGET)['fallback']
+
+
+@pytest.mark.parametrize('license_name,approved', [('CC BY 4.0', True), ('CC BY-NC 4.0', False)])
+def test_commons_search_auto_approves_only_verified_images(tmp_path, monkeypatch, license_name, approved):
+    raw = image()
+    listing = payload(raw, license=license_name)
+    responses = [FakeResponse(body=listing)]
+    if approved:
+        responses.extend([FakeResponse(body=raw), FakeResponse(body=listing)])
+    client, _, _ = client_for(responses)
+    service = MediaService(
+        tmp_path/'a', tmp_path/'d',
+        {'mode':'approved_only', 'commons_enabled':True, 'commons_auto_approve':True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw),
+        runner=prepare,
+    )
+    monkeypatch.setattr(service, 'target', lambda _: TARGET)
+    [identity] = service.search('Synthetic', TARGET)
+    state, version = service.store.load()
+    projection = service.store.public_for(TARGET)
+    assert projection['fallback'] is not approved
+    row = state['records'][identity]
+    if not approved:
+        assert not row['artifact'] and not row['approval']
+        return
+    assert projection['attribution']['author']
+    assert row['approval']['method'] == 'commons_auto'
+    assert row['approval']['third_party_review_acknowledged'] is False
+    assert state['audit'][-1]['action'] == 'auto_approve'
+
+    service.store.decide(identity, 'disable', expected=version)
+    service.search('Synthetic', TARGET)
+    assert service.store.public_for(TARGET)['fallback']
