@@ -293,7 +293,7 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
             if not articles:
                 log.info("Bulletin sauté : pas assez de publications récentes vérifiables")
                 return
-            path = builder.build(articles, **options)
+            path = builder.build(articles, scheduled_slot=slot, **options)
             if path and wait_for_airtime(slot, stop_event):
                 # Cache Android before the primary can consume/delete the MP3.
                 android_streamer.enqueue_bulletin(path)

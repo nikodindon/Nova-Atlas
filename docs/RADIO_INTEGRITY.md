@@ -214,3 +214,16 @@ le texte parlé. Une balise terminale sans texte reste invalide et produit
 `trailing_voice_tag_without_text`. Au-delà de 256 segments, le journal
 indique `too_many_voice_segments`. Ces motifs remplacent le diagnostic
 commun `empty_or_excessive_segments` et ne modifient pas les seuils audio.
+
+Les bulletins programmés choisissent les articles d'après la date de publication
+indiquée par la source, avec fuseau explicite. Si la fenêtre de nouveautés
+`window_minutes` ne suffit pas, le lecteur peut diffuser un récapitulatif annoncé
+avant la première voix, dans la limite de `recap_minutes` (360 par défaut).
+Sans assez d'articles admissibles, la musique continue. Une incohérence claire
+reconnue par le contrôle titre-corps est écartée sur la base du résumé concerné.
+Les autres signaux restent des indices de relecture.
+
+Un bulletin prêt en avance attend le début de son créneau avant l'admission
+sur les deux canaux. Un bulletin terminé en retard peut partir dès qu'il est prêt.
+Radio Studio affiche le dernier passage envoyé sur le canal local et le prochain
+créneau. Le passage local ne prouve pas la réception par un auditeur.

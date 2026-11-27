@@ -326,8 +326,10 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
 
     # Choisit 1 intro et 1 outro au hasard parmi les options
     # On remplit {{heure}} et {{date}} maintenant pour que le LLM n'ait pas à le faire
-    now_str = datetime.now().strftime("%Hh%M")
-    date_str = datetime.now().strftime("%d/%m/%Y")
+    scheduled = config.get("_scheduled_slot")
+    edition_time = datetime.fromisoformat(scheduled) if scheduled else datetime.now()
+    now_str = edition_time.strftime("%Hh%M")
+    date_str = edition_time.strftime("%d/%m/%Y")
     intro = random.choice(intros).format(heure=now_str, date=date_str) if intros else f"Bonjour à tous, il est {now_str}."
     outro = random.choice(outros).format(heure=now_str, date=date_str) if outros else "C'est tout pour ce bulletin."
 
@@ -650,8 +652,10 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
     articles_text = _format_articles_for_prompt(articles, max_summary_chars=700)
 
     # Choisit 1 intro et 1 outro au hasard
-    now_str = datetime.now().strftime("%Hh%M")
-    date_str = datetime.now().strftime("%d/%m/%Y")
+    scheduled = config.get("_scheduled_slot")
+    edition_time = datetime.fromisoformat(scheduled) if scheduled else datetime.now()
+    now_str = edition_time.strftime("%Hh%M")
+    date_str = edition_time.strftime("%d/%m/%Y")
     intro = random.choice(intros).format(heure=now_str, date=date_str) if intros \
         else f"Bonjour, il est {now_str}, voici le flash {cat_label}."
     outro = random.choice(outros).format(heure=now_str, date=date_str) if outros \
@@ -804,7 +808,7 @@ class BulletinGenerator:
         }
         return aliases.get(lang, lang[:2])
 
-    def build(self, articles, script=None, *, profile='bulletin', publication_name=None, observer=None, cancel_event=None, recap=False):
+    def build(self, articles, script=None, *, profile='bulletin', publication_name=None, observer=None, cancel_event=None, recap=False, scheduled_slot=None):
         """Return only a complete, validated, atomically published MP3."""
         cfg = self.bulletins_cfg
         manifest=[];tts_started=None
@@ -818,7 +822,7 @@ class BulletinGenerator:
                 if self.config.get('editorial_events',{}).get('enabled') is True:save_selection(self.paths['data'],'radio',articles)
             if script is None:
                 intros, transitions, outros = self._load_messages()
-                script = generate_bulletin_script(articles, {**cfg, **self.config}, intros, transitions, outros)
+                script = generate_bulletin_script(articles, {**cfg, **self.config, "_scheduled_slot": scheduled_slot}, intros, transitions, outros)
             if cancel_event is not None and cancel_event.is_set():raise AudioIntegrityError('generation_cancelled')
             segments = split_script_by_voice(script)
             if recap:

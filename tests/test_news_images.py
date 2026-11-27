@@ -271,3 +271,20 @@ def test_disabled_policy_refuses_network_before_transport(tmp_path):
     with pytest.raises(MediaError,match='downloads_disabled'):
         with service.operation():service.get('https://images.invalid/a')
     assert calls==[] and not service.store.root.exists()
+
+
+def test_commons_search_can_prepare_but_does_not_publish(tmp_path, monkeypatch):
+    raw = image()
+    responses = [FakeResponse(body=payload(raw)), FakeResponse(body=raw)]
+    client, _, _ = client_for(responses)
+    service = MediaService(
+        tmp_path/'a', tmp_path/'d',
+        {'mode':'approved_only', 'commons_enabled':True, 'commons_auto_prepare':True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw),
+        runner=prepare,
+    )
+    monkeypatch.setattr(service, 'target', lambda _: TARGET)
+    [identity] = service.search('Synthetic', TARGET)
+    row = service.store.load()[0]['records'][identity]
+    assert row['artifact'] and not row.get('approval')
+    assert service.store.public_for(TARGET)['fallback']

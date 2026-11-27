@@ -328,6 +328,8 @@ class RadioStudio:
                 self.journal.start(identity)
                 try:
                     options = {'recap': True} if recap else {}
+                    if defer_airtime:
+                        options['scheduled_slot'] = slot
                     path=builder.build(articles,publication_name=row['publication_name'],observer=lambda phase,**values:(self.journal.tts_event if phase in ('tts_bridge_selected','tts_voice_planned') else self.journal.metrics)(identity,phase,**values),cancel_event=self.stop_event,**options)
                     if not path:self.journal.fail(identity,'interrupted' if self.stop_event.is_set() else 'generation_failed');return None
                     self.journal.attach(identity,path)
