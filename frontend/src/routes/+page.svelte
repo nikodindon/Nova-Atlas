@@ -1,10 +1,16 @@
 <script lang="ts">
   import ArticleCard from '@lib/components/ArticleCard.svelte';
+  import HeadlineRotation from '@lib/components/HeadlineRotation.svelte';
   import EventCard from '@lib/components/EventCard.svelte';
   import Notice from '@lib/components/Notice.svelte';
   import { messages, dateLabel } from '@lib/i18n';
   let { data }: import('./$types').PageProps = $props();
   let t = $derived(messages(data.locale));
+  let breaking = $derived(data.headlines.data?.articles ?? []);
+  let latest = $derived(data.articles.data?.articles ?? []);
+  let other = $derived(breaking.length
+    ? latest.filter((article) => !breaking.some((item) => item.id === article.id))
+    : latest.slice(4));
 </script>
 
 <svelte:head
@@ -27,7 +33,9 @@
   empty={!data.articles.data?.articles.length}
   locale={data.locale}
 />
-{#if data.articles.data?.articles.length}<section class="headlines" aria-label={t.home}>
+{#if breaking.length}
+  <HeadlineRotation articles={breaking} locale={data.locale} />
+{:else if data.articles.data?.articles.length}<section class="headlines" aria-label={t.home}>
     <ArticleCard article={data.articles.data.articles[0]} locale={data.locale} lead />
     <div class="headlines-side">
       {#each data.articles.data.articles.slice(1, 4) as article}<ArticleCard
@@ -49,7 +57,7 @@
   <a href="/direct">{t.live} ↗</a>
 </div>
 <div class="article-grid">
-  {#each data.articles.data?.articles.slice(4) || [] as article}<ArticleCard
+  {#each other as article}<ArticleCard
       {article}
       locale={data.locale}
     />{/each}

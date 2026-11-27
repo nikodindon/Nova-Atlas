@@ -3,7 +3,7 @@ from dataclasses import asdict
 from collections import OrderedDict
 import hashlib
 import threading
-from datetime import datetime,timezone
+from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import re
@@ -145,6 +145,50 @@ def install_public_api(app,paths,config):
         targets=[row.pop('_image_target') for row in selected]
         page_rows=[{**row,'image':image} for row,image in zip(selected,store.public_many(targets))]
         return respond(date=day,articles=page_rows,total=len(rows),page=page,per_page=size)
+    @app.get('/api/public/headlines')
+    @guarded
+    def public_headlines():
+        from modules.web.atlas_web import get_breaking_news
+
+        options(())
+        now = datetime.now(timezone.utc)
+        weights = config.get('editorial_events', {}).get('importance', {})
+        ranked = []
+        for item in get_breaking_news(paths, max_items=30):
+            if item['article_count'] < 2:
+                continue
+            published = datetime.fromisoformat(item['published_at'])
+            age = (now - published).total_seconds()
+            if not 0 <= age <= 14400:
+                continue
+            weight = weights.get(item['cat'], 1) if isinstance(weights, dict) else 1
+            importance = weight / 10 if type(weight) in (int, float) and 0 <= weight <= 10 else 0.1
+            score = 1 - age / 14400 + importance + min(max(item['source_count'] - 1, 0), 3) * 0.1
+            ranked.append((score, published, item))
+        if not ranked:
+            return respond(articles=[])
+
+        today = now.astimezone(ZoneInfo('Europe/Paris')).date()
+        by_link = {}
+        for day in (today, today - timedelta(days=1)):
+            for row in articles(day.strftime('%Y%m%d')):
+                if row['link']:
+                    by_link.setdefault(row['link'], row)
+        selected = []
+        seen = set()
+        for _, _, item in sorted(ranked, key=lambda row: (row[0], row[1], row[2]['event_id']), reverse=True):
+            row = by_link.get(item['link'])
+            if row and row['id'] not in seen:
+                selected.append(row)
+                seen.add(row['id'])
+                if len(selected) == 4:
+                    break
+        images = store.public_many([row['_image_target'] for row in selected])
+        return respond(articles=[
+            {**{key: value for key, value in row.items() if key != '_image_target'}, 'image': image}
+            for row, image in zip(selected, images)
+        ])
+
     @app.get('/api/public/archives')
     @guarded
     def public_archives():

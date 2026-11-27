@@ -263,6 +263,10 @@ const backend = http.createServer(async (req, res) => {
     });
     return;
   }
+  if (path === '/api/public/headlines') {
+    json(res, { ...base, articles: articles.slice(0, 2) });
+    return;
+  }
   if (path === '/api/public/articles') {
     if (url.searchParams.get('category') === 'unavailable') {
       json(res, { status: 'unavailable' }, 503);

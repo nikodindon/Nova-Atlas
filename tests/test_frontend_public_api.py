@@ -160,3 +160,27 @@ def test_live_prioritizes_recently_processed_article_with_old_source_date(client
     assert row['published_raw'] == old['pub_date']
     normal = get(client, f'/api/public/articles?date={day}&per_page=1')
     assert normal.json['articles'][0]['hash'] == recent['hash']
+
+
+def test_headlines_rank_shared_breaking_selection_and_exclude_old_and_single(client, app, monkeypatch):
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    from modules.web import atlas_web
+
+    paths = app.extensions['atlas_paths']
+    now = datetime.now(timezone.utc)
+    day = now.astimezone(ZoneInfo('Europe/Paris')).strftime('%Y%m%d')
+    rows = [article(i, when=now, title=f'Title {i}') for i in range(4)]
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps(rows))
+
+    def item(i, age, sources, count=2):
+        return {'published_at': (now-timedelta(minutes=age)).isoformat(), 'source_count': sources,
+                'article_count': count, 'cat': 'france', 'event_id': str(i), 'link': rows[i]['link']}
+
+    monkeypatch.setattr(atlas_web, 'get_breaking_news', lambda *a, **k: [
+        item(0, 15, 2), item(1, 30, 9), item(2, 300, 20), item(3, 5, 1, count=1),
+    ])
+    response = get(client, '/api/public/headlines')
+    assert response.status_code == 200
+    assert [row['title'] for row in response.json['articles']] == ['Title 1', 'Title 0']
+    assert '_image_target' not in response.json['articles'][0]

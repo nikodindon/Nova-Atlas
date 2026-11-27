@@ -206,3 +206,11 @@ test('the language selector changes both headline and summary when available', a
   await selector.selectOption('fr');
   await expect(page.getByRole('heading', { name: 'L’observatoire ouvre une nouvelle fenêtre sur le ciel' })).toBeVisible();
 });
+
+test('breaking headlines can be selected from the homepage', async ({ page }) => {
+  await page.goto('/');
+  const headlines = page.getByRole('region', { name: 'À la une' });
+  await expect(headlines.getByRole('heading', { name: /L’observatoire ouvre/ })).toBeVisible();
+  await headlines.getByRole('button', { name: /Un réseau ferroviaire/ }).click();
+  await expect(headlines.getByRole('heading', { name: /Un réseau ferroviaire/ })).toBeVisible();
+});

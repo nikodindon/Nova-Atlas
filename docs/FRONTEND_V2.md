@@ -250,3 +250,13 @@ calculé avant pagination. Il place le dernier article traité en tête, conserv
 l'ordre de traitement au sein de chaque source et
 évite les répétitions adjacentes lorsque les sources disponibles le permettent.
 Les filtres par catégorie et les archives utilisent l'ordre chronologique.
+
+La une appelle `GET /api/public/headlines` et réutilise la sélection Breaking
+News de V1. Elle retient jusqu'à quatre sujets couverts par au moins deux
+articles et publiés dans les quatre dernières heures. Le score combine
+la fraîcheur (0 à 1), le poids de catégorie (`editorial_events.importance`
+de 0 à 10, divisé par 10) et 0,1 point par domaine supplémentaire dans
+la limite de 0,3. Plusieurs domaines ne valent pas confirmation indépendante.
+Sans sujet admissible, la une conserve les articles récents.
+Sur ordinateur, la rotation de vingt secondes peut être mise en pause.
+Sur mobile ou avec la préférence de mouvement réduit, le choix est manuel.

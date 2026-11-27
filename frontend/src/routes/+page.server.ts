@@ -6,5 +6,6 @@ export const load = async () => {
     api<Events>('/api/public/events?per_page=3'),
     api<Archives>('/api/public/archives?per_page=3'),
   ]);
-  return { articles, events, archives };
+  const headlines = await api<Pick<Articles, 'articles'>>('/api/public/headlines');
+  return { articles, events, archives, headlines };
 };
