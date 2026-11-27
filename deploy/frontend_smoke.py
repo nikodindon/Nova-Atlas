@@ -55,6 +55,9 @@ def main(*,allow_local=False):
                 assert 'Synthetic headline for frontend' in html
                 assert 'nonce-' in csp and 'unsafe-eval' not in csp and 'unsafe-inline' not in csp
                 assert response.headers['X-Content-Type-Options']=='nosniff'
+            with request('/__data.json?x-sveltekit-invalidated=11') as response:
+                assert response.status == 200
+                assert b'Synthetic headline for frontend' in response.read()
             assert obj('/api/public/articles?date='+day)['total']==1
             assert 'nodes' in obj('/api/public/documents/'+day+'/report')
             bootstrap=obj('/api/auth/login');assert bootstrap['configured']

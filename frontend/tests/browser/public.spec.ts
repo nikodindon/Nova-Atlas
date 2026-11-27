@@ -105,6 +105,14 @@ test('one persistent audio across public navigation, channels and bounded reconn
       ),
     ).toBe(true);
   }
+  for (const path of ['/', '/direct', '/evenements', '/archives', '/']) {
+    await page.locator(`nav.main-nav a[href="${path}"]`).click();
+    await page.waitForURL(new URL(path, page.url()).href);
+    expect(await page.locator('audio').evaluate((element) =>
+      element === (window as unknown as { savedAudio: Element }).savedAudio &&
+      !(element as HTMLAudioElement).paused,
+    )).toBe(true);
+  }
   await page.getByLabel('Canal', { exact: true }).selectOption('android');
   await expect(page.locator('audio')).toHaveAttribute('src', '/stream/nova-android');
   await page.locator('audio').dispatchEvent('error');
