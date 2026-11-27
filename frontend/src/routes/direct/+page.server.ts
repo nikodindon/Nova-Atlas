@@ -2,7 +2,8 @@ import type { PageServerLoad } from './$types';
 import { api } from '@lib/server/api';
 import type { Articles } from '@lib/types';
 import { pageNumber } from '@lib/security';
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, depends }) => {
+  depends('atlas:live-feed');
   const category = (url.searchParams.get('category') || '').slice(0, 100);
   const page = pageNumber(url.searchParams.get('page'));
   return {

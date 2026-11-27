@@ -66,7 +66,7 @@ const articles = [
   {
     title: 'La recherche locale explore de nouveaux outils numériques',
     summary:
-      'Une initiative fictive examine les usages des logiciels libres et l’accès aux connaissances.',
+      'Une initiative fictive examine les usages des logiciels libres et l’accès aux connaissances. Cette étude associe des bibliothèques, des associations et des centres de recherche durant plusieurs mois. Une rencontre publique est prévue en décembre.',
     category: 'tech',
   },
   {

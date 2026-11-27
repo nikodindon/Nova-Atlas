@@ -164,3 +164,31 @@ test('revoked image becomes local fallback and reports keep hostile HTML inert',
   expect(await page.locator('main script').count()).toBe(0);
   expect(await page.evaluate(() => 'pwned' in window)).toBe(false);
 });
+
+test('the direct feed refreshes each minute and keeps its category', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/direct?category=tech');
+  const article = page.locator('article').filter({ hasText: 'La recherche locale explore' });
+  const tail = 'Une rencontre publique est prévue en décembre.';
+  await expect(article.locator('.summary')).not.toContainText(tail);
+  const nextFeed = () =>
+    page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith('/direct/__data.json') && url.searchParams.get('category') === 'tech';
+    });
+
+  const manual = nextFeed();
+  await page.getByRole('button', { name: 'Actualiser', exact: true }).click();
+  expect((await manual).ok()).toBe(true);
+  await expect(page.getByRole('button', { name: 'Actualiser', exact: true })).toBeEnabled();
+  await article.getByRole('button', { name: 'Lire le résumé complet' }).click();
+  await expect(article.locator('.summary')).toContainText(tail);
+
+  const automatic = nextFeed();
+  await page.clock.runFor(60_000);
+  expect((await automatic).ok()).toBe(true);
+  await expect(page).toHaveURL(/\/direct\?category=tech$/);
+  await expect(article.locator('.summary')).toContainText(tail);
+  await article.getByRole('button', { name: 'Réduire le résumé' }).click();
+  await expect(article.locator('.summary')).not.toContainText(tail);
+});

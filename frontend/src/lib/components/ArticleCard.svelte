@@ -7,8 +7,16 @@
     article,
     locale,
     lead = false,
-  }: { article: Article; locale: Locale; lead?: boolean } = $props();
+    compact = false,
+  }: { article: Article; locale: Locale; lead?: boolean; compact?: boolean } = $props();
   let t = $derived(messages(locale));
+  let expanded = $state(false);
+  const summaryId = $props.id();
+  let preview = $derived(
+    article.summary.length > 180
+      ? article.summary.slice(0, 180).replace(/\s+\S*$/, '').trimEnd() + '…'
+      : article.summary,
+  );
 </script>
 
 <article class:lead class="article-card" data-category={article.category}>
@@ -16,7 +24,16 @@
   <div class="card-body">
     <p class="eyebrow">{article.category} <span>· {article.source}</span></p>
     <h2>{article.title}</h2>
-    <p class="summary">{article.summary}</p>
+    <p class="summary" id={summaryId}>{compact && !expanded ? preview : article.summary}</p>
+    {#if compact && preview !== article.summary}
+      <button
+        type="button"
+        class="summary-toggle"
+        aria-expanded={expanded}
+        aria-controls={summaryId}
+        onclick={() => (expanded = !expanded)}
+      >{expanded ? t.collapseSummary : t.expandSummary}</button>
+    {/if}
     <div class="article-meta">
       {#if article.published_at || article.published_raw}
         <span>{t.sourcePublished} <time datetime={article.published_at || undefined}>{dateLabel(article.published_at || article.published_raw, locale)}</time></span>
@@ -32,3 +49,15 @@
     </div>
   </div>
 </article>
+
+<style>
+  .summary-toggle {
+    padding: 0.25rem 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    cursor: pointer;
+  }
+</style>

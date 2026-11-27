@@ -397,3 +397,31 @@ def test_main_opt_in_uses_existing_scheduler_and_temp_storage(tmp_path,monkeypat
     state=StudioJournal(tmp_path/'data',tmp_path/'queue').load()[0]
     assert len(state['jobs'])==1 and next(iter(state['jobs'].values()))['slot']=='2026-11-06T07:00'
     builder.build.assert_not_called();primary.run.assert_not_called();primary.stop.assert_called_once();android.stop.assert_called_once()
+
+
+def test_music_shuffle_includes_nested_tracks_and_skips_linked_directories(tmp_path, monkeypatch):
+    from modules.radio import streamer
+
+    primary, _ = consumers(tmp_path)
+    root = primary.music_dir = tmp_path / 'music'
+    nested = root / 'Jazz' / 'Artiste' / 'Album'
+    nested.mkdir(parents=True)
+    for i in range(513):
+        (root / f'track-{i}.mp3').touch()
+    track = nested / 'track-0.MP3'
+    track.touch()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'excluded.mp3').touch()
+    (root / 'linked').symlink_to(outside, target_is_directory=True)
+
+    def inspect_pool(pool):
+        assert len(pool) == 514
+        assert all(path.name != 'excluded.mp3' for path, _ in pool)
+        pool.sort(key=lambda candidate: candidate[0] != track)
+
+    monkeypatch.setattr(streamer.random, 'shuffle', inspect_pool)
+    inspect = Mock()
+    monkeypatch.setattr(streamer, 'inspect_audio', inspect)
+    assert primary._pick_music() == track
+    inspect.assert_called_once_with(track)

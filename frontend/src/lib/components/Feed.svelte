@@ -3,7 +3,7 @@
   import Notice from './Notice.svelte';
   import Pagination from './Pagination.svelte';
   import { messages } from '@lib/i18n';
-  import { invalidateAll, goto } from '$app/navigation';
+  import { invalidate, invalidateAll, goto } from '$app/navigation';
   import type { Articles, Category, Locale, Resource } from '@lib/types';
   let {
     resource,
@@ -23,13 +23,23 @@
   let t = $derived(messages(locale));
   let refreshing = $state(false);
   async function refresh() {
+    if (refreshing) return;
     refreshing = true;
     try {
-      await invalidateAll();
+      if (path === '/direct') await invalidate('atlas:live-feed');
+      else await invalidateAll();
     } finally {
       refreshing = false;
     }
   }
+
+  $effect(() => {
+    if (path !== '/direct') return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void refresh().catch(() => {});
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  });
 </script>
 
 <div class="page-top">
@@ -63,7 +73,9 @@
     <p>{t.collected}<br />{resource.fetchedAt.slice(0, 10)}</p>
   </aside>
   <div class="live-list">
-    {#each resource.data?.articles || [] as article}<ArticleCard {article} {locale} />{/each}
+    {#each resource.data?.articles || [] as article (article.id)}
+      <ArticleCard {article} {locale} compact={path === '/direct'} />
+    {/each}
   </div>
 </div>
 {#if resource.data}<Pagination
