@@ -10,12 +10,14 @@
     compact = false,
   }: { article: Article; locale: Locale; lead?: boolean; compact?: boolean } = $props();
   let t = $derived(messages(locale));
+  let edition = $derived(locale === 'en' ? article.english_edition : undefined);
+  let summary = $derived(edition?.summary ?? article.summary);
   let expanded = $state(false);
   const summaryId = $props.id();
   let preview = $derived(
-    article.summary.length > 180
-      ? article.summary.slice(0, 180).replace(/\s+\S*$/, '').trimEnd() + '…'
-      : article.summary,
+    summary.length > 180
+      ? summary.slice(0, 180).replace(/\s+\S*$/, '').trimEnd() + '…'
+      : summary,
   );
 </script>
 
@@ -23,9 +25,10 @@
   {#if lead || !article.image.fallback}<Illustration image={article.image} eager={lead} />{/if}
   <div class="card-body">
     <p class="eyebrow">{article.category} <span>· {article.source}</span></p>
-    <h2>{article.title}</h2>
-    <p class="summary" id={summaryId}>{compact && !expanded ? preview : article.summary}</p>
-    {#if compact && preview !== article.summary}
+    <h2>{edition?.title ?? article.title}</h2>
+    {#if locale === 'en' && !edition}<p class="article-meta">{t.articleTranslationUnavailable}</p>{/if}
+    <p class="summary" id={summaryId}>{compact && !expanded ? preview : summary}</p>
+    {#if compact && preview !== summary}
       <button
         type="button"
         class="summary-toggle"

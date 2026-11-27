@@ -454,6 +454,28 @@ class ArticleFetcher:
         # trop de faux positifs.
         return hits >= 2
 
+    def _english_edition(self, title, summary):
+        from modules.fetch import editorial as ed
+
+        stop = getattr(self, '_feed_stop_event', None)
+        if (not getattr(self, 'editorial', {}).get('english_edition')
+                or ed.language(get_language()) != 'fr' or (stop is not None and stop.is_set())):
+            return None
+        try:
+            snapshot = self._generation_client()
+            prompt = ed.english_edition_prompt(title, summary)
+            identity = self._generation_identity('translate', snapshot)
+            key = ed.cache_key(prompt, ed.ENGLISH_EDITION_VERSION, 'en', '', identity, 'english_edition')
+            result = ollama_call(
+                prompt, timeout=90, caller='fetch', operation='translate', cache_key=key,
+                client_snapshot=snapshot, cancel_event=stop,
+                cache_validator=lambda raw: ed.parse_english_edition(raw, title, summary) is not None,
+            )
+            return ed.parse_english_edition(result, title, summary)
+        except Exception:
+            self.log.warning('Optional English edition unavailable')
+            return None
+
     def _translate_title(self, title: str, force: bool = False, *, source_language=None) -> str:
         from modules.fetch import editorial as ed
         config = getattr(self, 'config', {})
@@ -809,6 +831,9 @@ class ArticleFetcher:
                        'title': title, 'title_original': item['title'] if title != item['title'] or getattr(self,'editorial',{}).get('prompt_version')=='editorial-v2' else '',
                        'link': item['link'], 'source': urlparse(item['link']).netloc.replace('www.', ''),
                        'pub_date': item.get('pub_date', ''), 'summary': summary}
+            english = self._english_edition(title, summary)
+            if english:
+                article['english_edition'] = english
             self._final_evidence = dict(article)
             # Trace records never need query strings/credentials from public links.
             from urllib.parse import urlsplit, urlunsplit

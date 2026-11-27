@@ -33,6 +33,7 @@ export interface Article {
   title: string;
   original_title: string;
   summary: string;
+  english_edition?: { title: string; summary: string };
   link: string | null;
   source: string;
   category: string;

@@ -192,3 +192,17 @@ test('the direct feed refreshes each minute and keeps its category', async ({ pa
   await article.getByRole('button', { name: 'Réduire le résumé' }).click();
   await expect(article.locator('.summary')).not.toContainText(tail);
 });
+
+test('the language selector changes both headline and summary when available', async ({ page }) => {
+  await page.goto('/direct');
+  const selector = page.locator('#language');
+  const translated = page.locator('.article-card').filter({
+    has: page.getByRole('heading', { name: 'The observatory opens a new window on the sky' }),
+  });
+  await expect(page.getByRole('heading', { name: 'L’observatoire ouvre une nouvelle fenêtre sur le ciel' })).toBeVisible();
+  await selector.selectOption('en');
+  await expect(translated.getByText('An international team presents an observation programme.')).toBeVisible();
+  await expect(page.getByText('English edition unavailable').first()).toBeVisible();
+  await selector.selectOption('fr');
+  await expect(page.getByRole('heading', { name: 'L’observatoire ouvre une nouvelle fenêtre sur le ciel' })).toBeVisible();
+});

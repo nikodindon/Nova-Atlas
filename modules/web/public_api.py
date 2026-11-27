@@ -73,6 +73,7 @@ def install_public_api(app,paths,config):
             while len(article_cache)>2:article_cache.popitem(last=False)
             return [dict(row) for row in rows]
     def article_rows(raw):
+        from modules.fetch.editorial import english_edition_fields
         values=[] if raw is None else decode(raw)
         if not isinstance(values,list) or len(values)>2000:raise PublicReadError('invalid_articles')
         result=[]
@@ -83,6 +84,8 @@ def install_public_api(app,paths,config):
                 image_target={'kind':'article','id':c.article_hash,'fingerprint':c.id,'title':c.title}
                 result.append({'id':c.id,'hash':c.article_hash,'title':c.title,'original_title':c.original_title,'summary':c.summary,'link':c.link,'source':c.source,'category':c.category,
                     'published_raw':c.published_raw,'published_at':c.published_at,'publication_status':c.publication_status,'observed_raw':c.observed_raw,'observed_at':c.observed_at,'language':c.language,'_image_target':image_target})
+                if edition := english_edition_fields(value.get('english_edition')):
+                    result[-1]['english_edition'] = edition
             except (ValueError,TypeError,KeyError):continue
         return sorted(result,key=lambda r:r['published_at'] or r['observed_at'] or r['observed_raw'],reverse=True)
     @app.after_request

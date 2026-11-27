@@ -105,3 +105,14 @@ def test_images_are_projected_only_for_requested_page(app,client,monkeypatch):
     assert response.status_code==200 and response.json['total']==3
     assert len(calls)==1
     assert '_image_target' not in response.text
+
+
+def test_public_article_projects_valid_english_pair(client, app):
+    paths, day, _ = content(app)
+    path = paths['articles']/f'{day}_articles.json'
+    rows = json.loads(path.read_bytes())
+    rows[0]['english_edition'] = {'title': 'Synthetic headline', 'summary': 'Synthetic summary.'}
+    path.write_text(json.dumps(rows))
+    row = get(client, '/api/public/articles?date='+day).json['articles'][0]
+    assert row['english_edition'] == rows[0]['english_edition']
+    assert '日本語' in row['title']

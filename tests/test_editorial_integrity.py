@@ -294,3 +294,32 @@ def test_body_extraction_prefers_article_with_main_headline_over_other_cards():
     page = """<main><article><h2>La COP31</h2><p>Un autre sujet.</p></article>
     <article><h1>La mémoire du climat</h1><p>Les arbres gardent des traces.</p></article></main>"""
     assert extract_article_text(page) == 'Les arbres gardent des traces.'
+
+
+def test_english_edition_requires_complete_pair_and_preserves_numbers():
+    from modules.fetch.editorial import parse_english_edition
+
+    title, summary = 'Un budget de 1 200 euros', 'Le budget augmente de 2,5 %.'
+    raw = '{"title":"A budget of 1,200 euros","summary":"The budget increases by 2.5%."}'
+    assert parse_english_edition(raw, title, summary) == {
+        'title': 'A budget of 1,200 euros', 'summary': 'The budget increases by 2.5%.',
+    }
+    assert parse_english_edition(raw.replace('2.5', '3.5'), title, summary) is None
+    assert parse_english_edition('{"title":"Missing summary"}', title, summary) is None
+    assert parse_english_edition(raw.replace('A budget', '<think>A budget'), title, summary) is None
+
+
+def test_english_edition_opt_in_uses_one_versioned_translation_call(tmp_path):
+    obj = qualify(make_fetcher(tmp_path))
+    raw = '{"title":"The bridge reopens","summary":"The bridge reopens on Monday."}'
+    with patch('modules.fetch.atlas_fetch.get_language', return_value='fr'), \
+         patch.object(obj, '_generation_client', return_value=None), \
+         patch.object(obj, '_generation_identity', return_value={'model': 'fixture'}), \
+         patch('modules.fetch.atlas_fetch.ollama_call', return_value=raw) as call:
+        assert obj._english_edition('Le pont rouvre', 'Le pont rouvre lundi.') is None
+        call.assert_not_called()
+        obj.editorial['english_edition'] = True
+        assert obj._english_edition('Le pont rouvre', 'Le pont rouvre lundi.')['title'] == 'The bridge reopens'
+        call.assert_called_once()
+        assert call.call_args.kwargs['operation'] == 'translate'
+        assert call.call_args.kwargs['cache_validator'](raw)

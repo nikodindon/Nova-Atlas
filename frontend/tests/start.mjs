@@ -42,6 +42,10 @@ const cats = [
 const articles = [
   {
     title: 'L’observatoire ouvre une nouvelle fenêtre sur le ciel',
+    english_edition: {
+      title: 'The observatory opens a new window on the sky',
+      summary: 'An international team presents an observation programme.',
+    },
     summary:
       'Dans cette dépêche fictive, une équipe internationale présente un programme d’observation. Les données sont publiques et les résultats restent à examiner.',
     category: 'science',

@@ -233,3 +233,14 @@ autoritaire ; modification/vide/corruption invalidés, aucune décision de droit
 cachée. Les droits sont chargés une fois par page et les octets restent vérifiés.
 L'avertissement d'export média read-only indiqué plus haut est corrigé par staging
 sous site/media ; autres limites administratives et frontière audio inchangées.
+
+### Titres et résumés en anglais
+
+`fetch.editorial.english_edition: true` ajoute une paire titre/résumé en anglais
+aux nouveaux articles lorsque la langue éditoriale est le français. News effectue
+un appel local supplémentaire, borné et mis en cache, à partir du texte prêt à
+être publié. Une traduction indisponible ou invalide laisse l'article publiable.
+Le sélecteur V2 choisit la paire complète par navigateur. En son absence, il
+affiche le contenu disponible et indique que la version anglaise manque.
+Les articles existants, les événements, les rapports, les éditions et la radio
+conservent leur langue. Désactiver l'option arrête les nouvelles traductions.
