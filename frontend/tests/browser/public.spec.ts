@@ -222,3 +222,14 @@ test('breaking headlines can be selected from the homepage', async ({ page }) =>
   await headlines.getByRole('button', { name: /Un réseau ferroviaire/ }).click();
   await expect(headlines.getByRole('heading', { name: /Un réseau ferroviaire/ })).toBeVisible();
 });
+
+test('the homepage exposes today’s editions and report before the archives', async ({ page }) => {
+  await page.goto('/');
+  const daily = page.getByRole('region', { name: 'Éditions et rapport du jour' });
+  await expect(daily.getByRole('link', { name: 'Édition du matin' })).toHaveAttribute('href', /\/editions-v2\/\d{8}\/matin$/);
+  await expect(daily.getByRole('link', { name: 'Rapport complet du jour' })).toHaveAttribute('href', /\/rapports\/\d{8}$/);
+  await expect(daily.getByText('Pas encore publié', { exact: true })).toHaveCount(2);
+  await expect(daily.getByRole('link', { name: 'Édition du soir' })).toHaveCount(0);
+  await daily.getByRole('link', { name: 'Édition du matin' }).click();
+  await expect(page).toHaveURL(/\/editions-v2\/\d{8}\/matin$/);
+});

@@ -8,6 +8,10 @@
   let t = $derived(messages(data.locale));
   let breaking = $derived(data.headlines.data?.articles ?? []);
   let latest = $derived(data.articles.data?.articles ?? []);
+  const editions = ['matin', 'midi', 'soir'] as const;
+  let days = $derived(data.archives.data?.days ?? []);
+  let today = $derived(days.find((day) => day.date === data.today));
+  let previousDays = $derived(days.filter((day) => day.date < data.today));
   let other = $derived(breaking.length
     ? latest.filter((article) => !breaking.some((item) => item.id === article.id))
     : latest.slice(4));
@@ -44,6 +48,36 @@
         />{/each}
     </div>
   </section>{/if}
+<section class="daily-editions" aria-labelledby="daily-editions-title">
+  <div class="section-heading">
+    <h2 id="daily-editions-title">{t.todayEditions}</h2>
+    <time datetime={data.today.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')}>
+      {dateLabel(data.today, data.locale)}
+    </time>
+  </div>
+  {#if data.archives.data}
+    <ul class="daily-editions-grid">
+      {#each editions as kind}
+        <li>
+          {#if today?.editions.includes(kind)}
+            <a href={'/editions-v2/' + data.today + '/' + kind}>{t[kind]} <span aria-hidden="true">↗</span></a>
+          {:else}
+            <span>{t[kind]} <small>{t.notPublishedYet}</small></span>
+          {/if}
+        </li>
+      {/each}
+      <li>
+        {#if today?.report}
+          <a href={'/rapports/' + data.today}>{t.fullDailyReport} <span aria-hidden="true">↗</span></a>
+        {:else}
+          <span>{t.fullDailyReport} <small>{t.notPublishedYet}</small></span>
+        {/if}
+      </li>
+    </ul>
+  {:else}
+    <Notice state={data.archives.state} empty={false} locale={data.locale} />
+  {/if}
+</section>
 <div class="section-heading">
   <h2>{t.events}</h2>
   <a href="/evenements">{t.events} ↗</a>
@@ -63,11 +97,11 @@
     />{/each}
 </div>
 <div class="section-heading">
-  <h2>{t.briefing} &amp; {t.archives.toLowerCase()}</h2>
+  <h2>{t.archives}</h2>
   <a href="/archives">{t.archives} ↗</a>
 </div>
 <div class="archive-grid">
-  {#each data.archives.data?.days || [] as day}<article class="archive-card">
+  {#each previousDays as day}<article class="archive-card">
       <p class="eyebrow">NOVA ATLAS / {t.briefing}</p>
       <h2><a href={'/archives/' + day.date}>{dateLabel(day.date, data.locale)}</a></h2>
       <div class="archive-links">
@@ -78,3 +112,37 @@
       </div>
     </article>{/each}
 </div>
+
+<style>
+  .daily-editions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: 0.65rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .daily-editions-grid li > :is(a, span) {
+    display: block;
+    height: 100%;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    font-weight: 650;
+  }
+
+  .daily-editions-grid a {
+    text-decoration-thickness: 1px;
+  }
+
+  .daily-editions-grid small,
+  .daily-editions time {
+    color: var(--muted);
+  }
+
+  .daily-editions-grid small {
+    display: block;
+    margin-top: 0.2rem;
+    font-weight: normal;
+  }
+</style>

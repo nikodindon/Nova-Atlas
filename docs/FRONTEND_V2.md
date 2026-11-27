@@ -260,3 +260,7 @@ la limite de 0,3. Plusieurs domaines ne valent pas confirmation indépendante.
 Sans sujet admissible, la une conserve les articles récents.
 Sur ordinateur, la rotation de vingt secondes peut être mise en pause.
 Sur mobile ou avec la préférence de mouvement réduit, le choix est manuel.
+
+L'accueil présente les trois éditions et le rapport complet de la date civile
+Europe/Paris. Une publication absente est signalée et ne propose aucun lien.
+Les dates précédentes restent disponibles dans les archives.

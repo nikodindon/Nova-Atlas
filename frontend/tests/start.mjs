@@ -292,11 +292,12 @@ const backend = http.createServer(async (req, res) => {
     return;
   }
   if (path === '/api/public/archives') {
-    json(res, {
-      ...base,
-      total: 1,
-      days: [{ date: day, articles: true, report: true, editions: ['matin', 'midi', 'soir'] }],
-    });
+    const today = new Intl.DateTimeFormat('sv-SE', {
+      year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Europe/Paris',
+    }).format(new Date()).replaceAll('-', '');
+    const days = [{ date: day, articles: true, report: true, editions: ['matin', 'midi', 'soir'] }];
+    if (today !== day) days.unshift({ date: today, articles: true, report: true, editions: ['matin'] });
+    json(res, { ...base, total: days.length, days });
     return;
   }
   if (path.startsWith('/api/public/documents/')) {
