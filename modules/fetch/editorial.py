@@ -145,8 +145,39 @@ def terms(value):
     return {w for w in re.findall(r'[^\W\d_]{3,}',fold(value)) if w not in STOP}
 
 
+def title_source_evidence(title, content):
+    """Narrow FR/EN event incompatibility rule, never a lexical score.
+
+    Only short, standalone match reports against explicit municipal-election
+    titles qualify. Long/mixed/negated/quoted reports stay observational.
+    The evidence is a policy signal, not proof of factual truth.
+    """
+    t, b = fold(title), fold(content)
+    election = r"\b(?:election municipale|elections municipales|municipal election|municipal elections)\b"
+    topic = r"\b(?:elect\w*|maire|mayor|scrutin|vote\w*|ballot\w*|candidat\w*|council)\b"
+    sport = r"\b(?:hockey|football|rugby|basketball)\b"
+    action = r"\b(?:remporte|gagne|battu|victoire|wins?|won|defeated)\b"
+    score = r"\b\d{1,2}\s*(?:a|to|[-–])\s*\d{1,2}\b"
+    if not re.search(election,t) or len(b)>600 or not b.strip(): return None
+    if re.search(topic,b) or re.search(sport,t): return None
+    # Explicit reservations and quotation defeat this deliberately narrow rule.
+    if re.search(r'[«»"“”]|\b(?:ne|pas|jamais|aucun|not|never|sans|selon|allegue|claims?)\b',b): return None
+    sentences=[v.strip() for v in re.split(r'[.!?]+',b) if v.strip()]
+    if not sentences or not all(re.search(pattern,sentences[0]) for pattern in (sport,action,score)): return None
+    context=r'\b(?:hockey|football|rugby|basketball|club|match|rencontre|entraineur|equipe|team|coach|player|joueur|sport\w*)\b'
+    if any(not re.search(context,sentence) for sentence in sentences): return None
+    return {'reason':'title_source_event_mismatch',
+            'rule':'municipal_election_vs_standalone_match_v1',
+            'title_event':'municipal_election', 'source_event':'scored_sports_match',
+            'basis':['explicit_election_title','named_sport','result_action','numeric_score',
+                     'short_body_without_election_context'], 'not_a_truth_verdict':True}
+
+
 def review(title,content,summary='',translated=''):
     flags=[];focus=terms(title);body=terms(content)
+    evidence = title_source_evidence(title, content)
+    if evidence:
+        flags.append(evidence['reason'])
     if len(focus)>=4 and len(body)>=8 and len(focus&body)/len(focus)<.25:
         flags.append('low_title_content_overlap')
     if summary:
@@ -166,7 +197,8 @@ def review(title,content,summary='',translated=''):
         if any(len(vals)==len(out_q.get(unit,()))==1 and vals!=out_q[unit] for unit,vals in source_q.items()):
             flags.append('numeric_disagreement')
     return {'version':1,'status':'needs_review' if flags else 'unflagged',
-            'reasons':flags,'factually_verified':False}
+            'reasons':flags,'factually_verified':False,
+            'evidence':[evidence] if evidence else []}
 
 
 def summary_cacheable(raw,version,*,title='',content='',checks='observe'):
