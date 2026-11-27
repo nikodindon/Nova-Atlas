@@ -237,3 +237,20 @@ def test_reload_cannot_generate_with_another_client_than_cache_identity(tmp_path
     assert obj._summarize('Titre synthétique','Une source autorisée pour un essai isolé. '*4,'science')=='Sortie du modèle A.'
     assert old._call_ollama_cli.call_count==1 and new._call_ollama_cli.call_count==0
     assert obj._summary_evidence['model']['name']=='fixture-a'
+
+
+def test_safe_title_policy_can_be_qualified_with_the_legacy_summary_prompt(tmp_path):
+    obj = qualify(make_fetcher(tmp_path), prompt_version='legacy-v1',
+                  title_policy='preserve_unknown')
+    title = 'Crise du logement : des manifestants plantent des tentes à Rome'
+    with patch('modules.core.llm_client.get_language', return_value='français'), \
+         patch('modules.fetch.atlas_fetch.ollama_call') as call:
+        assert obj._translate_title(title, source_language='fr') == title
+        assert obj._translate_title(title) == title
+    call.assert_not_called()
+    assert obj._title_evidence['status'] == 'original_preserved_without_call'
+
+
+def test_gemma_preamble_is_removed_without_changing_editorial_text():
+    text = 'À Aono, 12 passages sont prévus. La note « Résumé : horaires » reste valable.'
+    assert ed.clean_editorial('Résumé :\n\n' + text) == text

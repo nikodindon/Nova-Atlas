@@ -453,8 +453,11 @@ class ArticleFetcher:
 
     def _translate_title(self, title: str, force: bool = False, *, source_language=None) -> str:
         from modules.fetch import editorial as ed
-        policy=ed.options(getattr(self, 'config', {}))
-        if policy['prompt_version']=='legacy-v1':
+        config = getattr(self, 'config', {})
+        policy = ed.options(config)
+        configured_title_policy = config.get('fetch', {}).get('editorial', {})
+        # Allow a title policy to be qualified independently of the summary prompt.
+        if policy['prompt_version'] == 'legacy-v1' and 'title_policy' not in configured_title_policy:
             return self._translate_title_legacy(title, force)
         from modules.core.llm_client import get_language
         lang=get_language()

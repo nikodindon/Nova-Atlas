@@ -232,3 +232,18 @@ reprise, strict/observe, traces/quota/corruption/permissions et non-exposition A
 Aucun benchmark Ornith/Qwen/Gemma ni gain qualitatif réel revendiqué à partir de
 mocks. Aucun modèle gagnant. Voir [SPRINT_16E_FIELD_TEST.md](SPRINT_16E_FIELD_TEST.md)
 pour la procédure opérateur et le rollback, sans exécution automatique.
+
+## Qualifier les titres avec Gemma
+
+Le préambule `Résumé :` est retiré en début de réponse, y compris avec
+`legacy-v1`. Le texte qui suit est conservé. Pour tester les titres tout en
+gardant le prompt de résumé historique, définir explicitement
+`fetch.editorial.title_policy: preserve_unknown`. Le titre est conservé si sa
+langue est celle de publication ou si la source n'a aucune langue déclarée.
+Pour traduire un titre dont la langue est connue, ajouter le domaine exact
+et sa langue dans `fetch.editorial.source_languages`. Retirer la clé explicite
+`title_policy` rétablit le comportement des titres du mode historique.
+
+Pour l'essai, activer éventuellement les traces privées et bornées décrites
+ci-dessus. Comparer les titres et résumés avant et après le nettoyage.
+Les anciens articles ne sont pas réécrits.
