@@ -845,7 +845,9 @@ class ArticleFetcher:
             if not valid_article(article):
                 raise ArticleAttemptError('invalid_article')
         except Exception as exc:
-            if not generation_started and getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+            stop = getattr(self, '_feed_stop_event', None)
+            window_ended = getattr(stop, 'remaining', None) is not None and stop.remaining() <= 0
+            if window_ended or (not generation_started and stop is not None and stop.is_set()):
                 rec.update(status='retryable', attempts=max(0,rec['attempts']-1),reason='collection_cancelled',next_attempt_at=0,updated_at=self._now().timestamp())
                 self._save_state()
             else:
@@ -855,7 +857,7 @@ class ArticleFetcher:
         self._save_state()
         return self._commit_prepared(h, rec, seen, existing_hashes, articles)
 
-    def run(self, *, stop_event=None):
+    def run(self, *, stop_event=None, refresh_feeds=True):
         self._feed_stop_event = stop_event
         self.illustration_candidate = None
         acquired = False
@@ -865,7 +867,7 @@ class ArticleFetcher:
                 self._committed_count = 0
                 self._active_day = self._now().strftime('%Y%m%d')
                 try:
-                    return self._run_cycle()
+                    return self._run_cycle() if refresh_feeds else self._run_cycle(refresh_feeds=False)
                 finally:
                     self._active_day = None
         except BlockingIOError:
@@ -875,7 +877,7 @@ class ArticleFetcher:
             self.log.error('Collection paused: article storage unavailable; originals preserved')
             return self._committed_count if acquired else 0
 
-    def _run_cycle(self):
+    def _run_cycle(self, *, refresh_feeds=True):
         seen = self._load_seen()
         articles = self._load_today()
         self._state = self._load_state()
@@ -895,20 +897,21 @@ class ArticleFetcher:
                   and 'prepared' not in rec):
                 rec.update(status='failed', reason='retention_expired')
         self._save_state()
-        from modules.fetch.ingestion import FeedIngestor
-        self._ingestion = FeedIngestor(self.feed_state_file, config=self._feed_options, clock=self._now)
-        sources = _load_rss_sources()
-        results = self._ingestion.fetch_many([url for feeds in sources.values() for url in feeds],
-            downloader=self._fetch_rss, cancel_event=getattr(self, '_feed_stop_event', None))
-        from collections import Counter
-        self.log.info('Feed results: %s', dict(Counter(result.status for result in results.values())))
-        for category, feeds in sources.items():
-            for feed_url in feeds:
-                result = results[feed_url]
-                for entry in result.entries:
-                    item = entry.legacy()
-                    if self._hash(item['link']) not in existing_hashes:
-                        self._record(item, category)
+        if refresh_feeds:
+            from modules.fetch.ingestion import FeedIngestor
+            self._ingestion = FeedIngestor(self.feed_state_file, config=self._feed_options, clock=self._now)
+            sources = _load_rss_sources()
+            results = self._ingestion.fetch_many([url for feeds in sources.values() for url in feeds],
+                downloader=self._fetch_rss, cancel_event=getattr(self, '_feed_stop_event', None))
+            from collections import Counter
+            self.log.info('Feed results: %s', dict(Counter(result.status for result in results.values())))
+            for category, feeds in sources.items():
+                for feed_url in feeds:
+                    result = results[feed_url]
+                    for entry in result.entries:
+                        item = entry.legacy()
+                        if self._hash(item['link']) not in existing_hashes:
+                            self._record(item, category)
         if self.retry_summaries:
             for item in articles:
                 if not valid_article(item) and item.get('link') and item.get('title'):
@@ -924,10 +927,12 @@ class ArticleFetcher:
                     'prepared' in rec or rec['next_attempt_at'] <= now.timestamp()):
                 queue = queues.setdefault(rec['category'], [])
                 queue.append((rec['item'], rec['category']))
+        stop = getattr(self, '_feed_stop_event', None)
+        remaining = getattr(stop, 'remaining', None)
         queues = {
             category: diversify_sources(
                 queue, lambda entry: self._source_host(entry[0]),
-                limit=self.max_per_category or None,
+                limit=None if remaining is not None else self.max_per_category or None,
             )
             for category, queue in queues.items()
         }
@@ -935,10 +940,11 @@ class ArticleFetcher:
         count = 0
         previous_source = None
         while any(queues.values()):
-            if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+            if (stop is not None and stop.is_set()) or (remaining is not None and remaining() < 60):
                 break
             for queue in queues.values():
-                if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():break
+                if (stop is not None and stop.is_set()) or (remaining is not None and remaining() < 60):
+                    break
                 if queue:
                     index = next((i for i, (item, _) in enumerate(queue)
                                   if self._source_host(item) != previous_source), 0)
@@ -946,6 +952,8 @@ class ArticleFetcher:
                     previous_source = self._source_host(item)
                     count += bool(self._process_item(item, category, seen, existing_hashes, articles))
         self._save_seen(seen)
+        if remaining is not None and remaining() < 60 and any(queues.values()):
+            self.log.info('Pause News avant Radio : %d candidats reportés', sum(map(len, queues.values())))
         self.log.info('Article cycle completed: %d publications or reconciliations', count)
         return count
 

@@ -335,3 +335,24 @@ def test_source_diversity_applies_before_collection_category_cap():
         ('verge', 1), ('ars', 4), ('verge', 2),
     ]
     assert diversify_sources(rows[:3], lambda r: r[0]) == rows[:3]
+
+
+def test_backlog_pass_does_not_download_feeds_and_can_exceed_category_cap(tmp_path, monkeypatch):
+    from modules.core.scheduler import NewsWindow
+    from datetime import datetime
+    from threading import Event
+
+    fetcher = make_fetcher(tmp_path)
+    fetcher.max_per_category = 1
+    fetcher._state = fetcher._load_state()
+    fetcher._feed_stop_event = NewsWindow(Event(), datetime(2026, 11, 27, 22, 5))
+    for i in range(3):
+        fetcher._record({'title': f'Article {i}', 'link': f'https://agency{i}.invalid/article',
+                         'pub_date': ''}, 'science')
+    fetcher._save_state()
+    process = Mock(side_effect=[False, True, True])
+    monkeypatch.setattr(fetcher, '_process_item', process)
+    monkeypatch.setattr('modules.fetch.atlas_fetch._load_rss_sources',
+                        Mock(side_effect=AssertionError('Unexpected download')))
+    assert fetcher._run_cycle(refresh_feeds=False) == 2
+    assert process.call_count == 3

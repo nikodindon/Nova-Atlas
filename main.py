@@ -159,13 +159,23 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
         except (ValueError, OSError):
             log.warning("Illustration Commons indisponible pour ce cycle")
 
-    def fetch_and_rebuild():
+    def collect(refresh_feeds=True):
+        if config.get('fetch', {}).get('drain_backlog') is True:
+            from modules.core.scheduler import NewsWindow
+            window = NewsWindow(stop_event, datetime.now())
+            if window.is_set():
+                return 0
+            return fetcher.run(stop_event=window, refresh_feeds=refresh_feeds)
+        return fetcher.run(stop_event=stop_event)
+
+    def fetch_and_rebuild(refresh_feeds=True):
         try:
-            new_count = fetcher.run(stop_event=stop_event)
+            new_count = collect(refresh_feeds)
             if new_count and new_count > 0:
                 generate_static_site(config, full=False)
                 log.info(f"[WEB] Site régénéré ({new_count} nouveaux articles)")
-                illustrate_new_article()
+                if refresh_feeds:
+                    illustrate_new_article()
         except Exception as e:
             log.error(f"Erreur fetch : {e}", exc_info=True)
 
@@ -203,14 +213,20 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
     def initial_fetch_and_rebuild():
         # Preserve the startup rebuild even when the initial fetch returns zero articles.
         try:
-            fetcher.run(stop_event=stop_event)
+            count = collect()
             generate_static_site(config, full=False)
-            illustrate_new_article()
+            if count:
+                illustrate_new_article()
         except Exception as e:
             log.error(f"Fetch initial : {e}")
 
+    def plan_news(now):
+        if config.get('fetch', {}).get('drain_backlog') is True:
+            return news_tasks(now, post_hours, drain_backlog=True)
+        return news_tasks(now, post_hours)
+
     run_loop(
-        lambda now: news_tasks(now, post_hours),
+        plan_news,
         {'fetch': fetch_and_rebuild, 'report': rapport_and_rebuild,
          'edition': edition_and_rebuild, 'posts': posts_job,
          'rebuild': lambda: generate_static_site(config, full=True)},

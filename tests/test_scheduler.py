@@ -626,3 +626,29 @@ def test_reload_watches_configured_data_directory(monkeypatch, tmp_path):
     loader.assert_called_once_with('config/config.yaml')
     assert not flag.exists()
     assert sum(name.startswith('posts') for name in started) == 1
+
+
+def test_backlog_slots_keep_rss_schedule_and_keep_clear_of_radio():
+    now = datetime(2026, 11, 27, 22, 0)
+    fetches = [
+        (minute, task.args)
+        for minute in range(30)
+        for task in news_tasks(now.replace(minute=minute), (), drain_backlog=True)
+        if task.group == 'fetch'
+    ]
+    assert fetches == [(0, ()), (1, ()), (5, (False,)), (10, (False,)),
+                       (15, (False,)), (20, (False,))]
+
+
+def test_news_window_reserves_time_before_radio(monkeypatch):
+    from modules.core import scheduler
+
+    clock = Mock(return_value=100.0)
+    monkeypatch.setattr(scheduler.time, 'monotonic', clock)
+    stop = threading.Event()
+    window = scheduler.NewsWindow(stop, datetime(2026, 11, 27, 22, 52, 10))
+    assert window.remaining() == 50
+    clock.return_value = 150
+    assert window.is_set()
+    assert scheduler.NewsWindow(stop, datetime(2026, 11, 27, 22, 55)).is_set()
+    assert scheduler.NewsWindow(stop, datetime(2026, 11, 27, 23, 0)).remaining() == 23 * 60

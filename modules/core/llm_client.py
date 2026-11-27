@@ -313,6 +313,11 @@ class OllamaClient:
                 if cached is not None and cache_accepts(cached, cache_validator):
                     self.log.info('LLM cache hit after wait caller=%s', caller)
                     return cached
+            remaining = getattr(cancel_event, 'remaining', None)
+            if remaining is not None:
+                timeout = min(timeout, remaining())
+                if timeout <= 0:
+                    return ''
             if self.provider == "llama-server":
                 self._request_context.task = task
                 try:

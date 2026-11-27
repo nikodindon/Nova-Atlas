@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import logging
 import threading
+import time
 
 FETCH_HOURS = list(range(24))
 REPORT_HOUR, REPORT_MIN = 23, 0
@@ -37,12 +38,32 @@ def initial_fetch(now):
     return DueTask('fetch', civil_slot(now, (now.minute // 30) * 30))
 
 
-def news_tasks(now, post_hours):
+
+class NewsWindow:
+    """Drain between half-hour slots, leaving two minutes before radio admission."""
+
+    def __init__(self, stop, now):
+        self.stop = stop
+        seconds = (23 - now.minute % 30) * 60 - now.second - now.microsecond / 1_000_000
+        self.deadline = time.monotonic() + max(0, seconds)
+
+    def remaining(self):
+        return max(0, self.deadline - time.monotonic())
+
+    def is_set(self):
+        return self.stop.is_set() or self.remaining() <= 0
+
+    def wait(self, seconds):
+        return self.stop.wait(min(seconds, self.remaining())) or self.is_set()
+
+def news_tasks(now, post_hours, *, drain_backlog=False):
     """Historical windows: fetch 2 min, report/build/editions 5 min, posts 3 min."""
     day = now.strftime('%Y%m%d')
     tasks = []
     if now.hour in FETCH_HOURS and now.minute % 30 < 2:
         tasks.append(initial_fetch(now))
+    elif drain_backlog and now.minute % 30 in (5, 10, 15, 20):
+        tasks.append(DueTask('fetch', civil_slot(now, now.minute), (False,)))
     if now.hour == REPORT_HOUR and REPORT_MIN <= now.minute < REPORT_MIN + 5:
         tasks.append(DueTask('report', civil_slot(now, REPORT_MIN), (day,)))
     if now.hour == BUILD_HOUR and BUILD_MIN <= now.minute < BUILD_MIN + 5:

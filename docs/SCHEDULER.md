@@ -142,3 +142,18 @@ Un job connu n'est pas régénéré après restart. Une génération active cons
 créneau suivant avec motif ; aucune nouvelle boucle Flask. Les jobs/passes ambigus
 exigent une reprise explicite d'une publication existante, pas un rejeu automatique.
 Voir RADIO_STUDIO.md pour outbox, états, limites et rollback.
+
+### File de résumés entre les bulletins
+
+Avec `fetch.drain_backlog: true`, les téléchargements RSS restent prévus
+aux demi-heures. News essaie aussi de reprendre sa file locale toutes les
+cinq minutes jusqu'à :20 et :50. Une tâche en cours garde l'exclusivité.
+Les catégories et sources continuent d'alterner et le plafond de sélection
+par catégorie cède la place à la fenêtre horaire. Les reprises gardent
+leurs plafonds et délais habituels.
+
+La fenêtre News se ferme à :23 et :53, deux minutes avant l'admission radio.
+Aucun nouvel article ne démarre dans la dernière minute de la fenêtre.
+Le verrou local et les appels de génération tiennent compte du temps restant.
+Sur un serveur LLM externe au processus, le délai client ne constitue pas
+une preuve d'arrêt immédiat de l'inférence côté serveur.
