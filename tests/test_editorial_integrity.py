@@ -356,3 +356,17 @@ def test_backlog_pass_does_not_download_feeds_and_can_exceed_category_cap(tmp_pa
                         Mock(side_effect=AssertionError('Unexpected download')))
     assert fetcher._run_cycle(refresh_feeds=False) == 2
     assert process.call_count == 3
+
+
+def test_language_hint_can_distinguish_bilingual_publisher_sections():
+    hints = ed.options({'fetch': {'editorial': {'source_languages': {
+        'www.france24.com/fr': 'fr',
+        'www.france24.com/en': 'en',
+        'other.example': 'en',
+    }}}})['source_languages']
+    english = ed.source_language('https://www.france24.com/en/video/example', hints)
+    french = ed.source_language('https://www.france24.com/fr/video/exemple', hints)
+    assert ed.translate_needed('Headline', 'fr', english, 'preserve_unknown')
+    assert not ed.translate_needed('Titre', 'fr', french, 'preserve_unknown')
+    assert ed.source_language('https://www.france24.com/enough/?path=/en/', hints) is None
+    assert ed.source_language('https://other.example/item', hints) == 'en'

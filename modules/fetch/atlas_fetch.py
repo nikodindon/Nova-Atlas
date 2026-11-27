@@ -812,7 +812,12 @@ class ArticleFetcher:
                 raise ArticleAttemptError('invalid_summary')
             try:
                 stopping = getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set()
-                title = item['title'] if stopping else (self._translate_title(item['title'], force=False, source_language=getattr(self,'editorial',{}).get('source_languages',{}).get(urlparse(item['link']).hostname)) or item['title'])
+                from modules.fetch.editorial import source_language
+                hints = getattr(self, 'editorial', {}).get('source_languages', {})
+                hint = source_language(item['link'], hints)
+                title = item['title'] if stopping else (
+                    self._translate_title(item['title'], force=False, source_language=hint) or item['title']
+                )
             except Exception:
                 title = item['title']
             from modules.fetch.editorial import review
