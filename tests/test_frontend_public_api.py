@@ -139,3 +139,24 @@ def test_live_source_order_avoids_repeats_across_pages(client, app):
     assert sources_at('order=varied&per_page=2&page=2') == ['alpha', 'gamma']
     assert sources_at('order=varied&per_page=2&page=3') == ['alpha']
     assert get(client, '/api/public/articles?order=unknown').status_code == 400
+
+
+def test_live_prioritizes_recently_processed_article_with_old_source_date(client, app):
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    paths, day, _ = content(app)
+    now = datetime.now(timezone.utc)
+    recent = article(1, when=now, source='first.example')
+    old = article(2, when=now-timedelta(hours=11), source='second.example')
+    old['timestamp'] = (now+timedelta(minutes=1)).astimezone(
+        ZoneInfo('Europe/Paris')
+    ).replace(tzinfo=None).isoformat()
+    recent['timestamp'] = now.isoformat()
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps([recent, old]))
+    response = get(client, f'/api/public/articles?date={day}&order=varied&per_page=1')
+    row = response.json['articles'][0]
+    assert row['hash'] == old['hash']
+    assert row['published_raw'] == old['pub_date']
+    normal = get(client, f'/api/public/articles?date={day}&per_page=1')
+    assert normal.json['articles'][0]['hash'] == recent['hash']

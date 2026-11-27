@@ -32,6 +32,20 @@ def date(value):
     return value
 
 
+
+def live_article_time(row):
+    """Sort historical Paris wall times without altering the public dates."""
+    value = row['observed_at'] or row['observed_raw'] or row['published_at']
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        stamp = datetime.fromisoformat(value)
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=ZoneInfo('Europe/Paris'))
+        return stamp.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
+        return datetime.min.replace(tzinfo=timezone.utc)
+
 def document_nodes(text):
     # Same established Markdown/nh3 policy, projected as inert typed nodes, never a page scrape.
     soup=BeautifulSoup(str(render_markdown(text)),'html.parser');count=0
@@ -123,7 +137,10 @@ def install_public_api(app,paths,config):
         if order not in ('chronological', 'varied'):
             raise PublicReadError('invalid_article_order')
         if order == 'varied':
-            rows = diversify_sources(rows, lambda row: row['source'].lower().removeprefix('www.'))
+            rows.sort(key=live_article_time, reverse=True)
+            rows = diversify_sources(
+                rows, lambda row: row['source'].lower().removeprefix('www.'), prefer_first=True,
+            )
         selected=rows[(page-1)*size:page*size]
         targets=[row.pop('_image_target') for row in selected]
         page_rows=[{**row,'image':image} for row,image in zip(selected,store.public_many(targets))]

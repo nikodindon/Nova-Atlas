@@ -246,6 +246,7 @@ Les articles existants, les événements, les rapports, les éditions et la radi
 conservent leur langue. Désactiver l'option arrête les nouvelles traductions.
 
 Le Direct sans filtre demande `order=varied` à l'API des articles. L'ordre est
-calculé avant pagination, conserve la chronologie au sein de chaque source et
+calculé avant pagination. Il place le dernier article traité en tête, conserve
+l'ordre de traitement au sein de chaque source et
 évite les répétitions adjacentes lorsque les sources disponibles le permettent.
 Les filtres par catégorie et les archives utilisent l'ordre chronologique.
