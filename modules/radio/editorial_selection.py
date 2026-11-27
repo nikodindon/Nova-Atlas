@@ -63,3 +63,19 @@ def load_review_records(data_dir):
         return records if isinstance(records, dict) else {}
     except (OSError, ValueError):
         return {}
+
+
+def wait_for_airtime(slot, stop_event, *, clock=None):
+    """A scheduled publication can be queued once its Paris civil slot begins."""
+    if slot is None:
+        return not stop_event.is_set()
+    clock = clock or (lambda: datetime.now(ZONE))
+    now = clock()
+    target = datetime.fromisoformat(slot).replace(tzinfo=ZONE, fold=now.fold)
+    while not stop_event.is_set():
+        delay = target.timestamp() - clock().timestamp()
+        if delay <= 0:
+            return True
+        if stop_event.wait(min(delay, 5)):
+            return False
+    return False

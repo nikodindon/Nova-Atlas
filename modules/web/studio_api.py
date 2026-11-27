@@ -60,6 +60,15 @@ def install_studio_api(app,paths,config):
         for item in data['calendar']:
             item['status']=next((row['status'] for row in data['jobs'] if row['kind']=='bulletin' and row['slot']==item['slot']),'planned')
         data['next_slot']=next((v for v in data['calendar'] if datetime.fromisoformat(v['target_at'])>datetime.now(ZONE)),None)
+        sent = [
+            (row['channels']['primary']['local_play_finished_at'], row['slot'])
+            for row in data['jobs']
+            if row['kind']=='bulletin'
+            and row.get('channels',{}).get('primary',{}).get('status')=='locally_sent'
+            and row['channels']['primary'].get('local_play_finished_at')
+        ]
+        latest = max(sent, default=None)
+        data['last_primary_local_play'] = {'at':latest[0],'slot':latest[1]} if latest else None
         for info in data['channels'].values():
             try:age=max(0,journal.clock()-datetime.fromisoformat(info['observed_at']).timestamp())
             except (ValueError,KeyError):age=None

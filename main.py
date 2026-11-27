@@ -264,7 +264,7 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
         except (ValueError,OSError):log.error('Radio Studio journal unavailable; new generations disabled')
         studio=RadioStudio(journal,streamer,android_streamer,stop_event)
     builder = BulletinGenerator(config, radio_paths)
-    from modules.radio.editorial_selection import ZONE as RADIO_ZONE, load_review_records, select_for_radio
+    from modules.radio.editorial_selection import ZONE as RADIO_ZONE, load_review_records, select_for_radio, wait_for_airtime
 
     def generate_bulletin(slot=None,identity=None):
         """Génère un bulletin avec les articles des 30 dernières minutes."""
@@ -288,13 +288,13 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
             log.info("Sélection radio : %s (%d articles)", selection, len(articles))
             options = {"recap": True} if selection == "recap" else {}
             if studio:
-                studio.generate(slot, articles, builder, identity, **options)
+                studio.generate(slot, articles, builder, identity, defer_airtime=True, **options)
                 return
             if not articles:
                 log.info("Bulletin sauté : pas assez de publications récentes vérifiables")
                 return
             path = builder.build(articles, **options)
-            if path:
+            if path and wait_for_airtime(slot, stop_event):
                 # Cache Android before the primary can consume/delete the MP3.
                 android_streamer.enqueue_bulletin(path)
                 streamer.enqueue_bulletin(path)
@@ -339,7 +339,8 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
                 except (ValueError,OSError):continue
                 if row and row['status']=='admitted':admitted.append(DueTask(task.group,task.slot,(task.slot,row['id'])))
             return admitted
-        return tasks
+        from modules.core.scheduler import DueTask
+        return [DueTask(task.group, task.slot, (task.slot,)) for task in tasks]
 
     previous_refresh=refresh_radio_schedule
     def refresh_with_studio(now):
