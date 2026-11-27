@@ -321,3 +321,43 @@ def test_commons_search_auto_approves_only_verified_images(tmp_path, monkeypatch
     service.store.decide(identity, 'disable', expected=version)
     service.search('Synthetic', TARGET)
     assert service.store.public_for(TARGET)['fallback']
+
+
+def test_background_commons_only_keeps_relevant_verified_candidate(tmp_path, monkeypatch):
+    raw = image()
+    # The response includes unrelated results before the relevant result.
+    relevant = json.loads(payload(raw))['query']['pages'][0]
+    relevant['title'] = 'File:Valmer hockey arena.png'
+    irrelevant = json.loads(payload(raw))['query']['pages'][0]
+    responses = [
+        FakeResponse(body=json.dumps({'query': {'pages': [irrelevant, relevant]}}).encode()),
+        FakeResponse(body=raw),
+    ]
+    client, _, _ = client_for(responses)
+    service = MediaService(
+        tmp_path/'a', tmp_path/'d',
+        {'mode': 'approved_only', 'commons_enabled': True, 'commons_auto_approve': True,
+         'commons_background_search': True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw), runner=prepare,
+    )
+    monkeypatch.setattr('modules.media.service.target_for_article', lambda _: TARGET)
+    service.illustrate_new_article({'title': 'Valmer hockey championship'})
+    assert not service.store.public_for(TARGET)['fallback']
+    row, = service.store.load()[0]['records'].values()
+    assert row['candidate']['title'] == 'File:Valmer hockey arena.png'
+
+
+def test_full_manifest_makes_room_only_from_unreviewed_references(store):
+    from dataclasses import replace
+    raw = image()
+    protected = store.add(candidate(raw), TARGET, trusted=True)
+    version = store.load()[1]
+    store.decide(protected, 'reject', expected=version)
+    reference = {**TARGET, 'kind': 'article_reference'}
+    for number in range(127):
+        store.add(replace(candidate(raw), url=f'https://example.org/images/{number}.png'), reference)
+    new = store.add(candidate(raw), {**TARGET, 'id': 'e' * 32}, trusted=True)
+    rows = store.load()[0]['records']
+    assert len(rows) == 128
+    assert rows[protected]['status'] == 'rejected'
+    assert rows[new]['status'] == 'rights_verified'

@@ -43,6 +43,10 @@ def decode_image(raw):
     except (ValueError,OSError,subprocess.TimeoutExpired):raise MediaError('image_decode_refused') from None
 
 
+
+def same_target(left, right):
+    return all(left.get(key) == right.get(key) for key in ('kind', 'id', 'fingerprint'))
+
 def target_for_article(article):
     from modules.editorial.events import Coverage
     c=Coverage.from_article(article)
@@ -130,7 +134,20 @@ class MediaStore:
             if old:
                 if len(old['history'])>=8:raise MediaError('version_history_full')
                 history=old['history']+[{'resource_version':old['resource_version'],'candidate':old['candidate'],'rights':old['rights'],'artifact':old.get('artifact'),'approval':old.get('approval')}]
-            else:history=[]
+            else:
+                history=[]
+                if trusted and rights['status'] == 'rights_verified' and len(state['records']) >= 128:
+                    reviewed = {entry['candidate'] for entry in state['audit']}
+                    disposable = [
+                        row for row in state['records'].values()
+                        if row['status'] == 'rights_unknown'
+                        and row['target']['kind'] == 'article_reference'
+                        and not (row['artifact'] or row['approval'] or row['history'])
+                        and row['id'] not in reviewed
+                    ]
+                    if disposable:
+                        oldest = min(disposable, key=lambda row: (row['created_at'], row['id']))
+                        del state['records'][oldest['id']]
             state['records'][identity]={'id':identity,'candidate':candidate,'target':target,'resource_version':version,'rights':rights,'status':rights['status'],
                 'caption':old.get('caption','Illustration générique') if old else 'Illustration générique','proof_trusted':trusted,'nature':'illustration','checked_at':self.clock(),'created_at':old.get('created_at',self.clock()) if old else self.clock(),'artifact':None,'approval':None,'history':history,'error':None}
             return identity
@@ -212,7 +229,7 @@ class MediaStore:
         if any(entry['candidate'] == row['id'] and entry['action'] in ('reject', 'disable')
                for entry in state['audit']):
             return False
-        return not any(other['target'] == row['target'] and other['status'] == 'approved'
+        return not any(same_target(other['target'], row['target']) and other['status'] == 'approved'
                        for other in state['records'].values())
 
     def auto_approve(self, identity, *, expected):

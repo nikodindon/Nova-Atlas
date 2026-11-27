@@ -1,11 +1,14 @@
-"""Explicit bounded admin network operations; collection hooks never fetch images."""
+"""Bounded Commons searches for editorial review and newly published articles."""
 from contextlib import contextmanager
 from datetime import datetime,timezone
 import os
+import re
 import threading
 import time
-from modules.media.store import MediaStore,MediaError,MediaConflict,target_for_article,target_for_event
+from modules.media.store import MediaStore,MediaError,MediaConflict,target_for_article,target_for_event,same_target
 from modules.media.commons import Commons
+from modules.media.rights import assess
+from modules.fetch.editorial import terms
 from modules.media.candidates import ImageCandidate,html_images
 from modules.editorial.index import EventIndex,lock
 from modules.fetch.ingestion import FeedIngestor,key
@@ -75,9 +78,35 @@ class MediaService:
 
     def search(self,term,target):
         if self.config.get('commons_enabled') is not True:raise MediaError('commons_not_configured')
-        target=self.target(target)
+        return self._search(term, self.target(target))
+
+    def illustrate_new_article(self, article):
+        if (self.store.mode != 'approved_only'
+                or not all(self.config.get(key) is True for key in
+                           ('commons_background_search', 'commons_auto_approve', 'commons_enabled'))):
+            return
+        target = target_for_article(article)
+        state, _ = self.store.load()
+        if any(same_target(row['target'], target) and row['status'] in ('approved', 'rejected')
+               for row in state['records'].values()):
+            return
+        # Keep words only so headline punctuation never becomes search syntax.
+        title = article.get('title_original') or article['title']
+        term = ' '.join(re.findall(r'[^\W_]+', title))[:120].strip()
+        if len(terms(term)) < 2:
+            return
+        return self._search(term, target, automatic=True)
+
+    def _search(self, term, target, *, automatic=False):
         with self.operation():
             candidates=Commons(self.get).fetch(term=term)
+            if automatic:
+                subject = terms(term)
+                candidates = [
+                    candidate for candidate in candidates
+                    if len(subject & terms(candidate.title.replace('File:', '').rsplit('.', 1)[0])) >= 2
+                    and assess(candidate.proof, trusted_commons=True)['status'] == 'rights_verified'
+                ][:1]
             identities = [self.store.add(c,target,trusted=True) for c in candidates]
         auto_approve = self.config.get('commons_auto_approve') is True and self.store.mode == 'approved_only'
         if auto_approve or self.config.get('commons_auto_prepare') is True:

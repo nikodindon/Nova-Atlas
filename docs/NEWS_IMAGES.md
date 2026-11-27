@@ -196,8 +196,8 @@ couverture de presse ni un taux de conformité juridique. `peak_rss_kib` mesure
 le maximum du worker Linux, pas la consommation totale de la stack.
 
 Limites assumées : pas de licence universelle, pas de photo documentaire automatique,
-pas de trusted_illustrations, pas de revue juridique automatisée, pas de recherche
-Commons en arrière-plan, pas de refresh réseau public, pas de job persistant après
+pas de trusted_illustrations, pas de revue juridique automatisée, recherche
+Commons en arrière-plan en option, pas de refresh réseau public, pas de job persistant après
 crash. Les candidats/artefacts réussis persistent ; relance manuelle sûre.
 
 En mode Commons, `media.commons_auto_prepare: true` prépare au plus une
@@ -215,3 +215,17 @@ de la revue manuelle. Une illustration déjà approuvée garde sa place et un
 candidat retiré ou refusé reste exclu de l’approbation automatique. Remettre
 l’option à `false` arrête les nouvelles approbations automatiques. Le bouton
 **Désactiver** retire une illustration déjà approuvée.
+
+`media.commons_background_search: true`, associé à `commons_enabled: true`,
+`commons_auto_approve: true` et `mode: approved_only`, lance une recherche
+Commons après chaque cycle News ayant publié un article. Le quota est d'un
+article et d'une miniature par cycle. Le titre d'origine sert de requête.
+Deux termes communs au moins avec le nom du résultat sont exigés, en plus
+des droits vérifiés. Ce filtre est conservateur et peut laisser le visuel
+de remplacement. La recherche intervient après la publication, sans appel LLM.
+Elle utilise le quota réseau média partagé et s'applique aux nouvelles
+publications uniquement.
+
+Quand le registre est plein, l'ajout d'un candidat Commons vérifié peut
+écarter une référence aux droits inconnus, sans miniature ni décision.
+Les images approuvées et les décisions sont conservées.

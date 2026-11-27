@@ -148,12 +148,24 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
             except Exception as e:
                 log.error(f"Erreur reload config : {e}", exc_info=True)
 
+    def illustrate_new_article():
+        media = config.get('media', {})
+        article = getattr(fetcher, 'illustration_candidate', None)
+        if not article or stop_event.is_set() or media.get('commons_background_search') is not True:
+            return
+        from modules.media.service import MediaService
+        try:
+            MediaService(fetcher.data_dir, fetcher.seen_file.parent, media).illustrate_new_article(article)
+        except (ValueError, OSError):
+            log.warning("Illustration Commons indisponible pour ce cycle")
+
     def fetch_and_rebuild():
         try:
             new_count = fetcher.run(stop_event=stop_event)
             if new_count and new_count > 0:
                 generate_static_site(config, full=False)
                 log.info(f"[WEB] Site régénéré ({new_count} nouveaux articles)")
+                illustrate_new_article()
         except Exception as e:
             log.error(f"Erreur fetch : {e}", exc_info=True)
 
@@ -193,6 +205,7 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
         try:
             fetcher.run(stop_event=stop_event)
             generate_static_site(config, full=False)
+            illustrate_new_article()
         except Exception as e:
             log.error(f"Fetch initial : {e}")
 
