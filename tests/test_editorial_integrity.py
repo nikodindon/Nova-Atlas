@@ -304,6 +304,8 @@ def test_english_edition_requires_complete_pair_and_preserves_numbers():
     assert parse_english_edition(raw, title, summary) == {
         'title': 'A budget of 1,200 euros', 'summary': 'The budget increases by 2.5%.',
     }
+    assert parse_english_edition('```json\n' + raw + '\n```', title, summary) == parse_english_edition(raw, title, summary)
+    assert parse_english_edition('Commentary\n```json\n' + raw + '\n```', title, summary) is None
     assert parse_english_edition(raw.replace('2.5', '3.5'), title, summary) is None
     assert parse_english_edition('{"title":"Missing summary"}', title, summary) is None
     assert parse_english_edition(raw.replace('A budget', '<think>A budget'), title, summary) is None

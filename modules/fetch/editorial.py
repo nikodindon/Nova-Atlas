@@ -81,8 +81,10 @@ def _edition_numbers(text):
 def parse_english_edition(raw, title, summary):
     if not isinstance(raw, str) or len(raw) > 36000:
         return None
+    fence = re.fullmatch(r'\s*```(?:json)?[ \t]*\r?\n(.*?)\r?\n```\s*', raw, re.IGNORECASE | re.DOTALL)
+    payload = fence.group(1) if fence else raw
     try:
-        translated = english_edition_fields(json.loads(raw))
+        translated = english_edition_fields(json.loads(payload))
     except (ValueError, RecursionError):
         return None
     if not translated:
