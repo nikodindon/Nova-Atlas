@@ -193,3 +193,19 @@ def test_qualification_image_catalog_requires_admin_session(client):
     response = get(client, path)
     assert response.status_code == 200 and response.json['images'] == {}
     assert response.headers['Cache-Control'] == 'no-store'
+
+
+@pytest.mark.parametrize('kind,title', [
+    ('matin', '🌅 Édition du Matin'), ('midi', '☀️ Édition de Midi'), ('soir', '🌙 Édition du Soir'),
+])
+def test_edition_projection_does_not_repeat_its_heading_or_date(client, app, kind, title):
+    path = app.extensions['atlas_paths']['editions']/f'20261127_{kind}.md'
+    original = f'# {title} — vendredi 27 novembre 2026\n\nTexte de l’édition.\n\n## À retenir\n'
+    path.write_text(original)
+    result = get(client, f'/api/public/documents/20261127/{kind}').json
+    assert result['title'] == title
+    assert result['date'] == '20261127'
+    body = json.dumps(result['nodes'], ensure_ascii=False)
+    assert title not in body and 'vendredi 27 novembre 2026' not in body
+    assert 'Texte de l’édition.' in body and 'À retenir' in body
+    assert path.read_text() == original

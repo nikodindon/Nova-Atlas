@@ -216,8 +216,17 @@ def install_public_api(app,paths,config):
         directory=paths['reports'] if kind=='report' else paths['editions']
         raw=regular(directory/f'{day}_{kind}.md',512*1024)
         if raw is None:return jsonify(status='unavailable',reason='document_not_found'),404
-        text=raw.decode('utf-8');title=next((line.lstrip('# ').strip() for line in text.splitlines() if line.startswith('# ')),kind)[:300]
-        return respond(date=day,kind=kind,title=title,nodes=document_nodes(text))
+        text = raw.decode('utf-8')
+        title = next((line[2:].strip() for line in text.splitlines() if line.startswith('# ')), kind)
+        if kind != 'report':
+            from modules.utils.helpers import format_date_fr
+
+            first, _, body = text.lstrip('\ufeff\r\n').partition('\n')
+            if first.startswith('# '):
+                title = first[2:].strip()
+                text = body
+                title = title.removesuffix(' — ' + format_date_fr(datetime.strptime(day, '%Y%m%d')))
+        return respond(date=day,kind=kind,title=title[:300],nodes=document_nodes(text))
     def event_rows():
         data=EventIndex(paths['articles'],paths['data']).load()
         return (data or {}).get('events',[])
