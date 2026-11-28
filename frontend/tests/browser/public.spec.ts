@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
 test.beforeEach(async ({ page, request }) => {
   await request.get('http://127.0.0.1:18055/__test/reset');
@@ -242,14 +243,14 @@ test('a prepared qualification image appears on the article without manual appro
       caption: 'Illustration de qualification', attribution: null,
     } } },
   }));
-  await page.route('**' + candidate, async (route) => {
-    const response = await route.fetch({ url: new URL('/assets/news-fallback.svg', route.request().url()).href });
-    await route.fulfill({ response });
-  });
+  await page.route('**' + candidate, (route) => route.fulfill({
+    contentType: 'image/jpeg', body: readFileSync(new URL('../fixture.jpg', import.meta.url)),
+  }));
   await page.goto('/direct');
   const illustration = page.getByRole('img', { name: 'Illustration de qualification' });
   await expect(illustration).toHaveAttribute('src', candidate);
   await expect(illustration).toBeVisible();
+  await expect.poll(() => illustration.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
 });
 
 test('the homepage sidebar keeps recent summaries tucked away', async ({ page }) => {
