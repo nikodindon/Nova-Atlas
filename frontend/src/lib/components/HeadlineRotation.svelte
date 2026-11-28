@@ -1,9 +1,10 @@
 <script lang="ts">
   import ArticleCard from './ArticleCard.svelte';
+  import HeadlineTeasers from './HeadlineTeasers.svelte';
   import { messages } from '@lib/i18n';
   import type { Article, Locale } from '@lib/types';
 
-  let { articles, locale }: { articles: Article[]; locale: Locale } = $props();
+  let { articles, teasers, locale }: { articles: Article[]; teasers: Article[]; locale: Locale } = $props();
   let t = $derived(messages(locale));
   let current = $state(0);
   let paused = $state(false);
@@ -44,15 +45,16 @@
     {/if}
   </div>
   <div class="headlines">
-    {#key articles[active].id}<ArticleCard article={articles[active]} {locale} lead compact />{/key}
-    {#if articles.length > 1}
+    {#key articles[active].id}<ArticleCard article={articles[active]} {locale} lead />{/key}
+    {#if articles.length > 1 || teasers.length}
       <div class="headlines-side">
-        {#each articles as article, index (article.id)}
+        {#each articles.length > 1 ? articles : [] as article, index (article.id)}
           <button class="headline-option" type="button" aria-pressed={index === active}
             onclick={() => { current = index; paused = true; }}>
             {locale === 'en' ? article.english_edition?.title ?? article.title : article.title}
           </button>
         {/each}
+        <HeadlineTeasers articles={teasers} {locale} />
       </div>
     {/if}
   </div>

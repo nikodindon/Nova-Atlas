@@ -251,3 +251,13 @@ test('a prepared qualification image appears on the article without manual appro
   await expect(illustration).toHaveAttribute('src', candidate);
   await expect(illustration).toBeVisible();
 });
+
+test('the homepage sidebar keeps recent summaries tucked away', async ({ page }) => {
+  await page.goto('/');
+  const headlines = page.getByRole('region', { name: 'À la une' });
+  const teasers = headlines.locator('details.headline-teaser');
+  await expect(teasers).toHaveCount(5);
+  await expect(teasers.first().locator('p')).toBeHidden();
+  await teasers.first().locator('summary').click();
+  await expect(teasers.first().locator('p')).toBeVisible();
+});
