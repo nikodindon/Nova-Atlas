@@ -4,6 +4,7 @@
   import EventCard from '@lib/components/EventCard.svelte';
   import Notice from '@lib/components/Notice.svelte';
   import { messages, dateLabel } from '@lib/i18n';
+  import { safeLink } from '@lib/security';
   let { data }: import('./$types').PageProps = $props();
   let t = $derived(messages(data.locale));
   let breaking = $derived(data.headlines.data?.articles ?? []);
@@ -42,11 +43,16 @@
 {:else if data.articles.data?.articles.length}<section class="headlines" aria-label={t.home}>
     <ArticleCard article={data.articles.data.articles[0]} locale={data.locale} lead compact />
     <div class="headlines-side">
-      {#each data.articles.data.articles.slice(1, 4) as article}<ArticleCard
-          {article}
-          locale={data.locale}
-          compact
-        />{/each}
+      {#each data.articles.data.articles.slice(1, 4) as article (article.id)}
+        {@const edition = data.locale === 'en' ? article.english_edition : undefined}
+        <details class="headline-teaser">
+          <summary>{edition?.title ?? article.title}</summary>
+          <p>{edition?.summary ?? article.summary}</p>
+          {#if safeLink(article.link)}
+            <a href={safeLink(article.link)} target="_blank" rel="noopener noreferrer">{t.origin} ↗</a>
+          {/if}
+        </details>
+      {/each}
     </div>
   </section>{/if}
 <section class="daily-editions" aria-labelledby="daily-editions-title">
@@ -115,6 +121,24 @@
 </div>
 
 <style>
+  .headline-teaser {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.8rem;
+  }
+
+  .headline-teaser summary {
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+
+  .headline-teaser p {
+    color: var(--muted);
+    margin: 0.6rem 0;
+  }
+
+
   .daily-editions-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
