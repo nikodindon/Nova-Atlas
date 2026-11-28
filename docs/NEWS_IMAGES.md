@@ -240,3 +240,7 @@ News prépare les miniatures dans une tâche séparée toutes les cinq minutes,
 à partir des vingt derniers articles traités du jour. Elle peut réussir pendant
 une synthèse et reste soumise au quota réseau partagé. Le Direct peut afficher
 une miniature privée au rafraîchissement suivant dans une session administrateur.
+
+La tâche média essaie en priorité les articles de la Une. En l'absence
+d'image publiable, la grande carte de l'accueil utilise un visuel éditorial
+générique généré pour le site, avec une légende explicite.

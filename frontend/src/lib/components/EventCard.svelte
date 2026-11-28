@@ -3,6 +3,9 @@
   import { messages, dateLabel } from '@lib/i18n';
   let { event, locale }: { event: EditorialEvent; locale: Locale } = $props();
   let t = $derived(messages(locale));
+  let context = $derived(event.articles.find((article) => article.title === event.title)?.summary
+    || event.articles[0]?.summary || '');
+  let excerpt = $derived(context.length > 170 ? context.slice(0, 170).replace(/\s+\S*$/, '') + '…' : context);
 </script>
 
 <article class="event-card">
@@ -12,5 +15,7 @@
     {event.article_count}
     {t.articles.toLowerCase()} · {dateLabel(event.last_updated_at, locale)}
   </p>
+  {#if excerpt}<p>{excerpt}</p>{/if}
+  {#if event.sources.length}<p>{event.sources.slice(0, 3).join(' · ')}</p>{/if}
   <span class="event-arrow" aria-hidden="true">↗</span>
 </article>

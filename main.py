@@ -162,7 +162,10 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
         except (ValueError, OSError):
             log.warning("Index événements non actualisé")
 
+    last_commons_lead = None
+
     def refresh_media():
+        nonlocal last_commons_lead
         if stop_event.is_set():
             return
         media = config.get('media', {})
@@ -172,16 +175,31 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
             service = MediaService(fetcher.data_dir, fetcher.seen_file.parent, media)
             now = datetime.now()
             rows = read_json(fetcher.data_dir / (now.strftime('%Y%m%d') + '_articles.json'), list)
-            candidates = [article for article in reversed(rows[-20:])
-                          if isinstance(article, dict) and article.get('link') and article.get('title')]
-            for article in candidates:
+            rows = [article for article in rows if isinstance(article, dict) and article.get('link') and article.get('title')]
+            from modules.web.atlas_web import get_breaking_news
+            from modules.fetch.feed_parser import source_date
+
+            breaking = get_breaking_news({'articles': fetcher.data_dir, 'data': fetcher.seen_file.parent}, max_items=4)
+            by_link = {article['link']: article for article in rows}
+            leads = [by_link[item['link']] for item in breaking if item['link'] in by_link]
+            if not leads:
+                def publication_priority(article):
+                    stamp, _ = source_date(article.get('pub_date') or '')
+                    return stamp.timestamp() if stamp else 0
+                leads = sorted(rows, key=publication_priority, reverse=True)[:4]
+            if leads and leads[0]['link'] != last_commons_lead:
+                last_commons_lead = leads[0]['link']
+                try:
+                    service.illustrate_new_article(leads[0])
+                except (ValueError, OSError):
+                    log.info("Illustration Commons indisponible pour la Une")
+            candidates = {article['link']: article for article in [*leads, *reversed(rows[-20:])]}
+            for article in candidates.values():
                 if stop_event.is_set():
                     return
                 if service.illustrate_qualification(article):
                     log.info("Miniature privée préparée")
                     return
-            if candidates:
-                service.illustrate_new_article(candidates[0])
         except (ValueError, OSError):
             log.warning("Illustration indisponible pour ce cycle")
 

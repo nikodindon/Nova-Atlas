@@ -234,8 +234,13 @@ def install_public_api(app,paths,config):
     @app.get('/api/public/events')
     @guarded
     def public_events():
-        options(('page','per_page','category'));page,size=pagination();data=EventIndex(paths['articles'],paths['data']).load();rows=(data or {}).get('events',[])
+        options(('page','per_page','category','multi_source'));page,size=pagination();data=EventIndex(paths['articles'],paths['data']).load();rows=(data or {}).get('events',[])
         if request.args.get('category'):rows=[r for r in rows if request.args['category'] in [r['category'],*r['secondary_categories']]]
+        multi_source = request.args.get('multi_source')
+        if multi_source not in (None, '1'):
+            raise PublicReadError('invalid_multi_source_filter')
+        if multi_source == '1':
+            rows = [row for row in rows if row['domain_count'] >= 2]
         rows=sorted(rows,key=lambda r:r['last_updated_at'] or '',reverse=True)
         selected=rows[(page-1)*size:page*size]
         images=store.public_many([target_for_event(row) for row in selected])

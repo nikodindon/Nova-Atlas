@@ -5,6 +5,7 @@
   import { qualificationImages } from '@lib/client';
   import type { Illustration as Image } from '@lib/types';
   import Illustration from './Illustration.svelte';
+  import genericCover from '@lib/assets/editorial-globe.webp';
   let {
     article,
     locale,
@@ -36,7 +37,14 @@
 </script>
 
 <article class:lead class="article-card" data-category={article.category}>
-  {#if !image.fallback}<Illustration {image} eager={lead} />{/if}
+  {#if !image.fallback}
+    <Illustration {image} eager={lead} />
+  {:else if lead}
+    <figure class="editorial-cover">
+      <img src={genericCover} alt="" width="960" height="540" fetchpriority="high" decoding="async" />
+      <figcaption>{t.genericEditorialCover}</figcaption>
+    </figure>
+  {/if}
   <div class="card-body">
     <p class="eyebrow">{article.category} <span>· {article.source}</span></p>
     <h2>{edition?.title ?? article.title}</h2>
@@ -68,6 +76,19 @@
 </article>
 
 <style>
+  .editorial-cover img {
+    display: block;
+    max-height: 240px;
+    object-fit: cover;
+  }
+
+  .editorial-cover figcaption {
+    color: var(--muted);
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+  }
+
+
   .summary-toggle {
     padding: 0.25rem 0;
     border: 0;

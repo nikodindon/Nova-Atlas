@@ -268,3 +268,13 @@ def test_orphaned_human_rules_are_preserved_and_signalled(index):
     before=index.overrides.read_bytes();result=index.rebuild()
     assert result['status']=='degraded' and any(d['state']=='override_references_outside_snapshot' for d in result['diagnostics'])
     assert index.overrides.read_bytes()==before
+
+
+def test_distinct_outlets_can_group_the_same_sovereign_rating_warning():
+    a = cover(0, title="L'agence Standard & Poor's menace de dégrader la note de la France",
+              summary="L'agence Standard and Poor's menace de dégrader la note de la France en raison de son déficit public de 5 %.")
+    b = cover(1, title="L'agence de notation menace de dégrader la note de la France après la récession",
+              summary="Après la récession, l'agence de notation menace de dégrader la note de la France. Le déficit public reste préoccupant en 2026.")
+    assert 'same_sovereign_rating_warning' in compare(a, b).reasons
+    other = cover(2, title=b.title.replace('France', 'Italie'), summary=b.summary.replace('France', 'Italie'))
+    assert compare(a, other).status != 'group'

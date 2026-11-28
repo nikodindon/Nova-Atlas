@@ -12,7 +12,8 @@ from modules.fetch.feed_parser import source_date
 from modules.web.config_security import credential_url
 from modules.web.web_security import safe_url
 
-ALGORITHM='conservative-complete-link-v1'
+LEGACY_ALGORITHM = 'conservative-complete-link-v1'
+ALGORITHM = 'conservative-complete-link-v2'
 STOP=set('le la les de du des un une au aux en et a à par pour dans sur avec son sa ses est sont ce cette ces se qui que apres avant the of in to and is are for on at an that this it as was be by or from has have says said will new plus selon dont lors mais leur leurs les'.split())
 ACTIONS={'demissionne':'demission','demission':'demission','resigns':'demission','resignation':'demission','nomme':'nomination','nomination':'nomination','attaque':'attaque','attack':'attaque','attentat':'attaque','election':'election','elections':'election','scrutin':'election','adopte':'adoption','adoption':'adoption','adopts':'adoption','baisse':'baisse','abaisse':'baisse','hausse':'hausse','releve':'hausse','augmente':'hausse','annonce':'annonce','announces':'annonce','annoncee':'annonce','accident':'accident','crash':'accident','signe':'signature','signature':'signature','suspend':'suspension','suspension':'suspension','condamne':'condamnation','condamnation':'condamnation','lance':'lancement','lancement':'lancement','quitte':'demission','remporte':'victoire','victoire':'victoire','rejette':'rejet','rejet':'rejet'}
 DENIAL={'dement','dementi','nie','denies','denial','faux','fausse','not','pas','aucun'}
@@ -107,9 +108,17 @@ def compare(a,b):
     ta,sa,wa,ea,na=features(a);tb,sb,wb,eb,nb=features(b)
     title=jaccard(ta,tb);summary=jaccard(sa,sb)
     reasons=[];negative=[]
+    cross_source = bool(a.domain and b.domain and a.domain != b.domain)
+    rating_subjects = (ea & eb) - {'standard', 'poor', 'moodys', 'moody', 'fitch'}
+    rating_signal = {'agence', 'note', 'menace', 'degrader'}
+    same_rating_warning = (
+        cross_source and bool(rating_subjects) and rating_signal <= wa and rating_signal <= wb
+        and title >= .4 and summary >= .18
+    )
     if na!=nb:negative.append('different_headline_numbers')
     summary_numbers_a=set(re.findall(r'\d+(?:[.,]\d+)?',a.summary));summary_numbers_b=set(re.findall(r'\d+(?:[.,]\d+)?',b.summary))
-    if summary_numbers_a and summary_numbers_b and summary_numbers_a!=summary_numbers_b:negative.append('different_summary_numbers')
+    if summary_numbers_a and summary_numbers_b and summary_numbers_a!=summary_numbers_b and not same_rating_warning:
+        negative.append('different_summary_numbers')
     da,db=wa&DAYS,wb&DAYS
     if da and db and da!=db:negative.append('different_explicit_days')
     denied=bool(wa&DENIAL)!=bool(wb&DENIAL)
@@ -128,6 +137,12 @@ def compare(a,b):
     if summary>=.5:reasons.append('summary_overlap')
     if negative:return Decision('uncertain' if title>=.4 else 'separate',tuple(negative+reasons),round(title,4),round(summary,4))
     match=title>=.82 and len(ta&tb)>=6 and bool(shared) and bool(aa&ab) and summary>=.5 and min(len(sa),len(sb))>=6
+    if cross_source and title >= .60 and summary >= .45 and len(ta & tb) >= 6 and len(shared) >= 2 and aa & ab:
+        reasons.append('cross_source_shared_action_and_entities')
+        match = True
+    if same_rating_warning and delta <= 12 * 3600:
+        reasons.append('same_sovereign_rating_warning')
+        match = True
     return Decision('group' if match else 'uncertain' if title>=.4 else 'separate',tuple(reasons or ['insufficient_evidence']),round(title,4),round(summary,4))
 
 

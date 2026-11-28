@@ -11,7 +11,7 @@ import stat
 import time
 from zoneinfo import ZoneInfo
 from modules.core.source_manager import atomic_write
-from modules.editorial.events import Coverage,group_coverages,sha,ALGORITHM
+from modules.editorial.events import Coverage,group_coverages,sha,ALGORITHM,LEGACY_ALGORITHM
 
 MAX_INDEX=8*1024*1024
 class IndexError(ValueError):pass
@@ -91,7 +91,7 @@ class EventIndex:
         raw=read(self.path)
         if raw is None:return None
         data=decode(raw)
-        if not isinstance(data,dict) or (type(data.get('version')) is not int or data.get('version')!=1) or data.get('algorithm')!=ALGORITHM or not isinstance(data.get('events'),list) or len(data['events'])>500:raise IndexError('invalid_index')
+        if not isinstance(data,dict) or (type(data.get('version')) is not int or data.get('version')!=1) or data.get('algorithm') not in (ALGORITHM, LEGACY_ALGORITHM) or not isinstance(data.get('events'),list) or len(data['events'])>500:raise IndexError('invalid_index')
         if not allow_stale and data.get('overrides_sha')!=override_state(self.overrides)[1]:raise IndexError('overrides_require_rebuild')
         ids=set()
         try:
@@ -107,7 +107,7 @@ class EventIndex:
                         stamp=datetime.fromisoformat(event[field])
                         if stamp.tzinfo is None:raise ValueError()
                 if type(event.get('article_count')) is not int or type(event.get('domain_count')) is not int or not 0<=event['domain_count']<=event['article_count']:raise ValueError()
-                if event.get('algorithm')!=ALGORITHM or event.get('status') not in ('single','grouped','human_association'):raise ValueError()
+                if event.get('algorithm')!=data['algorithm'] or event.get('status') not in ('single','grouped','human_association'):raise ValueError()
                 for field in ('sources','domains','article_hashes','secondary_categories','disagreements','reasons'):
                     if not isinstance(event.get(field),list) or len(event[field])>1000 or any(not isinstance(v,str) for v in event[field]):raise ValueError()
                 if not isinstance(event['category'],str) or len(event['category'])>100:raise ValueError()
@@ -189,7 +189,7 @@ class EventIndex:
         with lock(self.data/'editorial-events.lock'), lock(self.data/'article-integrity.lock'):
             fingerprint = self.snapshot()[3]
             previous = self.load(allow_stale=True)
-            if previous and previous['input_sha'] == fingerprint and previous['overrides_sha'] == override_state(self.overrides)[1]:
+            if previous and previous['algorithm'] == ALGORITHM and previous['input_sha'] == fingerprint and previous['overrides_sha'] == override_state(self.overrides)[1]:
                 return previous
             return self._build(True, fingerprint)
 
@@ -203,7 +203,7 @@ class EventIndex:
         if missing:diagnostics.append({'state':'override_references_outside_snapshot','count':len(missing),'ids':missing[:100]})
         now=self.clock().astimezone(timezone.utc).isoformat()
         events,uncertain=group_coverages(coverages,previous=previous['events'] if previous else None,overrides=overrides,now=now)
-        unchanged=previous and previous.get('input_sha')==fingerprint and previous.get('overrides_sha')==override_sha
+        unchanged=previous and previous['algorithm']==ALGORITHM and previous.get('input_sha')==fingerprint and previous.get('overrides_sha')==override_sha
         result={'version':1,'algorithm':ALGORITHM,'generated_at':previous['generated_at'] if unchanged else now,'input_sha':fingerprint,'overrides_sha':override_sha,
             'status':'degraded' if diagnostics else 'ready','manifest':manifest,'diagnostics':diagnostics,'events':events,'uncertain':uncertain,'retention_days':self.days}
         raw=json.dumps(result,ensure_ascii=False,allow_nan=False,sort_keys=True,separators=(',',':'))

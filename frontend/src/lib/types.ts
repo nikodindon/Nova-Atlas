@@ -46,6 +46,7 @@ export interface Article {
 export interface Coverage {
   id: string;
   title: string;
+  summary?: string;
   source: string;
   link: string | null;
   published_at: string | null;

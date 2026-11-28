@@ -7,7 +7,7 @@ const editorialDay = new Intl.DateTimeFormat('sv-SE', {
 export const load = async () => {
   const [articles, events, archives] = await Promise.all([
     api<Articles>('/api/public/articles?per_page=13'),
-    api<Events>('/api/public/events?per_page=3'),
+    api<Events>('/api/public/events?multi_source=1&per_page=3'),
     api<Archives>('/api/public/archives?per_page=3'),
   ]);
   const headlines = await api<Pick<Articles, 'articles'>>('/api/public/headlines');
