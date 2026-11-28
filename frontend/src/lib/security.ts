@@ -12,7 +12,7 @@ export function safeLink(value: unknown): string | null {
 }
 export function localImage(value: unknown): string {
   return typeof value === 'string' &&
-    /^(\/assets\/news-fallback\.svg|\/media\/images\/[a-f0-9]{64}\/(320|768)\.jpg)$/.test(value)
+    /^(\/assets\/news-fallback\.svg|\/media\/images\/[a-f0-9]{64}\/(320|768)\.jpg|\/api\/admin\/media\/[a-f0-9]{64}\/preview\/(320|768)\.jpg)$/.test(value)
     ? value
     : '/assets/news-fallback.svg';
 }

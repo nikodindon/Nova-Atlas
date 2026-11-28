@@ -229,3 +229,9 @@ publications uniquement.
 Quand le registre est plein, l'ajout d'un candidat Commons vérifié peut
 écarter une référence aux droits inconnus, sans miniature ni décision.
 Les images approuvées et les décisions sont conservées.
+
+`media.qualification_images: true` prépare aussi les miniatures des images
+natives découvertes dans les flux ou sur les pages, en laissant leurs droits
+au statut inconnu. Elles ne sont visibles que dans une session administrateur
+V2. Les projections anonymes et les exports statiques utilisent les règles
+d'approbation habituelles. La provenance de la candidate reste dans le registre.

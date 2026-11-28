@@ -97,6 +97,55 @@ class MediaService:
             return
         return self._search(term, target, automatic=True)
 
+    def illustrate_qualification(self, article):
+        if self.config.get('qualification_images') is not True or self.store.mode == 'disabled':
+            return False
+        target = target_for_article(article)
+        state, _ = self.store.load()
+        if any(same_target(row['target'], target) and (row['artifact'] or row['status'] == 'rejected')
+               for row in state['records'].values()):
+            return False
+        candidates = [ImageCandidate(**row['candidate']) for row in state['records'].values()
+                      if row['target']['kind'] == 'article_reference' and row['target']['id'] == target['id']]
+        from modules.fetch.ingestion import FeedState
+        feeds = FeedState(self.store.data / 'feed_ingestion_state.json')
+        for record in feeds.records.values():
+            for raw in record.get('entries', []):
+                entry = FeedEntry.from_dict(raw)
+                if entry.link == article['link']:
+                    candidates.extend(ImageCandidate(image['url'], image['method'], entry.link)
+                                      for image in entry.images)
+        if not candidates:
+            return False
+        with self.operation():
+            for candidate in candidates[:2]:
+                try:
+                    response = self.get(candidate.url)
+                    identity = self.store.add(candidate, target, qualification=True)
+                    _, version = self.store.load()
+                    self.store.prepare(identity, response.content, expected=version, qualification=True)
+                    return True
+                except (ValueError, OSError, KeyError):
+                    continue
+        return False
+
+    def qualification_images(self):
+        if self.config.get('qualification_images') is not True or self.store.mode == 'disabled':
+            return {}
+        state, _ = self.store.load()
+        images = {}
+        for row in state['records'].values():
+            if row['status'] != 'rights_unknown' or not row['artifact'] or row['target']['kind'] != 'article':
+                continue
+            variant = next(v for v in row['artifact']['variants'] if v['size'] == 320)
+            base = '/api/admin/media/' + row['id'] + '/preview/'
+            images[row['target']['fingerprint']] = {
+                'url': base + '320.jpg', 'large_url': base + '768.jpg',
+                'width': variant['width'], 'height': variant['height'], 'fallback': False,
+                'caption': 'Illustration de la source · essai privé', 'attribution': None,
+            }
+        return images
+
     def _search(self, term, target, *, automatic=False):
         with self.operation():
             candidates=Commons(self.get).fetch(term=term)

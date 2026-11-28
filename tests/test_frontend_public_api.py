@@ -184,3 +184,12 @@ def test_headlines_rank_shared_breaking_selection_and_exclude_old_and_single(cli
     assert response.status_code == 200
     assert [row['title'] for row in response.json['articles']] == ['Title 1', 'Title 0']
     assert '_image_target' not in response.json['articles'][0]
+
+
+def test_qualification_image_catalog_requires_admin_session(client):
+    path = '/api/admin/media/qualification'
+    assert get(client, path).status_code == 401
+    login(client)
+    response = get(client, path)
+    assert response.status_code == 200 and response.json['images'] == {}
+    assert response.headers['Cache-Control'] == 'no-store'

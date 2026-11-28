@@ -2,6 +2,8 @@
   import type { Article, Locale } from '@lib/types';
   import { messages, dateLabel } from '@lib/i18n';
   import { safeLink } from '@lib/security';
+  import { qualificationImages } from '@lib/client';
+  import type { Illustration as Image } from '@lib/types';
   import Illustration from './Illustration.svelte';
   let {
     article,
@@ -12,6 +14,18 @@
   let t = $derived(messages(locale));
   let edition = $derived(locale === 'en' ? article.english_edition : undefined);
   let summary = $derived(edition?.summary ?? article.summary);
+  let qualification = $state<Image>();
+  let image = $derived(qualification ?? article.image);
+  $effect(() => {
+    const { id, image } = article;
+    qualification = undefined;
+    if (!image.fallback) return;
+    let active = true;
+    void qualificationImages().then((images) => {
+      if (active) qualification = images[id];
+    });
+    return () => { active = false; };
+  });
   let expanded = $state(false);
   const summaryId = $props.id();
   let preview = $derived(
@@ -22,7 +36,7 @@
 </script>
 
 <article class:lead class="article-card" data-category={article.category}>
-  {#if lead || !article.image.fallback}<Illustration image={article.image} eager={lead} />{/if}
+  {#if lead || !image.fallback}<Illustration {image} eager={lead} />{/if}
   <div class="card-body">
     <p class="eyebrow">{article.category} <span>· {article.source}</span></p>
     <h2>{edition?.title ?? article.title}</h2>

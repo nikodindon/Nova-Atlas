@@ -123,7 +123,7 @@ class MediaStore:
             result=callback(state)
             self.write(state);return result
 
-    def add(self,candidate,target,*,trusted=False):
+    def add(self,candidate,target,*,trusted=False,qualification=False):
         if self.mode=='disabled':return None
         candidate=asdict(candidate);source_url(candidate['url']);source_url(candidate['source_page'])
         identity=digest([candidate['url'],target['kind'],target['id'],target['fingerprint']]);rights=assess(candidate.get('proof',{}),trusted_commons=trusted)
@@ -136,7 +136,8 @@ class MediaStore:
                 history=old['history']+[{'resource_version':old['resource_version'],'candidate':old['candidate'],'rights':old['rights'],'artifact':old.get('artifact'),'approval':old.get('approval')}]
             else:
                 history=[]
-                if trusted and rights['status'] == 'rights_verified' and len(state['records']) >= 128:
+                automatic_candidate = qualification or target['kind'] == 'article_reference'
+                if (automatic_candidate or (trusted and rights['status'] == 'rights_verified')) and len(state['records']) >= 128:
                     reviewed = {entry['candidate'] for entry in state['audit']}
                     disposable = [
                         row for row in state['records'].values()
@@ -165,7 +166,7 @@ class MediaStore:
                 if count>4096:raise MediaError('file_count_quota')
         return total
 
-    def prepare(self,identity,raw,*,expected):
+    def prepare(self,identity,raw,*,expected,qualification=False):
         if self.mode=='disabled':raise MediaError('downloads_disabled')
         data=self.runner(raw);source_sha=hashlib.sha256(raw).hexdigest()
         if data.get('version')!=VERSION or data.get('source_sha256')!=source_sha or len(data.get('variants',[]))!=2:raise MediaError('invalid_decoder_output')
@@ -179,9 +180,14 @@ class MediaStore:
         if set(content)!={320,768}:raise MediaError('invalid_decoder_output')
         def store(state):
             record=state['records'].get(identity)
-            if not record or record['rights']['status']!='rights_verified' or record['status']=='rejected':raise MediaError('rights_not_verified')
-            proof=record['candidate']['proof']
-            if hashlib.sha1(raw).hexdigest()!=proof.get('file_sha1') or len(raw)!=proof.get('size'):raise MediaError('resource_version_mismatch')
+            if not record or record['status']=='rejected':raise MediaError('rights_not_verified')
+            if qualification:
+                if record['status'] != 'rights_unknown' or record['target']['kind'] != 'article':
+                    raise MediaError('qualification_candidate_required')
+            else:
+                if record['rights']['status'] != 'rights_verified':raise MediaError('rights_not_verified')
+                proof=record['candidate']['proof']
+                if hashlib.sha1(raw).hexdigest()!=proof.get('file_sha1') or len(raw)!=proof.get('size'):raise MediaError('resource_version_mismatch')
             if self.usage()+len(raw)+sum(map(len,content.values()))>MAX_DISK:raise MediaError('disk_quota')
             original=checked(self.root/'originals'/(source_sha+'.bin'))
             if not original.exists():
@@ -205,7 +211,7 @@ class MediaStore:
                 for size,blob in content.items():
                     if read(checked(destination/(str(size)+'.jpg')),1024*1024)!=blob:raise MediaError('derivative_corrupt')
             approval=record.get('approval');old_artifact=record.get('artifact')
-            record.update(artifact=artifact,status='rights_verified',approval=None,error=None)
+            record.update(artifact=artifact,status=record['rights']['status'],approval=None,error=None)
             if approval and approval.get('binding')==self.binding(record):record.update(approval=approval,status='approved')
             elif approval:
                 if len(record['history'])>=8:raise MediaError('version_history_full')

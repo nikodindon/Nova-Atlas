@@ -148,16 +148,42 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
             except Exception as e:
                 log.error(f"Erreur reload config : {e}", exc_info=True)
 
-    def illustrate_new_article():
+    def refresh_editorial_assets():
+        if stop_event.is_set():
+            return
+        refresh_events = config.get('editorial_events', {}).get('refresh_after_collection') is True
         media = config.get('media', {})
-        article = getattr(fetcher, 'illustration_candidate', None)
-        if not article or stop_event.is_set() or media.get('commons_background_search') is not True:
+        refresh_media = media.get('qualification_images') is True or media.get('commons_background_search') is True
+        if not (refresh_events or refresh_media):
+            return
+        args = (fetcher.data_dir, fetcher.seen_file.parent)
+        if refresh_events:
+            from modules.editorial.index import EventIndex
+            try:
+                state = EventIndex(*args, days=2, recent_limit=250).refresh_recent()
+                grouped = sum(event['article_count'] > 1 for event in state['events'])
+                log.info("Index événements : %d sujets dont %d regroupés", len(state['events']), grouped)
+            except (ValueError, OSError):
+                log.warning("Index événements non actualisé")
+        if not refresh_media:
             return
         from modules.media.service import MediaService
         try:
-            MediaService(fetcher.data_dir, fetcher.seen_file.parent, media).illustrate_new_article(article)
+            service = MediaService(*args, media)
+            candidates = getattr(fetcher, 'illustration_candidates', [])
+            if media.get('qualification_images') is True:
+                # Seed from recent stored articles when the cycle had no useful image.
+                for article in [*candidates, *reversed(fetcher._load_today()[-10:])]:
+                    if stop_event.is_set():
+                        return
+                    if service.illustrate_qualification(article):
+                        log.info("Miniature privée préparée")
+                        return
+            article = getattr(fetcher, 'illustration_candidate', None)
+            if article:
+                service.illustrate_new_article(article)
         except (ValueError, OSError):
-            log.warning("Illustration Commons indisponible pour ce cycle")
+            log.warning("Illustration indisponible pour ce cycle")
 
     def collect(refresh_feeds=True):
         if config.get('fetch', {}).get('drain_backlog') is True:
@@ -174,8 +200,8 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
             if new_count and new_count > 0:
                 generate_static_site(config, full=False)
                 log.info(f"[WEB] Site régénéré ({new_count} nouveaux articles)")
-                if refresh_feeds:
-                    illustrate_new_article()
+            if refresh_feeds or new_count:
+                refresh_editorial_assets()
         except Exception as e:
             log.error(f"Erreur fetch : {e}", exc_info=True)
 
@@ -213,10 +239,9 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
     def initial_fetch_and_rebuild():
         # Preserve the startup rebuild even when the initial fetch returns zero articles.
         try:
-            count = collect()
+            collect()
             generate_static_site(config, full=False)
-            if count:
-                illustrate_new_article()
+            refresh_editorial_assets()
         except Exception as e:
             log.error(f"Fetch initial : {e}")
 

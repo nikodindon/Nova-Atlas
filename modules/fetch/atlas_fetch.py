@@ -721,8 +721,12 @@ class ArticleFetcher:
             else:
                 backup(target)
                 atomic_json(target, updated)
-        if not already and getattr(self, 'illustration_candidate', None) is None:
-            self.illustration_candidate = rec['prepared']
+        if not already:
+            if getattr(self, 'illustration_candidate', None) is None:
+                self.illustration_candidate = rec['prepared']
+            candidates = getattr(self, 'illustration_candidates', None)
+            if candidates is not None and len(candidates) < 5:
+                candidates.append(rec['prepared'])
         self._committed_count = getattr(self, '_committed_count', 0) + 1
         rec.update(status='succeeded', updated_at=self._now().timestamp(), next_attempt_at=0)
         rec.pop('prepared', None)
@@ -865,6 +869,7 @@ class ArticleFetcher:
     def run(self, *, stop_event=None, refresh_feeds=True):
         self._feed_stop_event = stop_event
         self.illustration_candidate = None
+        self.illustration_candidates = []
         acquired = False
         try:
             with collection_lock(self.seen_file.with_name('article-integrity.lock')):

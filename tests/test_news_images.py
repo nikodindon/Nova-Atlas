@@ -361,3 +361,24 @@ def test_full_manifest_makes_room_only_from_unreviewed_references(store):
     assert len(rows) == 128
     assert rows[protected]['status'] == 'rejected'
     assert rows[new]['status'] == 'rights_verified'
+
+
+def test_native_qualification_images_are_private_and_keep_unknown_rights(tmp_path, monkeypatch):
+    raw = image()
+    client, _, _ = client_for([FakeResponse(body=raw)])
+    service = MediaService(
+        tmp_path/'articles', tmp_path/'data',
+        {'mode': 'approved_only', 'qualification_images': True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw), runner=prepare,
+    )
+    native = ImageCandidate('https://example.org/figure.png', 'og:image', 'https://example.org/story')
+    service.store.add(native, {**TARGET, 'kind': 'article_reference'})
+    monkeypatch.setattr('modules.media.service.target_for_article', lambda _: TARGET)
+    assert service.illustrate_qualification({'link': 'https://example.org/story'})
+    assert service.store.public_for(TARGET)['fallback']
+    private = service.qualification_images()[TARGET['fingerprint']]
+    assert private['url'].startswith('/api/admin/media/')
+    record = next(row for row in service.store.load()[0]['records'].values() if row['artifact'])
+    assert record['status'] == 'rights_unknown' and not record['approval']
+    service.store.decide(record['id'], 'disable', expected=service.store.load()[1])
+    assert not service.qualification_images()
