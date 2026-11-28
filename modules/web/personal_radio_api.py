@@ -14,8 +14,21 @@ TRACK_ID = re.compile(r'[a-f0-9]{64}')
 
 
 def install_personal_radio(app, config, paths):
-    if config.get('radio', {}).get('personal_music') is not True:
+    radio = config.get('radio', {})
+    if radio.get('personal_music') is not True:
         return
+    hosts = radio.get('personal_music_hosts')
+    if hosts is not None and (not isinstance(hosts, list) or not hosts or
+            any(not isinstance(host, str) or not re.fullmatch(r'[a-zA-Z0-9.:-]{1,255}', host) for host in hosts)):
+        raise ValueError('invalid_personal_music_hosts')
+    allowed_hosts = {host.lower() for host in hosts} if hosts else None
+
+    @app.before_request
+    def personal_radio_origin():
+        if (allowed_hosts is not None and request.path.startswith('/api/radio/personal/')
+                and request.host.lower() not in allowed_hosts):
+            abort(404)
+
     settings = config.get('paths', {})
     root = paths['root']
     queue = root / settings.get('audio_queue', 'audio_queue')

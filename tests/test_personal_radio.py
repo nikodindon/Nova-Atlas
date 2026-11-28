@@ -96,3 +96,13 @@ def test_personal_bulletin_only_serves_current_verified_publication(tmp_path):
     assert audio.status_code == 200 and audio.mimetype == 'audio/mpeg'
     target.write_bytes(b'changed')
     assert client.get('/api/radio/personal/bulletin/'+name, base_url=base).status_code == 404
+
+
+def test_personal_track_catalogue_can_be_limited_to_lan_origins(tmp_path):
+    app = create_app({'radio': {'personal_music': True, 'personal_music_hosts': [
+        '192.168.1.32:15173', 'localhost:15173',
+    ]}}, root=tmp_path)
+    client = app.test_client()
+    path = '/api/radio/personal/genres'
+    assert client.get(path, base_url='https://public.example').status_code == 404
+    assert client.get(path, base_url='http://192.168.1.32:15173').status_code == 200

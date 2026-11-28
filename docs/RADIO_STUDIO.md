@@ -333,3 +333,9 @@ partagent `/app/data` et `/app/audio_queue` comme auparavant. L'activation rend
 les morceaux du catalogue accessibles aux auditeurs de l'origine choisie.
 Elle est désactivée par défaut. Pour revenir au comportement initial,
 désactiver `radio.personal_music` puis relancer Radio et Web.
+
+
+Si le site a aussi une origine publique, restreindre les routes audio avec
+`radio.personal_music_hosts` (liste exacte hôte et port) et utiliser la
+même liste dans la variable serveur V2 `ATLAS_PERSONAL_MUSIC_HOSTS`, séparée
+par des virgules. Le proxy public doit préserver le nom d'hôte externe.
