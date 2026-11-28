@@ -265,7 +265,7 @@ class ArticleFetcher:
                 except Exception:logging.getLogger('nova.fetch').warning('Optional image metadata capture unavailable')
             if body_extraction:
                 from modules.fetch.extraction import extract_article_text
-                return extract_article_text(r.text)[:MAX_ARTICLE_CHARS]
+                return extract_article_text(r.text, source_url=r.url)[:MAX_ARTICLE_CHARS]
             soup = BeautifulSoup(r.text, "html.parser")
             for tag in soup(["script","style","nav","header","footer",
                               "aside","form","iframe","noscript"]):

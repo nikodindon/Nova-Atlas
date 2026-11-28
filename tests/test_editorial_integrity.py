@@ -370,3 +370,25 @@ def test_language_hint_can_distinguish_bilingual_publisher_sections():
     assert not ed.translate_needed('Titre', 'fr', french, 'preserve_unknown')
     assert ed.source_language('https://www.france24.com/enough/?path=/en/', hints) is None
     assert ed.source_language('https://other.example/item', hints) == 'en'
+
+
+def test_extraction_ignores_recommendation_cards_without_prose():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><article><div class="entry-content"><p>Le port rouvre lundi.</p></div></article>
+              <article><h2>À lire ensuite</h2></article></main>"""
+    assert extract_article_text(page) == 'Le port rouvre lundi.'
+    ambiguous = page.replace('<h2>À lire ensuite</h2>', '<p>Une autre actualité.</p>')
+    assert extract_article_text(ambiguous) == ''
+
+
+def test_futura_selects_main_story_without_nested_synopsis_cards():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><h1>Les anneaux de Saturne</h1><div class="section single-content">
+              <p>Les chercheurs ont étudié les anneaux.</p><article><p>À lire aussi</p></article>
+              </div><article><p>Une autre actualité.</p></article></main>"""
+    assert extract_article_text(page, source_url='https://www.futura-sciences.com/sciences/actualites/x') == (
+        'Les chercheurs ont étudié les anneaux.'
+    )
+    assert extract_article_text(page, source_url='https://example.org/x') == ''

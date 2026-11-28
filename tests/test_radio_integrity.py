@@ -421,3 +421,13 @@ def test_warn_default_preserves_overlong_bulletin_without_truncation(gen):
 def test_voice_split_distinguishes_trailing_tag_from_segment_limit(script, reason):
     with pytest.raises(bg.AudioIntegrityError, match=reason):
         bg.split_script_by_voice(script)
+
+
+@pytest.mark.parametrize(('script', 'reason'), [
+    ('[VOIX1] Le journal commence. [pause] [VOIX2] Voici la suite.', 'unknown_voice_tag'),
+    ('[VOIX1] [VOIX2] Le journal commence.', 'empty_voice_segment'),
+    ('[VOIX1] Le journal commence. [VOIX2]', 'trailing_voice_tag_without_text'),
+])
+def test_voice_validation_reports_distinct_rejection_reasons(script, reason):
+    with pytest.raises(ValueError, match=f'^{reason}$'):
+        bg.split_script_by_voice(script)

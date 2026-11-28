@@ -411,7 +411,8 @@ CONSIGNES STRICTES :
 FORMAT DE SORTIE :
 Écris UNIQUEMENT le script balisé, sans méta-commentaire.
 Commence le script par [VOIX1]. Pour l'outro, écris [VOIX1] puis le texte à prononcer.
-Toute balise ouvre un passage parlé. Termine par les mots de l'outro, sans balise finale.
+Chaque balise doit être suivie de texte à prononcer avant la suivante.
+Ne mets aucune indication scénique entre crochets. Termine par les mots de l'outro, sans balise finale.
 
 Script :"""
 
@@ -432,8 +433,10 @@ def split_script_by_voice(script):
         if not part.strip():
             continue
         if part.startswith('[') and part.endswith(']'):
-            if part not in VOICE_TAGS or awaiting:
-                raise AudioIntegrityError('invalid_or_empty_voice_segment')
+            if part not in VOICE_TAGS:
+                raise AudioIntegrityError('unknown_voice_tag')
+            if awaiting:
+                raise AudioIntegrityError('empty_voice_segment')
             current, awaiting = part, True
         else:
             text = part.strip()

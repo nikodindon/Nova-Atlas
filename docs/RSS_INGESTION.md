@@ -232,3 +232,9 @@ ou changement de production exécuté pendant ce sprint.
 Références : [feedparser 6.0.14](https://feedparser.readthedocs.io/en/latest/),
 [dates](https://feedparser.readthedocs.io/en/latest/date-parsing/),
 [bozo](https://feedparser.readthedocs.io/en/latest/reference-bozo/).
+
+Pour la catégorie Asie, un flux d'éditeur direct tel que BBC News Asie
+(`https://feeds.bbci.co.uk/news/world/asia/rss.xml`) évite la résolution
+des liens intermédiaires de Google Actualités. Désactiver un flux empêche
+les nouvelles collectes depuis ce flux. Les candidats déjà présents
+dans le journal suivent leurs règles de reprise existantes.
