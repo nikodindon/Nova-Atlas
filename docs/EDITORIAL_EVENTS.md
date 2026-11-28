@@ -343,3 +343,16 @@ humaines, évaluations et jobs ; ne pas réutiliser les tables de snapshots comm
 faux dual-write. Priorités suivantes : corpus réel autorisé/annoté, UI de correction,
 meilleures ancres linguistiques, suivi des évolutions et jobs de reconstruction
 explicitement planifiés. Pas de faits vérifiés inventés par consensus de flux.
+
+`editorial_events.refresh_after_collection: true` actualise l'index après les
+collectes avec un maximum de 250 articles des deux dernières dates civiles.
+Les articles les plus récemment ajoutés sont prioritaires. Les verrous du
+producteur et de l'index sont conservés. Les règles de rapprochement restent
+inchangées et les sujets à source unique restent identifiables.
+
+Le regroupement v2 autorise un rapprochement entre domaines distincts
+lorsque l'action, plusieurs entités et le contenu se recoupent fortement.
+Une règle ciblée reconnaît les avertissements sur la note d'un même État
+sur une fenêtre de douze heures. Les contradictions de titre et la
+liaison complète restent bloquantes. Les pages V2 demandent uniquement
+les regroupements issus de plusieurs domaines.

@@ -148,12 +148,78 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
             except Exception as e:
                 log.error(f"Erreur reload config : {e}", exc_info=True)
 
-    def fetch_and_rebuild():
+    def refresh_editorial_assets():
+        if stop_event.is_set():
+            return
+        refresh_events = config.get('editorial_events', {}).get('refresh_after_collection') is True
+        if not refresh_events:
+            return
+        from modules.editorial.index import EventIndex
         try:
-            new_count = fetcher.run(stop_event=stop_event)
+            state = EventIndex(fetcher.data_dir, fetcher.seen_file.parent, days=2, recent_limit=250).refresh_recent()
+            grouped = sum(event['article_count'] > 1 for event in state['events'])
+            log.info("Index événements : %d sujets dont %d regroupés", len(state['events']), grouped)
+        except (ValueError, OSError):
+            log.warning("Index événements non actualisé")
+
+    last_commons_lead = None
+
+    def refresh_media():
+        nonlocal last_commons_lead
+        if stop_event.is_set():
+            return
+        media = config.get('media', {})
+        from modules.media.service import MediaService
+        from modules.fetch.article_state import read_json
+        try:
+            service = MediaService(fetcher.data_dir, fetcher.seen_file.parent, media)
+            now = datetime.now()
+            rows = read_json(fetcher.data_dir / (now.strftime('%Y%m%d') + '_articles.json'), list)
+            rows = [article for article in rows if isinstance(article, dict) and article.get('link') and article.get('title')]
+            from modules.web.atlas_web import get_breaking_news
+            from modules.fetch.feed_parser import source_date
+
+            breaking = get_breaking_news({'articles': fetcher.data_dir, 'data': fetcher.seen_file.parent}, max_items=4)
+            by_link = {article['link']: article for article in rows}
+            leads = [by_link[item['link']] for item in breaking if item['link'] in by_link]
+            if not leads:
+                def publication_priority(article):
+                    stamp, _ = source_date(article.get('pub_date') or '')
+                    return stamp.timestamp() if stamp else 0
+                leads = sorted(rows, key=publication_priority, reverse=True)[:4]
+            if leads and leads[0]['link'] != last_commons_lead:
+                last_commons_lead = leads[0]['link']
+                try:
+                    service.illustrate_new_article(leads[0])
+                except (ValueError, OSError):
+                    log.info("Illustration Commons indisponible pour la Une")
+            candidates = {article['link']: article for article in [*leads, *reversed(rows[-20:])]}
+            for article in candidates.values():
+                if stop_event.is_set():
+                    return
+                if service.illustrate_qualification(article):
+                    log.info("Miniature privée préparée")
+                    return
+        except (ValueError, OSError):
+            log.warning("Illustration indisponible pour ce cycle")
+
+    def collect(refresh_feeds=True):
+        if config.get('fetch', {}).get('drain_backlog') is True:
+            from modules.core.scheduler import NewsWindow
+            window = NewsWindow(stop_event, datetime.now())
+            if window.is_set():
+                return 0
+            return fetcher.run(stop_event=window, refresh_feeds=refresh_feeds)
+        return fetcher.run(stop_event=stop_event)
+
+    def fetch_and_rebuild(refresh_feeds=True):
+        try:
+            new_count = collect(refresh_feeds)
             if new_count and new_count > 0:
                 generate_static_site(config, full=False)
                 log.info(f"[WEB] Site régénéré ({new_count} nouveaux articles)")
+            if refresh_feeds or new_count:
+                refresh_editorial_assets()
         except Exception as e:
             log.error(f"Erreur fetch : {e}", exc_info=True)
 
@@ -191,15 +257,28 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
     def initial_fetch_and_rebuild():
         # Preserve the startup rebuild even when the initial fetch returns zero articles.
         try:
-            fetcher.run(stop_event=stop_event)
+            collect()
             generate_static_site(config, full=False)
+            refresh_editorial_assets()
         except Exception as e:
             log.error(f"Fetch initial : {e}")
 
+    def plan_news(now):
+        if config.get('fetch', {}).get('drain_backlog') is True:
+            tasks = news_tasks(now, post_hours, drain_backlog=True)
+        else:
+            tasks = news_tasks(now, post_hours)
+        media = config.get('media', {})
+        if now.minute % 5 == 2 and (media.get('qualification_images') is True
+                                     or media.get('commons_background_search') is True):
+            from modules.core.scheduler import DueTask, civil_slot
+            tasks.append(DueTask('media', civil_slot(now, now.minute)))
+        return tasks
+
     run_loop(
-        lambda now: news_tasks(now, post_hours),
+        plan_news,
         {'fetch': fetch_and_rebuild, 'report': rapport_and_rebuild,
-         'edition': edition_and_rebuild, 'posts': posts_job,
+         'edition': edition_and_rebuild, 'posts': posts_job, 'media': refresh_media,
          'rebuild': lambda: generate_static_site(config, full=True)},
         stop_event, runner=runner, clock=lambda: datetime.now(),
         before_tick=lambda now: _check_reload(),
@@ -264,6 +343,7 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
         except (ValueError,OSError):log.error('Radio Studio journal unavailable; new generations disabled')
         studio=RadioStudio(journal,streamer,android_streamer,stop_event)
     builder = BulletinGenerator(config, radio_paths)
+    from modules.radio.editorial_selection import ZONE as RADIO_ZONE, load_review_records, select_for_radio, wait_for_airtime
 
     def generate_bulletin(slot=None,identity=None):
         """Génère un bulletin avec les articles des 30 dernières minutes."""
@@ -271,16 +351,29 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
             from modules.radio.bulletin_generator import load_bulletins_config
             bulletins_cfg = load_bulletins_config(radio_paths)
             window = bulletins_cfg.get("window_minutes", 30)
-            articles = get_recent_articles(radio_paths, window_minutes=window)
-            # Cap d'articles lu depuis config radio. Avant hardcode (20, puis 40),
-            # maintenant parametre configurable (defaut 40).
-            max_articles = config.get("radio", {}).get("max_articles_per_bulletin", 40)
-            articles = articles[:max_articles]
-            log.info(f"📡 Bulletin radio: {len(articles)} articles des {window} dernières min (cap {max_articles})")
+            recap_window = bulletins_cfg.get("recap_minutes", 360)
+            if type(window) is not int or type(recap_window) is not int or not 1 <= window <= recap_window <= 1440:
+                raise ValueError("invalid_radio_freshness_window")
+            minimum = bulletins_cfg.get("min_articles", 3)
+            maximum = config.get("radio", {}).get("max_articles_per_bulletin", 40)
+            if type(minimum) is not int or type(maximum) is not int or not 1 <= minimum <= maximum:
+                raise ValueError("invalid_radio_article_limits")
+            articles, selection = select_for_radio(
+                get_recent_articles(radio_paths, window_minutes=recap_window),
+                now=datetime.now(RADIO_ZONE), minimum=minimum, limit=maximum,
+                fresh_minutes=window, recap_minutes=recap_window,
+                records=load_review_records(radio_paths["data"]),
+            )
+            log.info("Sélection radio : %s (%d articles)", selection, len(articles))
+            options = {"recap": True} if selection == "recap" else {}
             if studio:
-                studio.generate(slot,articles,builder,identity);return
-            path = builder.build(articles)
-            if path:
+                studio.generate(slot, articles, builder, identity, defer_airtime=True, **options)
+                return
+            if not articles:
+                log.info("Bulletin sauté : pas assez de publications récentes vérifiables")
+                return
+            path = builder.build(articles, scheduled_slot=slot, **options)
+            if path and wait_for_airtime(slot, stop_event):
                 # Cache Android before the primary can consume/delete the MP3.
                 android_streamer.enqueue_bulletin(path)
                 streamer.enqueue_bulletin(path)
@@ -293,6 +386,22 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
     # Lance les 2 workers principaux (Streamer + BulletinGen via scheduler)
     stream_threads = [threading.Thread(target=streamer.run, daemon=True, name="Streamer"),
                       threading.Thread(target=android_streamer.run, daemon=True, name="AndroidStreamer")]
+    music_scan_stop = None
+    if config.get('radio', {}).get('personal_music') is True:
+        from modules.radio.music_library import MusicLibrary
+        from sqlite3 import Error as SQLiteError
+
+        music_scan_stop = threading.Event()
+
+        def index_music():
+            try:
+                count = MusicLibrary(streamer.personal_data, streamer.music_dir).scan(music_scan_stop)
+                if count is not None:
+                    log.info("Catalogue radio personnel : %d MP3", count)
+            except (OSError, ValueError, SQLiteError):
+                log.warning("Catalogue radio personnel indisponible")
+
+        stream_threads.append(threading.Thread(target=index_music, daemon=True, name="MusicLibrary"))
     for thread in stream_threads:
         thread.start()
 
@@ -325,7 +434,8 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
                 except (ValueError,OSError):continue
                 if row and row['status']=='admitted':admitted.append(DueTask(task.group,task.slot,(task.slot,row['id'])))
             return admitted
-        return tasks
+        from modules.core.scheduler import DueTask
+        return [DueTask(task.group, task.slot, (task.slot,)) for task in tasks]
 
     previous_refresh=refresh_radio_schedule
     def refresh_with_studio(now):
@@ -339,6 +449,8 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
                  stop_event, runner=ThreadRunner(log=log), clock=lambda: datetime.now(ZONE) if studio else datetime.now(),
                  before_tick=refresh_with_studio)
     finally:
+        if music_scan_stop is not None:
+            music_scan_stop.set()
         # run_loop drains bulletin work first; stop audio only after its final enqueue.
         streamer.stop()
         android_streamer.stop()

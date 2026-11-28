@@ -26,6 +26,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from modules.http import external as source_http
+from modules.editorial.source_order import diversify_sources
 from bs4 import BeautifulSoup
 from lxml import etree
 
@@ -255,13 +256,16 @@ class ArticleFetcher:
     # ── Article content ───────────────────────────────────────────────────────
 
     @staticmethod
-    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None, image_sink=None) -> str:
+    def _fetch_content(url: str, *, raise_errors=False, host_budget=None, cancel_event=None, image_sink=None, body_extraction=False) -> str:
         try:
             r = source_http.get(url, timeout=FETCH_TIMEOUT_HTTP, host_budget=host_budget, cancel_event=cancel_event)
             r.raise_for_status()
             if image_sink is not None:
                 try:image_sink(r.content,r.url)
                 except Exception:logging.getLogger('nova.fetch').warning('Optional image metadata capture unavailable')
+            if body_extraction:
+                from modules.fetch.extraction import extract_article_text
+                return extract_article_text(r.text, source_url=r.url)[:MAX_ARTICLE_CHARS]
             soup = BeautifulSoup(r.text, "html.parser")
             for tag in soup(["script","style","nav","header","footer",
                               "aside","form","iframe","noscript"]):
@@ -451,10 +455,35 @@ class ArticleFetcher:
         # trop de faux positifs.
         return hits >= 2
 
+    def _english_edition(self, title, summary):
+        from modules.fetch import editorial as ed
+
+        stop = getattr(self, '_feed_stop_event', None)
+        if (not getattr(self, 'editorial', {}).get('english_edition')
+                or ed.language(get_language()) != 'fr' or (stop is not None and stop.is_set())):
+            return None
+        try:
+            snapshot = self._generation_client()
+            prompt = ed.english_edition_prompt(title, summary)
+            identity = self._generation_identity('translate', snapshot)
+            key = ed.cache_key(prompt, ed.ENGLISH_EDITION_VERSION, 'en', '', identity, 'english_edition')
+            result = ollama_call(
+                prompt, timeout=90, caller='fetch', operation='translate', cache_key=key,
+                client_snapshot=snapshot, cancel_event=stop,
+                cache_validator=lambda raw: ed.parse_english_edition(raw, title, summary) is not None,
+            )
+            return ed.parse_english_edition(result, title, summary)
+        except Exception:
+            self.log.warning('Optional English edition unavailable')
+            return None
+
     def _translate_title(self, title: str, force: bool = False, *, source_language=None) -> str:
         from modules.fetch import editorial as ed
-        policy=ed.options(getattr(self, 'config', {}))
-        if policy['prompt_version']=='legacy-v1':
+        config = getattr(self, 'config', {})
+        policy = ed.options(config)
+        configured_title_policy = config.get('fetch', {}).get('editorial', {})
+        # Allow a title policy to be qualified independently of the summary prompt.
+        if policy['prompt_version'] == 'legacy-v1' and 'title_policy' not in configured_title_policy:
             return self._translate_title_legacy(title, force)
         from modules.core.llm_client import get_language
         lang=get_language()
@@ -762,6 +791,8 @@ class ArticleFetcher:
         self._final_evidence = None
         try:
             image_args={}
+            if getattr(self, 'editorial', {}).get('body_extraction'):
+                image_args['body_extraction'] = True
             if getattr(self,'config',{}).get('media',{}).get('mode','disabled')!='disabled':
                 from modules.media.capture import capture
                 image_args['image_sink']=lambda body,url:capture(self.seen_file.parent,body,url,h,self.config)
@@ -779,7 +810,12 @@ class ArticleFetcher:
                 raise ArticleAttemptError('invalid_summary')
             try:
                 stopping = getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set()
-                title = item['title'] if stopping else (self._translate_title(item['title'], force=False, source_language=getattr(self,'editorial',{}).get('source_languages',{}).get(urlparse(item['link']).hostname)) or item['title'])
+                from modules.fetch.editorial import source_language
+                hints = getattr(self, 'editorial', {}).get('source_languages', {})
+                hint = source_language(item['link'], hints)
+                title = item['title'] if stopping else (
+                    self._translate_title(item['title'], force=False, source_language=hint) or item['title']
+                )
             except Exception:
                 title = item['title']
             from modules.fetch.editorial import review
@@ -801,6 +837,9 @@ class ArticleFetcher:
                        'title': title, 'title_original': item['title'] if title != item['title'] or getattr(self,'editorial',{}).get('prompt_version')=='editorial-v2' else '',
                        'link': item['link'], 'source': urlparse(item['link']).netloc.replace('www.', ''),
                        'pub_date': item.get('pub_date', ''), 'summary': summary}
+            english = self._english_edition(title, summary)
+            if english:
+                article['english_edition'] = english
             self._final_evidence = dict(article)
             # Trace records never need query strings/credentials from public links.
             from urllib.parse import urlsplit, urlunsplit
@@ -809,7 +848,9 @@ class ArticleFetcher:
             if not valid_article(article):
                 raise ArticleAttemptError('invalid_article')
         except Exception as exc:
-            if not generation_started and getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+            stop = getattr(self, '_feed_stop_event', None)
+            window_ended = getattr(stop, 'remaining', None) is not None and stop.remaining() <= 0
+            if window_ended or (not generation_started and stop is not None and stop.is_set()):
                 rec.update(status='retryable', attempts=max(0,rec['attempts']-1),reason='collection_cancelled',next_attempt_at=0,updated_at=self._now().timestamp())
                 self._save_state()
             else:
@@ -819,7 +860,7 @@ class ArticleFetcher:
         self._save_state()
         return self._commit_prepared(h, rec, seen, existing_hashes, articles)
 
-    def run(self, *, stop_event=None):
+    def run(self, *, stop_event=None, refresh_feeds=True):
         self._feed_stop_event = stop_event
         acquired = False
         try:
@@ -828,7 +869,7 @@ class ArticleFetcher:
                 self._committed_count = 0
                 self._active_day = self._now().strftime('%Y%m%d')
                 try:
-                    return self._run_cycle()
+                    return self._run_cycle() if refresh_feeds else self._run_cycle(refresh_feeds=False)
                 finally:
                     self._active_day = None
         except BlockingIOError:
@@ -838,7 +879,7 @@ class ArticleFetcher:
             self.log.error('Collection paused: article storage unavailable; originals preserved')
             return self._committed_count if acquired else 0
 
-    def _run_cycle(self):
+    def _run_cycle(self, *, refresh_feeds=True):
         seen = self._load_seen()
         articles = self._load_today()
         self._state = self._load_state()
@@ -858,20 +899,21 @@ class ArticleFetcher:
                   and 'prepared' not in rec):
                 rec.update(status='failed', reason='retention_expired')
         self._save_state()
-        from modules.fetch.ingestion import FeedIngestor
-        self._ingestion = FeedIngestor(self.feed_state_file, config=self._feed_options, clock=self._now)
-        sources = _load_rss_sources()
-        results = self._ingestion.fetch_many([url for feeds in sources.values() for url in feeds],
-            downloader=self._fetch_rss, cancel_event=getattr(self, '_feed_stop_event', None))
-        from collections import Counter
-        self.log.info('Feed results: %s', dict(Counter(result.status for result in results.values())))
-        for category, feeds in sources.items():
-            for feed_url in feeds:
-                result = results[feed_url]
-                for entry in result.entries:
-                    item = entry.legacy()
-                    if self._hash(item['link']) not in existing_hashes:
-                        self._record(item, category)
+        if refresh_feeds:
+            from modules.fetch.ingestion import FeedIngestor
+            self._ingestion = FeedIngestor(self.feed_state_file, config=self._feed_options, clock=self._now)
+            sources = _load_rss_sources()
+            results = self._ingestion.fetch_many([url for feeds in sources.values() for url in feeds],
+                downloader=self._fetch_rss, cancel_event=getattr(self, '_feed_stop_event', None))
+            from collections import Counter
+            self.log.info('Feed results: %s', dict(Counter(result.status for result in results.values())))
+            for category, feeds in sources.items():
+                for feed_url in feeds:
+                    result = results[feed_url]
+                    for entry in result.entries:
+                        item = entry.legacy()
+                        if self._hash(item['link']) not in existing_hashes:
+                            self._record(item, category)
         if self.retry_summaries:
             for item in articles:
                 if not valid_article(item) and item.get('link') and item.get('title'):
@@ -886,21 +928,40 @@ class ArticleFetcher:
             if rec['status'] in ('discovered', 'processing', 'retryable') and (
                     'prepared' in rec or rec['next_attempt_at'] <= now.timestamp()):
                 queue = queues.setdefault(rec['category'], [])
-                if not self.max_per_category or len(queue) < self.max_per_category:
-                    queue.append((rec['item'], rec['category']))
+                queue.append((rec['item'], rec['category']))
+        stop = getattr(self, '_feed_stop_event', None)
+        remaining = getattr(stop, 'remaining', None)
+        queues = {
+            category: diversify_sources(
+                queue, lambda entry: self._source_host(entry[0]),
+                limit=None if remaining is not None else self.max_per_category or None,
+            )
+            for category, queue in queues.items()
+        }
         self._save_state()
         count = 0
+        previous_source = None
         while any(queues.values()):
-            if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():
+            if (stop is not None and stop.is_set()) or (remaining is not None and remaining() < 60):
                 break
             for queue in queues.values():
-                if getattr(self, '_feed_stop_event', None) is not None and self._feed_stop_event.is_set():break
+                if (stop is not None and stop.is_set()) or (remaining is not None and remaining() < 60):
+                    break
                 if queue:
-                    item, category = queue.pop(0)
+                    index = next((i for i, (item, _) in enumerate(queue)
+                                  if self._source_host(item) != previous_source), 0)
+                    item, category = queue.pop(index)
+                    previous_source = self._source_host(item)
                     count += bool(self._process_item(item, category, seen, existing_hashes, articles))
         self._save_seen(seen)
+        if remaining is not None and remaining() < 60 and any(queues.values()):
+            self.log.info('Pause News avant Radio : %d candidats reportés', sum(map(len, queues.values())))
         self.log.info('Article cycle completed: %d publications or reconciliations', count)
         return count
+
+    @staticmethod
+    def _source_host(item):
+        return (urlparse(item['link']).hostname or '').removeprefix('www.')
 
     @staticmethod
     def _cap_queues(queues: dict, cap: int) -> dict:

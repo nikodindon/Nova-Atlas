@@ -158,7 +158,9 @@ def get_flash_articles(paths: dict, category: str, since_minute_of_day: int = 0)
                     ts = datetime.fromisoformat(ts_str)
                 except (ValueError, TypeError):
                     continue
-                if ts >= cutoff:
+                if ts.tzinfo is not None:
+                    ts = ts.astimezone().replace(tzinfo=None)
+                if cutoff <= ts <= now:
                     s = (art.get("summary") or "").strip()
                     if s and not s.startswith("["):
                         found.append(art)
@@ -207,22 +209,16 @@ def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
     """
     now = datetime.now()
     cutoff = now - timedelta(minutes=window_minutes)
-    today = now.strftime("%Y%m%d")
-    articles_root = paths["data"] / "articles"
-
-    if not articles_root.exists():
-        return []
-
-    # Collecte tous les fichiers JSON du jour (2 formats possibles)
+    articles_root = paths.get("articles", paths["data"] / "articles")
     json_files = []
-    # Format 1 : sous-dossier par jour
-    sub_dir = articles_root / today
-    if sub_dir.exists():
-        json_files.extend(sub_dir.glob("*.json"))
-    # Format 2 : fichier unique par jour
-    single_file = articles_root / f"{today}_articles.json"
-    if single_file.exists():
-        json_files.append(single_file)
+    day = cutoff.date()
+    while day <= now.date():
+        label = day.strftime("%Y%m%d")
+        json_files.extend((articles_root / label).glob("*.json"))
+        single_file = articles_root / f"{label}_articles.json"
+        if single_file.is_file():
+            json_files.append(single_file)
+        day += timedelta(days=1)
 
     found = []
     for f in json_files:
@@ -236,7 +232,9 @@ def get_recent_articles(paths: dict, window_minutes: int = 30) -> List[dict]:
                     ts = datetime.fromisoformat(ts_str)
                 except (ValueError, TypeError):
                     continue
-                if ts >= cutoff:
+                if ts.tzinfo is not None:
+                    ts = ts.astimezone().replace(tzinfo=None)
+                if cutoff <= ts <= now:
                     s = (art.get("summary") or "").strip()
                     if s and not s.startswith("["):
                         found.append(art)
@@ -328,8 +326,10 @@ def build_bulletin_prompt(articles: List[dict], config: dict,
 
     # Choisit 1 intro et 1 outro au hasard parmi les options
     # On remplit {{heure}} et {{date}} maintenant pour que le LLM n'ait pas à le faire
-    now_str = datetime.now().strftime("%Hh%M")
-    date_str = datetime.now().strftime("%d/%m/%Y")
+    scheduled = config.get("_scheduled_slot")
+    edition_time = datetime.fromisoformat(scheduled) if scheduled else datetime.now()
+    now_str = edition_time.strftime("%Hh%M")
+    date_str = edition_time.strftime("%d/%m/%Y")
     intro = random.choice(intros).format(heure=now_str, date=date_str) if intros else f"Bonjour à tous, il est {now_str}."
     outro = random.choice(outros).format(heure=now_str, date=date_str) if outros else "C'est tout pour ce bulletin."
 
@@ -410,7 +410,9 @@ CONSIGNES STRICTES :
 
 FORMAT DE SORTIE :
 Écris UNIQUEMENT le script balisé, sans méta-commentaire.
-Commence par [VOIX1], termine par [VOIX1] (pour l'outro).
+Commence le script par [VOIX1]. Pour l'outro, écris [VOIX1] puis le texte à prononcer.
+Chaque balise doit être suivie de texte à prononcer avant la suivante.
+Ne mets aucune indication scénique entre crochets. Termine par les mots de l'outro, sans balise finale.
 
 Script :"""
 
@@ -431,8 +433,10 @@ def split_script_by_voice(script):
         if not part.strip():
             continue
         if part.startswith('[') and part.endswith(']'):
-            if part not in VOICE_TAGS or awaiting:
-                raise AudioIntegrityError('invalid_or_empty_voice_segment')
+            if part not in VOICE_TAGS:
+                raise AudioIntegrityError('unknown_voice_tag')
+            if awaiting:
+                raise AudioIntegrityError('empty_voice_segment')
             current, awaiting = part, True
         else:
             text = part.strip()
@@ -440,8 +444,12 @@ def split_script_by_voice(script):
                 raise AudioIntegrityError('malformed_spoken_text')
             segments.append((current, text))
             awaiting = False
-    if awaiting or not segments or len(segments) > 256:
-        raise AudioIntegrityError('empty_or_excessive_segments')
+    if awaiting:
+        raise AudioIntegrityError('trailing_voice_tag_without_text')
+    if not segments:
+        raise AudioIntegrityError('no_spoken_segments')
+    if len(segments) > 256:
+        raise AudioIntegrityError('too_many_voice_segments')
     return segments
 
 
@@ -647,8 +655,10 @@ def build_flash_prompt(articles: List[dict], category: str, cat_label: str,
     articles_text = _format_articles_for_prompt(articles, max_summary_chars=700)
 
     # Choisit 1 intro et 1 outro au hasard
-    now_str = datetime.now().strftime("%Hh%M")
-    date_str = datetime.now().strftime("%d/%m/%Y")
+    scheduled = config.get("_scheduled_slot")
+    edition_time = datetime.fromisoformat(scheduled) if scheduled else datetime.now()
+    now_str = edition_time.strftime("%Hh%M")
+    date_str = edition_time.strftime("%d/%m/%Y")
     intro = random.choice(intros).format(heure=now_str, date=date_str) if intros \
         else f"Bonjour, il est {now_str}, voici le flash {cat_label}."
     outro = random.choice(outros).format(heure=now_str, date=date_str) if outros \
@@ -801,7 +811,7 @@ class BulletinGenerator:
         }
         return aliases.get(lang, lang[:2])
 
-    def build(self, articles, script=None, *, profile='bulletin', publication_name=None, observer=None, cancel_event=None):
+    def build(self, articles, script=None, *, profile='bulletin', publication_name=None, observer=None, cancel_event=None, recap=False, scheduled_slot=None):
         """Return only a complete, validated, atomically published MP3."""
         cfg = self.bulletins_cfg
         manifest=[];tts_started=None
@@ -815,9 +825,12 @@ class BulletinGenerator:
                 if self.config.get('editorial_events',{}).get('enabled') is True:save_selection(self.paths['data'],'radio',articles)
             if script is None:
                 intros, transitions, outros = self._load_messages()
-                script = generate_bulletin_script(articles, {**cfg, **self.config}, intros, transitions, outros)
+                script = generate_bulletin_script(articles, {**cfg, **self.config, "_scheduled_slot": scheduled_slot}, intros, transitions, outros)
             if cancel_event is not None and cancel_event.is_set():raise AudioIntegrityError('generation_cancelled')
             segments = split_script_by_voice(script)
+            if recap:
+                tag, text = segments[0]
+                segments[0] = (tag, "Voici un récapitulatif des dernières actualités disponibles. " + text)
             if profile not in ('bulletin', 'flash'):
                 raise AudioIntegrityError('invalid_profile')
             target = cfg.get('flash_target_words', 750) if profile == 'flash' else cfg.get('target_words', 1500)

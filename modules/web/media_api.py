@@ -42,6 +42,10 @@ def install_media_api(app,paths,config):
         state,version=service.store.load();rows=list(state['records'].values())
         return jsonify(status='ok',mode=service.store.mode,version=version,count=len(rows),records=[{**r,'approval_binding':service.store.binding(r) if r.get('artifact') else None} for r in rows[(page-1)*20:page*20]])
 
+    @app.get('/api/admin/media/qualification')
+    def media_qualification():
+        return jsonify(status='ok', images=service.qualification_images())
+
     @app.get('/api/admin/media/targets')
     def media_targets():return jsonify(status='ok',targets=service.targets())
 
@@ -78,7 +82,7 @@ def install_media_api(app,paths,config):
     @app.get('/api/admin/media/<identity>/preview/<int:size>.jpg')
     def media_preview(identity,size):
         state,_=service.store.load();row=state['records'].get(identity)
-        if not row or not row.get('artifact'):return jsonify(status='error',msg='preview_unavailable'),404
+        if not row or not row.get('artifact') or row['status']=='rejected' or (row['status']=='rights_unknown' and service.config.get('qualification_images') is not True):return jsonify(status='error',msg='preview_unavailable'),404
         return Response(service.store.bytes(row,size),mimetype='image/jpeg')
 
     @app.get('/api/media')

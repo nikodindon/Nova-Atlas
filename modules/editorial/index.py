@@ -11,7 +11,7 @@ import stat
 import time
 from zoneinfo import ZoneInfo
 from modules.core.source_manager import atomic_write
-from modules.editorial.events import Coverage,group_coverages,sha,ALGORITHM
+from modules.editorial.events import Coverage,group_coverages,sha,ALGORITHM,LEGACY_ALGORITHM
 
 MAX_INDEX=8*1024*1024
 class IndexError(ValueError):pass
@@ -76,11 +76,14 @@ def override_state(path):
 
 
 class EventIndex:
-    def __init__(self,articles,data,*,clock=None,days=14):
+    def __init__(self,articles,data,*,clock=None,days=14,recent_limit=None):
         self.articles=Path(articles);self.data=Path(data);self.path=self.data/'editorial_events.json';self.overrides=self.data/'editorial_overrides.json'
         self.clock=clock or (lambda:datetime.now(timezone.utc))
         if type(days) is not int or not 1<=days<=31:raise IndexError('retention_limit')
         self.days=days
+        if recent_limit is not None and (type(recent_limit) is not int or not 1 <= recent_limit <= 500):
+            raise IndexError('article_limit')
+        self.recent_limit = recent_limit
         for path in (self.articles,self.data):
             if any(part.is_symlink() for part in (path,*path.parents)):raise IndexError('unsafe_directory')
 
@@ -88,7 +91,7 @@ class EventIndex:
         raw=read(self.path)
         if raw is None:return None
         data=decode(raw)
-        if not isinstance(data,dict) or (type(data.get('version')) is not int or data.get('version')!=1) or data.get('algorithm')!=ALGORITHM or not isinstance(data.get('events'),list) or len(data['events'])>500:raise IndexError('invalid_index')
+        if not isinstance(data,dict) or (type(data.get('version')) is not int or data.get('version')!=1) or data.get('algorithm') not in (ALGORITHM, LEGACY_ALGORITHM) or not isinstance(data.get('events'),list) or len(data['events'])>500:raise IndexError('invalid_index')
         if not allow_stale and data.get('overrides_sha')!=override_state(self.overrides)[1]:raise IndexError('overrides_require_rebuild')
         ids=set()
         try:
@@ -104,7 +107,7 @@ class EventIndex:
                         stamp=datetime.fromisoformat(event[field])
                         if stamp.tzinfo is None:raise ValueError()
                 if type(event.get('article_count')) is not int or type(event.get('domain_count')) is not int or not 0<=event['domain_count']<=event['article_count']:raise ValueError()
-                if event.get('algorithm')!=ALGORITHM or event.get('status') not in ('single','grouped','human_association'):raise ValueError()
+                if event.get('algorithm')!=data['algorithm'] or event.get('status') not in ('single','grouped','human_association'):raise ValueError()
                 for field in ('sources','domains','article_hashes','secondary_categories','disagreements','reasons'):
                     if not isinstance(event.get(field),list) or len(event[field])>1000 or any(not isinstance(v,str) for v in event[field]):raise ValueError()
                 if not isinstance(event['category'],str) or len(event['category'])>100:raise ValueError()
@@ -130,7 +133,7 @@ class EventIndex:
         if now.tzinfo is None:raise IndexError('aware_clock_required')
         local_date=now.astimezone(ZoneInfo('Europe/Paris')).date();cutoff=local_date-timedelta(days=self.days-1);manifest={};diagnostics=[];coverages={};total=0;files=[]
         if self.articles.exists():
-            files=sorted(self.articles.glob('*_articles.json'))
+            files=sorted(self.articles.glob('*_articles.json'), reverse=self.recent_limit is not None)
             for child in self.articles.iterdir():
                 if re.fullmatch(r'\d{8}',child.name) and child.is_dir():diagnostics.append({'file':child.name,'state':'legacy_subdirectory_requires_explicit_adapter'})
             if len(files)>10000:raise IndexError('inventory_limit')
@@ -151,20 +154,27 @@ class EventIndex:
                 manifest[path.name]=sha(raw.decode('utf-8'))
                 values=decode(raw)
                 if not isinstance(values,list):raise IndexError('invalid_article_array')
-                if len(values)>500:raise IndexError('article_limit')
+                if self.recent_limit is not None:
+                    if len(values) > 2000:raise IndexError('article_limit')
+                elif len(values)>500:raise IndexError('article_limit')
             except (IndexError,UnicodeError) as exc:
                 if str(exc) in ('input_size_limit','article_limit'):raise
                 diagnostics.append({'file':path.name,'state':str(exc) if isinstance(exc,IndexError) else 'invalid_encoding'})
                 # Hash a malformed UTF-8/JSON source too, preserving its explicit state.
                 if raw is not None:manifest[path.name]=__import__('hashlib').sha256(raw).hexdigest()
                 continue
-            for i,a in enumerate(values):
+            numbered = enumerate(values) if self.recent_limit is None else reversed(list(enumerate(values)))
+            for i,a in numbered:
                 try:c=Coverage.from_article(a,f'{path.name}:{i}')
                 except (ValueError,TypeError):diagnostics.append({'file':path.name,'record':i,'state':'invalid_article'});continue
                 if c.id in coverages:c=replace(c,locations=tuple(sorted(set(c.locations+coverages[c.id].locations))))
                 coverages[c.id]=c
                 if len(coverages)>500:raise IndexError('article_limit')
-        fingerprint=sha(json.dumps([manifest,diagnostics],sort_keys=True,separators=(',',':')))
+                if self.recent_limit is not None and len(coverages) >= self.recent_limit:
+                    break
+            if self.recent_limit is not None and len(coverages) >= self.recent_limit:
+                break
+        fingerprint=sha(json.dumps([manifest,diagnostics] if self.recent_limit is None else [manifest, diagnostics, self.recent_limit],sort_keys=True,separators=(',',':')))
         return list(coverages.values()),manifest,diagnostics,fingerprint
 
     def rebuild(self,*,apply=False,expected=None):
@@ -172,6 +182,16 @@ class EventIndex:
             with lock(self.data/'editorial-events.lock'),lock(self.data/'article-integrity.lock'):
                 return self._build(True,expected)
         return self._build(False,expected)
+
+    def refresh_recent(self):
+        if self.recent_limit is None:
+            raise IndexError('automatic_snapshot_requires_limit')
+        with lock(self.data/'editorial-events.lock'), lock(self.data/'article-integrity.lock'):
+            fingerprint = self.snapshot()[3]
+            previous = self.load(allow_stale=True)
+            if previous and previous['algorithm'] == ALGORITHM and previous['input_sha'] == fingerprint and previous['overrides_sha'] == override_state(self.overrides)[1]:
+                return previous
+            return self._build(True, fingerprint)
 
     def _build(self,apply,expected):
         previous=self.load(allow_stale=True);overrides,override_sha=override_state(self.overrides)
@@ -183,7 +203,7 @@ class EventIndex:
         if missing:diagnostics.append({'state':'override_references_outside_snapshot','count':len(missing),'ids':missing[:100]})
         now=self.clock().astimezone(timezone.utc).isoformat()
         events,uncertain=group_coverages(coverages,previous=previous['events'] if previous else None,overrides=overrides,now=now)
-        unchanged=previous and previous.get('input_sha')==fingerprint and previous.get('overrides_sha')==override_sha
+        unchanged=previous and previous['algorithm']==ALGORITHM and previous.get('input_sha')==fingerprint and previous.get('overrides_sha')==override_sha
         result={'version':1,'algorithm':ALGORITHM,'generated_at':previous['generated_at'] if unchanged else now,'input_sha':fingerprint,'overrides_sha':override_sha,
             'status':'degraded' if diagnostics else 'ready','manifest':manifest,'diagnostics':diagnostics,'events':events,'uncertain':uncertain,'retention_days':self.days}
         raw=json.dumps(result,ensure_ascii=False,allow_nan=False,sort_keys=True,separators=(',',':'))

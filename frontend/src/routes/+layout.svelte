@@ -9,7 +9,7 @@
     data,
     children,
   }: {
-    data: { locale: Locale; theme: 'light' | 'dark'; site: Resource<Site> };
+    data: { locale: Locale; theme: 'light' | 'dark'; site: Resource<Site>; personalMusic: boolean };
     children: Snippet;
   } = $props();
   let t = $derived(messages(data.locale));
@@ -53,5 +53,6 @@
 </footer>
 <RadioPlayer
   locale={data.locale}
+  personalMusic={data.personalMusic}
   streams={data.site.data?.streams || { primary: '/stream/nova', android: '/stream/nova-android' }}
 />

@@ -43,6 +43,10 @@ def decode_image(raw):
     except (ValueError,OSError,subprocess.TimeoutExpired):raise MediaError('image_decode_refused') from None
 
 
+
+def same_target(left, right):
+    return all(left.get(key) == right.get(key) for key in ('kind', 'id', 'fingerprint'))
+
 def target_for_article(article):
     from modules.editorial.events import Coverage
     c=Coverage.from_article(article)
@@ -119,7 +123,7 @@ class MediaStore:
             result=callback(state)
             self.write(state);return result
 
-    def add(self,candidate,target,*,trusted=False):
+    def add(self,candidate,target,*,trusted=False,qualification=False):
         if self.mode=='disabled':return None
         candidate=asdict(candidate);source_url(candidate['url']);source_url(candidate['source_page'])
         identity=digest([candidate['url'],target['kind'],target['id'],target['fingerprint']]);rights=assess(candidate.get('proof',{}),trusted_commons=trusted)
@@ -130,7 +134,21 @@ class MediaStore:
             if old:
                 if len(old['history'])>=8:raise MediaError('version_history_full')
                 history=old['history']+[{'resource_version':old['resource_version'],'candidate':old['candidate'],'rights':old['rights'],'artifact':old.get('artifact'),'approval':old.get('approval')}]
-            else:history=[]
+            else:
+                history=[]
+                automatic_candidate = qualification or target['kind'] == 'article_reference'
+                if (automatic_candidate or (trusted and rights['status'] == 'rights_verified')) and len(state['records']) >= 128:
+                    reviewed = {entry['candidate'] for entry in state['audit']}
+                    disposable = [
+                        row for row in state['records'].values()
+                        if row['status'] == 'rights_unknown'
+                        and row['target']['kind'] == 'article_reference'
+                        and not (row['artifact'] or row['approval'] or row['history'])
+                        and row['id'] not in reviewed
+                    ]
+                    if disposable:
+                        oldest = min(disposable, key=lambda row: (row['created_at'], row['id']))
+                        del state['records'][oldest['id']]
             state['records'][identity]={'id':identity,'candidate':candidate,'target':target,'resource_version':version,'rights':rights,'status':rights['status'],
                 'caption':old.get('caption','Illustration générique') if old else 'Illustration générique','proof_trusted':trusted,'nature':'illustration','checked_at':self.clock(),'created_at':old.get('created_at',self.clock()) if old else self.clock(),'artifact':None,'approval':None,'history':history,'error':None}
             return identity
@@ -148,7 +166,7 @@ class MediaStore:
                 if count>4096:raise MediaError('file_count_quota')
         return total
 
-    def prepare(self,identity,raw,*,expected):
+    def prepare(self,identity,raw,*,expected,qualification=False):
         if self.mode=='disabled':raise MediaError('downloads_disabled')
         data=self.runner(raw);source_sha=hashlib.sha256(raw).hexdigest()
         if data.get('version')!=VERSION or data.get('source_sha256')!=source_sha or len(data.get('variants',[]))!=2:raise MediaError('invalid_decoder_output')
@@ -162,9 +180,14 @@ class MediaStore:
         if set(content)!={320,768}:raise MediaError('invalid_decoder_output')
         def store(state):
             record=state['records'].get(identity)
-            if not record or record['rights']['status']!='rights_verified' or record['status']=='rejected':raise MediaError('rights_not_verified')
-            proof=record['candidate']['proof']
-            if hashlib.sha1(raw).hexdigest()!=proof.get('file_sha1') or len(raw)!=proof.get('size'):raise MediaError('resource_version_mismatch')
+            if not record or record['status']=='rejected':raise MediaError('rights_not_verified')
+            if qualification:
+                if record['status'] != 'rights_unknown' or record['target']['kind'] != 'article':
+                    raise MediaError('qualification_candidate_required')
+            else:
+                if record['rights']['status'] != 'rights_verified':raise MediaError('rights_not_verified')
+                proof=record['candidate']['proof']
+                if hashlib.sha1(raw).hexdigest()!=proof.get('file_sha1') or len(raw)!=proof.get('size'):raise MediaError('resource_version_mismatch')
             if self.usage()+len(raw)+sum(map(len,content.values()))>MAX_DISK:raise MediaError('disk_quota')
             original=checked(self.root/'originals'/(source_sha+'.bin'))
             if not original.exists():
@@ -188,7 +211,7 @@ class MediaStore:
                 for size,blob in content.items():
                     if read(checked(destination/(str(size)+'.jpg')),1024*1024)!=blob:raise MediaError('derivative_corrupt')
             approval=record.get('approval');old_artifact=record.get('artifact')
-            record.update(artifact=artifact,status='rights_verified',approval=None,error=None)
+            record.update(artifact=artifact,status=record['rights']['status'],approval=None,error=None)
             if approval and approval.get('binding')==self.binding(record):record.update(approval=approval,status='approved')
             elif approval:
                 if len(record['history'])>=8:raise MediaError('version_history_full')
@@ -202,6 +225,32 @@ class MediaStore:
 
     @staticmethod
     def binding(record):return digest([record['resource_version'],{k:v for k,v in record['artifact'].items() if k!='metrics'} if record.get('artifact') else None,record['caption'],record['nature'],record['target']])
+
+    def can_auto_approve(self, state, row):
+        if (self.mode != 'approved_only' or row['status'] != 'rights_verified'
+                or row['rights']['status'] != 'rights_verified'
+                or row['candidate']['provider'] != 'commons' or not row['proof_trusted']
+                or not 0 <= self.clock() - row['checked_at'] <= 86400):
+            return False
+        if any(entry['candidate'] == row['id'] and entry['action'] in ('reject', 'disable')
+               for entry in state['audit']):
+            return False
+        return not any(same_target(other['target'], row['target']) and other['status'] == 'approved'
+                       for other in state['records'].values())
+
+    def auto_approve(self, identity, *, expected):
+        def save(state):
+            row = state['records'].get(identity)
+            if not row or not row.get('artifact') or not self.can_auto_approve(state, row):
+                raise MediaError('automatic_approval_not_eligible')
+            binding = self.binding(row)
+            row['approval'] = {
+                'id': digest([identity, binding]), 'binding': binding, 'at': self.clock(),
+                'method': 'commons_auto', 'third_party_review_acknowledged': False,
+            }
+            row['status'] = 'approved'
+            state['audit'].append({'candidate': identity, 'action': 'auto_approve', 'at': self.clock()})
+        self.transaction(save, expected)
 
     def decide(self,identity,action,*,expected,binding=None,ack=False,caption=None):
         if action not in ('approve','reject','disable','caption'):raise MediaError('invalid_decision')

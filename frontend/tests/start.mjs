@@ -35,6 +35,7 @@ const image = {
   },
 };
 const cats = [
+  { id: 'science', name: 'Science & Santé', icon: '🔬', active: true },
   { id: 'tech', name: 'Tech & IA', icon: '⚡', active: true },
   { id: 'monde', name: 'Monde', icon: '🌐', active: true },
   { id: 'economie', name: 'Économie', icon: '📈', active: true },
@@ -42,6 +43,10 @@ const cats = [
 const articles = [
   {
     title: 'L’observatoire ouvre une nouvelle fenêtre sur le ciel',
+    english_edition: {
+      title: 'The observatory opens a new window on the sky',
+      summary: 'An international team presents an observation programme.',
+    },
     summary:
       'Dans cette dépêche fictive, une équipe internationale présente un programme d’observation. Les données sont publiques et les résultats restent à examiner.',
     category: 'science',
@@ -66,7 +71,7 @@ const articles = [
   {
     title: 'La recherche locale explore de nouveaux outils numériques',
     summary:
-      'Une initiative fictive examine les usages des logiciels libres et l’accès aux connaissances.',
+      'Une initiative fictive examine les usages des logiciels libres et l’accès aux connaissances. Cette étude associe des bibliothèques, des associations et des centres de recherche durant plusieurs mois. Une rencontre publique est prévue en décembre.',
     category: 'tech',
   },
   {
@@ -254,9 +259,14 @@ const backend = http.createServer(async (req, res) => {
     json(res, {
       ...base,
       name: 'Nova Atlas',
+      personal_music: true,
       categories: cats,
       streams: { primary: '/stream/nova', android: '/stream/nova-android' },
     });
+    return;
+  }
+  if (path === '/api/public/headlines') {
+    json(res, { ...base, articles: articles.slice(0, 2) });
     return;
   }
   if (path === '/api/public/articles') {
@@ -264,14 +274,15 @@ const backend = http.createServer(async (req, res) => {
       json(res, { status: 'unavailable' }, 503);
       return;
     }
-    const category = url.searchParams.get('category');
-    let rows = category ? articles.filter((a) => a.category === category) : articles;
+    const categories = url.searchParams.getAll('category').filter(Boolean);
+    let rows = categories.length ? articles.filter((a) => categories.includes(a.category)) : articles;
     rows = rows.map((a) => ({ ...a, image: revoked ? fallback : a.image }));
     json(res, {
       ...base,
       date: day,
       total: rows.length,
       articles: rows.slice((base.page - 1) * base.per_page, base.page * base.per_page),
+      available_categories: [...new Set(articles.map((article) => article.category))],
     });
     return;
   }
@@ -284,11 +295,12 @@ const backend = http.createServer(async (req, res) => {
     return;
   }
   if (path === '/api/public/archives') {
-    json(res, {
-      ...base,
-      total: 1,
-      days: [{ date: day, articles: true, report: true, editions: ['matin', 'midi', 'soir'] }],
-    });
+    const today = new Intl.DateTimeFormat('sv-SE', {
+      year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Europe/Paris',
+    }).format(new Date()).replaceAll('-', '');
+    const days = [{ date: day, articles: true, report: true, editions: ['matin', 'midi', 'soir'] }];
+    if (today !== day) days.unshift({ date: today, articles: true, report: true, editions: ['matin'] });
+    json(res, { ...base, total: days.length, days });
     return;
   }
   if (path.startsWith('/api/public/documents/')) {

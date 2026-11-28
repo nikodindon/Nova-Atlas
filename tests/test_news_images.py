@@ -271,3 +271,114 @@ def test_disabled_policy_refuses_network_before_transport(tmp_path):
     with pytest.raises(MediaError,match='downloads_disabled'):
         with service.operation():service.get('https://images.invalid/a')
     assert calls==[] and not service.store.root.exists()
+
+
+def test_commons_search_can_prepare_but_does_not_publish(tmp_path, monkeypatch):
+    raw = image()
+    responses = [FakeResponse(body=payload(raw)), FakeResponse(body=raw)]
+    client, _, _ = client_for(responses)
+    service = MediaService(
+        tmp_path/'a', tmp_path/'d',
+        {'mode':'approved_only', 'commons_enabled':True, 'commons_auto_prepare':True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw),
+        runner=prepare,
+    )
+    monkeypatch.setattr(service, 'target', lambda _: TARGET)
+    [identity] = service.search('Synthetic', TARGET)
+    row = service.store.load()[0]['records'][identity]
+    assert row['artifact'] and not row.get('approval')
+    assert service.store.public_for(TARGET)['fallback']
+
+
+@pytest.mark.parametrize('license_name,approved', [('CC BY 4.0', True), ('CC BY-NC 4.0', False)])
+def test_commons_search_auto_approves_only_verified_images(tmp_path, monkeypatch, license_name, approved):
+    raw = image()
+    listing = payload(raw, license=license_name)
+    responses = [FakeResponse(body=listing)]
+    if approved:
+        responses.extend([FakeResponse(body=raw), FakeResponse(body=listing)])
+    client, _, _ = client_for(responses)
+    service = MediaService(
+        tmp_path/'a', tmp_path/'d',
+        {'mode':'approved_only', 'commons_enabled':True, 'commons_auto_approve':True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw),
+        runner=prepare,
+    )
+    monkeypatch.setattr(service, 'target', lambda _: TARGET)
+    [identity] = service.search('Synthetic', TARGET)
+    state, version = service.store.load()
+    projection = service.store.public_for(TARGET)
+    assert projection['fallback'] is not approved
+    row = state['records'][identity]
+    if not approved:
+        assert not row['artifact'] and not row['approval']
+        return
+    assert projection['attribution']['author']
+    assert row['approval']['method'] == 'commons_auto'
+    assert row['approval']['third_party_review_acknowledged'] is False
+    assert state['audit'][-1]['action'] == 'auto_approve'
+
+    service.store.decide(identity, 'disable', expected=version)
+    service.search('Synthetic', TARGET)
+    assert service.store.public_for(TARGET)['fallback']
+
+
+def test_background_commons_only_keeps_relevant_verified_candidate(tmp_path, monkeypatch):
+    raw = image()
+    # The response includes unrelated results before the relevant result.
+    relevant = json.loads(payload(raw))['query']['pages'][0]
+    relevant['title'] = 'File:Valmer hockey arena.png'
+    irrelevant = json.loads(payload(raw))['query']['pages'][0]
+    responses = [
+        FakeResponse(body=json.dumps({'query': {'pages': [irrelevant, relevant]}}).encode()),
+        FakeResponse(body=raw),
+    ]
+    client, _, _ = client_for(responses)
+    service = MediaService(
+        tmp_path/'a', tmp_path/'d',
+        {'mode': 'approved_only', 'commons_enabled': True, 'commons_auto_approve': True,
+         'commons_background_search': True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw), runner=prepare,
+    )
+    monkeypatch.setattr('modules.media.service.target_for_article', lambda _: TARGET)
+    service.illustrate_new_article({'title': 'Valmer hockey championship'})
+    assert not service.store.public_for(TARGET)['fallback']
+    row, = service.store.load()[0]['records'].values()
+    assert row['candidate']['title'] == 'File:Valmer hockey arena.png'
+
+
+def test_full_manifest_makes_room_only_from_unreviewed_references(store):
+    from dataclasses import replace
+    raw = image()
+    protected = store.add(candidate(raw), TARGET, trusted=True)
+    version = store.load()[1]
+    store.decide(protected, 'reject', expected=version)
+    reference = {**TARGET, 'kind': 'article_reference'}
+    for number in range(127):
+        store.add(replace(candidate(raw), url=f'https://example.org/images/{number}.png'), reference)
+    new = store.add(candidate(raw), {**TARGET, 'id': 'e' * 32}, trusted=True)
+    rows = store.load()[0]['records']
+    assert len(rows) == 128
+    assert rows[protected]['status'] == 'rejected'
+    assert rows[new]['status'] == 'rights_verified'
+
+
+def test_native_qualification_images_are_private_and_keep_unknown_rights(tmp_path, monkeypatch):
+    raw = image()
+    client, _, _ = client_for([FakeResponse(body=raw)])
+    service = MediaService(
+        tmp_path/'articles', tmp_path/'data',
+        {'mode': 'approved_only', 'qualification_images': True},
+        transport=lambda url, timeout=None, **kw: client.get(url, **kw), runner=prepare,
+    )
+    native = ImageCandidate('https://example.org/figure.png', 'og:image', 'https://example.org/story')
+    service.store.add(native, {**TARGET, 'kind': 'article_reference'})
+    monkeypatch.setattr('modules.media.service.target_for_article', lambda _: TARGET)
+    assert service.illustrate_qualification({'link': 'https://example.org/story'})
+    assert service.store.public_for(TARGET)['fallback']
+    private = service.qualification_images()[TARGET['fingerprint']]
+    assert private['url'].startswith('/api/admin/media/')
+    record = next(row for row in service.store.load()[0]['records'].values() if row['artifact'])
+    assert record['status'] == 'rights_unknown' and not record['approval']
+    service.store.decide(record['id'], 'disable', expected=service.store.load()[1])
+    assert not service.qualification_images()

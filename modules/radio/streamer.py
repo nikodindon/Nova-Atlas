@@ -6,8 +6,12 @@ Supporte fadeout fluide entre musique et bulletins.
 
 import logging
 from collections import OrderedDict
+from itertools import islice
+import os
+import stat
 from modules.radio.audio_integrity import validated_publication, cache_publication, receipt_path, inspect_audio
 from modules.radio import transport
+from modules.radio.music_library import MUSIC_TRACK_LIMIT
 import random
 import subprocess
 import tempfile
@@ -20,6 +24,7 @@ logger = logging.getLogger("nova.streamer")
 
 FADE_DURATION      = 3.0
 CHUNK_SIZE         = 32768
+MUSIC_VALIDATION_CACHE_LIMIT = 1_024
 HEARTBEAT_INTERVAL = 0.5
 
 _SILENCE_BYTES: bytes = b""
@@ -50,6 +55,7 @@ class Streamer:
 
         self.music_dir   = Path(paths.get("music", "music"))
         self.queue_dir   = Path(paths.get("audio_queue", "audio_queue"))
+        self.personal_data = Path(paths.get("data_dir", "data")) if radio.get("personal_music") is True else None
         self.bitrate     = radio.get("bitrate", "128k")
         self.sample_rate = radio.get("sample_rate", 44100)
         self.channels    = radio.get("channels", 2)
@@ -155,6 +161,12 @@ class Streamer:
             if studio:
                 try:studio.channel_event(bulletin,'primary','playing')
                 except (ValueError,OSError):return
+            if getattr(self, 'personal_data', None) is not None:
+                from modules.radio.personal_bulletin import record_playback
+                try:
+                    record_playback(self.personal_data, self.queue_dir, bulletin.name)
+                except (ValueError, OSError):
+                    logger.warning('Personal bulletin unavailable')
             success=self._stream_file(bulletin, is_music=False)
             if studio:
                 try:studio.channel_event(bulletin,'primary','locally_sent' if success else 'interrupted' if self._stop_event.is_set() else 'failed',bytes_sent=getattr(self,'_last_pass_bytes',0))
@@ -174,20 +186,47 @@ class Streamer:
                 logger.warning("⚠️ Aucune musique trouvée")
                 self._stop_event.wait(5)
 
+    def _music_candidates(self):
+        for directory, _, names in os.walk(self.music_dir, followlinks=False):
+            for name in names:
+                if not name.lower().endswith('.mp3'):
+                    continue
+                path = Path(directory) / name
+                try:
+                    info = path.lstat()
+                except OSError:
+                    continue
+                if stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+                    yield path, info
+
     def _pick_music(self) -> Path | None:
-        if not self.music_dir.exists() or self.music_dir.is_symlink():return None
-        cache=getattr(self,'_music_validation',{});self._music_validation=cache
-        files=list(self.music_dir.glob('*.mp3'))[:512];random.shuffle(files)
-        for path in files:
+        if self.music_dir.is_symlink() or not self.music_dir.is_dir():
+            return None
+        cache = getattr(self, '_music_validation', None)
+        if cache is None:
+            self._music_validation = cache = OrderedDict()
+        candidates = list(islice(self._music_candidates(), MUSIC_TRACK_LIMIT))
+        random.shuffle(candidates)
+        for path, scanned in candidates:
             try:
-                if path.is_symlink() or not path.is_file() or path.stat().st_nlink!=1:continue
-                key=(path.name,path.stat().st_mtime_ns,path.stat().st_size)
-                if key not in cache:
-                    try:inspect_audio(path);cache[key]=True
-                    except (ValueError,OSError):cache[key]=False
-                if cache[key]:return path
-            except OSError:continue
-        if len(cache)>1024:self._music_validation={}
+                info = path.lstat()
+            except OSError:
+                continue
+            if info != scanned or not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                continue
+            key = (path, info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size)
+            if key not in cache:
+                try:
+                    inspect_audio(path)
+                    cache[key] = True
+                except (ValueError, OSError):
+                    cache[key] = False
+                if len(cache) > MUSIC_VALIDATION_CACHE_LIMIT:
+                    cache.popitem(last=False)
+            else:
+                cache.move_to_end(key)
+            if cache[key]:
+                return path
         return None
 
     # ------------------------------------------------------------------ #

@@ -16,3 +16,6 @@ sgmllib3k==1.0.0
 
 # Sprint 09: isolated, bounded JPEG/PNG/WebP decoding.
 Pillow==13.0.0
+
+# ID3 genre tags for the optional personal radio catalog.
+mutagen==1.48.1

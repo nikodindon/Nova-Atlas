@@ -24,7 +24,7 @@ function allowed(path: string, privateRequest: boolean): boolean {
   const pathname = new URL(path, 'http://fixed.invalid').pathname;
   return privateRequest
     ? ['/admin/csrf', '/api/admin/sources', '/api/admin/radio'].includes(pathname)
-    : /^\/api\/public\/(site|articles|archives|events(?:\/[\w-]+)?|documents\/\d{8}\/(report|matin|midi|soir))$/.test(
+    : /^\/api\/public\/(site|articles|headlines|archives|events(?:\/[\w-]+)?|documents\/\d{8}\/(report|matin|midi|soir))$/.test(
         pathname,
       );
 }

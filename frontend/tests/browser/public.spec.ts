@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
 test.beforeEach(async ({ page, request }) => {
   await request.get('http://127.0.0.1:18055/__test/reset');
@@ -105,6 +106,14 @@ test('one persistent audio across public navigation, channels and bounded reconn
       ),
     ).toBe(true);
   }
+  for (const path of ['/', '/direct', '/evenements', '/archives', '/']) {
+    await page.locator(`nav.main-nav a[href="${path}"]`).click();
+    await page.waitForURL(new URL(path, page.url()).href);
+    expect(await page.locator('audio').evaluate((element) =>
+      element === (window as unknown as { savedAudio: Element }).savedAudio &&
+      !(element as HTMLAudioElement).paused,
+    )).toBe(true);
+  }
   await page.getByLabel('Canal', { exact: true }).selectOption('android');
   await expect(page.locator('audio')).toHaveAttribute('src', '/stream/nova-android');
   await page.locator('audio').dispatchEvent('error');
@@ -112,8 +121,22 @@ test('one persistent audio across public navigation, channels and bounded reconn
 });
 test('category filter, theme, English and unavailable API', async ({ page }) => {
   await page.goto('/direct');
-  await page.getByLabel('Filtrer par catégorie').selectOption('tech');
+  const filters = page.getByRole('group', { name: 'Filtrer par catégorie' });
+  const tech = filters.getByRole('button', { name: 'Tech & IA' });
+  const science = filters.getByRole('button', { name: 'Science & Santé' });
+  await tech.click();
   await expect(page.locator('.article-card')).toHaveCount(2);
+  await science.click();
+  await expect(tech).toHaveAttribute('aria-pressed', 'true');
+  await expect(science).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.article-card[data-category="science"]').first()).toBeVisible();
+  await expect(page.locator('.article-card[data-category="tech"]').first()).toBeVisible();
+  await expect(page.locator('.article-card[data-category="tech"]').first()).toHaveCSS('border-left-width', '3px');
+  await expect(page.locator('.article-card[data-category="monde"]')).toHaveCount(0);
+  await tech.click();
+  await expect(page.locator('.article-card[data-category="tech"]')).toHaveCount(0);
+  await filters.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await expect(page.locator('.article-card[data-category="monde"]').first()).toBeVisible();
   await page.getByRole('button', { name: 'Changer de thème' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByLabel('Langue de l’interface').selectOption('en');
@@ -163,4 +186,146 @@ test('revoked image becomes local fallback and reports keep hostile HTML inert',
   await expect(page.getByText('<script>window.pwned=4</script>', { exact: true })).toBeVisible();
   expect(await page.locator('main script').count()).toBe(0);
   expect(await page.evaluate(() => 'pwned' in window)).toBe(false);
+});
+
+test('the direct feed refreshes each minute and keeps its category', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/direct?category=tech');
+  const article = page.locator('article').filter({ hasText: 'La recherche locale explore' });
+  const tail = 'Une rencontre publique est prévue en décembre.';
+  await expect(article.locator('.summary')).not.toContainText(tail);
+  const nextFeed = () =>
+    page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith('/direct/__data.json') && url.searchParams.get('category') === 'tech';
+    });
+
+  const manual = nextFeed();
+  await page.getByRole('button', { name: 'Actualiser', exact: true }).click();
+  expect((await manual).ok()).toBe(true);
+  await expect(page.getByRole('button', { name: 'Actualiser', exact: true })).toBeEnabled();
+  await article.getByRole('button', { name: 'Lire le résumé complet' }).click();
+  await expect(article.locator('.summary')).toContainText(tail);
+
+  const automatic = nextFeed();
+  await page.clock.runFor(60_000);
+  expect((await automatic).ok()).toBe(true);
+  await expect(page).toHaveURL(/\/direct\?category=tech$/);
+  await expect(article.locator('.summary')).toContainText(tail);
+  await article.getByRole('button', { name: 'Réduire le résumé' }).click();
+  await expect(article.locator('.summary')).not.toContainText(tail);
+});
+
+test('the language selector changes both headline and summary when available', async ({ page }) => {
+  await page.goto('/direct');
+  const selector = page.locator('#language');
+  const translated = page.locator('.article-card').filter({
+    has: page.getByRole('heading', { name: 'The observatory opens a new window on the sky' }),
+  });
+  await expect(page.getByRole('heading', { name: 'L’observatoire ouvre une nouvelle fenêtre sur le ciel' })).toBeVisible();
+  await selector.selectOption('en');
+  await expect(translated.getByText('An international team presents an observation programme.')).toBeVisible();
+  await expect(page.getByText('English edition unavailable').first()).toBeVisible();
+  await selector.selectOption('fr');
+  await expect(page.getByRole('heading', { name: 'L’observatoire ouvre une nouvelle fenêtre sur le ciel' })).toBeVisible();
+});
+
+test('breaking headlines can be selected from the homepage', async ({ page }) => {
+  await page.goto('/');
+  const headlines = page.getByRole('region', { name: 'À la une' });
+  await expect(headlines.getByRole('heading', { name: /L’observatoire ouvre/ })).toBeVisible();
+  await headlines.getByRole('button', { name: /Un réseau ferroviaire/ }).click();
+  await expect(headlines.getByRole('heading', { name: /Un réseau ferroviaire/ })).toBeVisible();
+});
+
+test('the homepage exposes today’s editions and report before the archives', async ({ page }) => {
+  await page.goto('/');
+  const daily = page.getByRole('region', { name: 'Éditions et rapport du jour' });
+  await expect(daily.getByRole('link', { name: 'Édition du matin' })).toHaveAttribute('href', /\/editions-v2\/\d{8}\/matin$/);
+  await expect(daily.getByRole('link', { name: 'Rapport complet du jour' })).toHaveAttribute('href', /\/rapports\/\d{8}$/);
+  await expect(daily.getByText('Pas encore publié', { exact: true })).toHaveCount(2);
+  await expect(daily.getByRole('link', { name: 'Édition du soir' })).toHaveCount(0);
+  await daily.getByRole('link', { name: 'Édition du matin' }).click();
+  await expect(page).toHaveURL(/\/editions-v2\/\d{8}\/matin$/);
+});
+
+test('a prepared qualification image appears on the article without manual approval', async ({ page }) => {
+  const candidate = '/api/admin/media/' + 'a'.repeat(64) + '/preview/320.jpg';
+  await page.route('**/api/admin/media/qualification', (route) => route.fulfill({
+    json: { images: { 'article-1': {
+      url: candidate, width: 320, height: 180, fallback: false,
+      caption: 'Illustration de qualification', attribution: null,
+    } } },
+  }));
+  await page.route('**' + candidate, (route) => route.fulfill({
+    contentType: 'image/jpeg', body: readFileSync(new URL('../fixture.jpg', import.meta.url)),
+  }));
+  await page.goto('/direct');
+  const illustration = page.getByRole('img', { name: 'Illustration de qualification' });
+  await expect(illustration).toHaveAttribute('src', candidate);
+  await expect(illustration).toBeVisible();
+  await expect.poll(() => illustration.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+});
+
+test('the homepage sidebar keeps recent summaries tucked away', async ({ page }) => {
+  await page.goto('/');
+  const headlines = page.getByRole('region', { name: 'À la une' });
+  const teasers = headlines.locator('details.headline-teaser');
+  await expect(teasers).toHaveCount(5);
+  await expect(teasers.first().locator('p')).toBeHidden();
+  await teasers.first().locator('summary').click();
+  await expect(teasers.first().locator('p')).toBeVisible();
+});
+
+test('personal radio filters genres, skips locally and returns to music after a bulletin', async ({ page }) => {
+  const first = 'a'.repeat(64);
+  const second = 'b'.repeat(64);
+  const bulletin = 'bulletin_20261128_093000_' + 'c'.repeat(32) + '.mp3';
+  let currentBulletin = false;
+  await page.clock.install();
+  await page.route('**/api/radio/personal/genres', (route) =>
+    route.fulfill({ json: { available: true, genres: ['Rock', 'Jazz'] } }),
+  );
+  await page.route('**/api/radio/personal/next?*', (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    expect(query.get('genre')).toBe('Rock');
+    return route.fulfill({ json: { track: query.get('previous') === first ? second : first } });
+  });
+  await page.route('**/api/radio/personal/bulletin', (route) =>
+    route.fulfill({ json: { bulletin: currentBulletin ? {
+      name: bulletin, started: Math.floor(Date.now() / 1000),
+    } : null } }),
+  );
+  await page.goto('/');
+  await page.getByLabel('Canal', { exact: true }).selectOption('personal');
+  const genre = page.getByLabel('Style musical');
+  await expect(genre).toHaveValue('');
+  await genre.selectOption('Rock');
+  await page.getByRole('button', { name: 'Écouter', exact: true }).click();
+  const audio = page.locator('audio');
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + first + '.mp3');
+  await page.getByRole('button', { name: 'Suivant' }).click();
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + second + '.mp3');
+  await page.locator('nav.main-nav a[href="/direct"]').click();
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + second + '.mp3');
+  currentBulletin = true;
+  await page.clock.runFor(11000);
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/bulletin/' + bulletin);
+  await expect(page.getByRole('button', { name: 'Suivant' })).toBeDisabled();
+  await audio.dispatchEvent('ended');
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + first + '.mp3');
+});
+
+
+test('live feed puts the current edition and last daily report within reach', async ({ page }, testInfo) => {
+  await page.goto('/direct');
+  const sidebar = page.locator('.timeline-briefs');
+  await expect(sidebar.getByRole('heading', { name: 'L’édition', exact: true })).toBeVisible();
+  await expect(sidebar.getByRole('heading', { name: 'La quotidienne', exact: true })).toBeVisible();
+  await expect(sidebar.locator('a[href^="/editions-v2/"]')).toHaveCount(1);
+  await expect(sidebar.getByRole('link', { name: 'Rapport complet' })).toHaveAttribute('href', /\/rapports\/\d{8}$/);
+  const briefs = await sidebar.boundingBox();
+  const articles = await page.locator('.direct-list').boundingBox();
+  if (testInfo.project.name === 'mobile') expect(briefs!.y).toBeLessThan(articles!.y);
+  else expect(briefs!.x).toBeGreaterThan(articles!.x);
 });

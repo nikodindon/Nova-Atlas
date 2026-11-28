@@ -304,3 +304,48 @@ field_radio observe un mount et décode des échantillons privés bornés ; fiel
 ne les assimile ni à une écoute ni à un uptime continu. Le protocole 24 h exige
 une autorisation et des ressources réservées ; il n’est pas lancé automatiquement.
 Voir FIELD_QUALIFICATION.md.
+
+### Écoute musicale personnelle dans V2
+
+`radio.personal_music: true` ajoute le mode **Écoute personnelle**. Le
+canal principal et le canal Android restent disponibles. En mode personnel,
+le navigateur lit les MP3 locaux par le même domaine. Le genre par défaut est
+**Tous les styles**. Un MP3 sans tag de genre apparaît sous **Non renseigné**.
+Le bouton **Suivant** choisit un autre morceau aléatoire dans le genre choisi,
+s'il existe. Le changement de page V2 conserve l'écoute et son réglage.
+
+Radio lance le scan récursif au démarrage, dans une tâche indépendante
+de la diffusion. Le fichier `data/radio-music.sqlite3` stocke les genres ID3,
+la taille et la date de modification, sans copie musicale. Les tags sont lus
+avec Mutagen. Le scan est limité à 100 000 MP3 et peut être annulé à l'arrêt.
+Le premier scan peut durer. Un scan terminé conserve les entrées inchangées,
+ajoute ou réindexe les autres et retire les fichiers disparus.
+
+Lorsque le canal principal lance un bulletin dont la copie Android est
+validée, le mode personnel passe au bulletin au prochain sondage (10 s),
+puis reprend la musique. Le bouton Suivant est désactivé durant le bulletin.
+Cette annonce reflète le début de lecture locale observé par Radio.
+
+Pour Docker, monter la même bibliothèque en lecture seule dans Radio et Web
+sur `/app/music`. L'overlay `docker-compose.personal-music.yml` utilise
+`ATLAS_PERSONAL_MUSIC_DIR`, par exemple `/mnt/data/sda1/music`. Les services
+partagent `/app/data` et `/app/audio_queue` comme auparavant. L'activation rend
+les morceaux du catalogue accessibles aux auditeurs de l'origine choisie.
+Elle est désactivée par défaut. Pour revenir au comportement initial,
+désactiver `radio.personal_music` puis relancer Radio et Web.
+
+
+Si le site a aussi une origine publique, restreindre les routes audio avec
+`radio.personal_music_hosts` (liste exacte hôte et port) et utiliser la
+même liste dans la variable serveur V2 `ATLAS_PERSONAL_MUSIC_HOSTS`, séparée
+par des virgules. Le proxy public doit préserver le nom d'hôte externe.
+
+Une origine extérieure peut utiliser `radio.personal_music_admin_hosts` et la
+même liste dans `ATLAS_PERSONAL_MUSIC_ADMIN_HOSTS` côté serveur V2. Sur ces
+origines, l'API et le lecteur personnel exigent la session administrateur
+existante via HTTPS. Le direct partagé reste accessible normalement.
+
+Le catalogue rapproche les variantes d'écriture et les alias connus tels
+que `Alt. Rock` et `Alternative-Rock`. Un tag listant plusieurs styles rend
+le morceau disponible sous chacun d'eux. La normalisation est appliquée
+à la lecture du catalogue et ne modifie aucun tag ID3.

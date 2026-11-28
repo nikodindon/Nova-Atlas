@@ -196,6 +196,51 @@ couverture de presse ni un taux de conformité juridique. `peak_rss_kib` mesure
 le maximum du worker Linux, pas la consommation totale de la stack.
 
 Limites assumées : pas de licence universelle, pas de photo documentaire automatique,
-pas de trusted_illustrations, pas de revue juridique automatisée, pas de recherche
-Commons en arrière-plan, pas de refresh réseau public, pas de job persistant après
+pas de trusted_illustrations, pas de revue juridique automatisée, recherche
+Commons en arrière-plan en option, pas de refresh réseau public, pas de job persistant après
 crash. Les candidats/artefacts réussis persistent ; relance manuelle sûre.
+
+En mode Commons, `media.commons_auto_prepare: true` prépare au plus une
+miniature par recherche administrative, lorsqu'un candidat porte des droits
+vérifiés et qu'il n'a pas déjà de fichier préparé. L'association à l'article,
+la provenance et le crédit sont conservés. La mise en ligne passe toujours
+par l'approbation de la ressource exacte et le bouton Désactiver permet son retrait.
+
+Pour un essai avec approbation automatique, configurer
+`media.commons_auto_approve: true` avec `mode: approved_only` et
+`commons_enabled: true`. Une recherche administrative peut alors préparer et
+afficher au plus une illustration Commons avec une licence CC BY 4.0 vérifiée.
+L’attribution reste affichée et le journal distingue l’approbation automatique
+de la revue manuelle. Une illustration déjà approuvée garde sa place et un
+candidat retiré ou refusé reste exclu de l’approbation automatique. Remettre
+l’option à `false` arrête les nouvelles approbations automatiques. Le bouton
+**Désactiver** retire une illustration déjà approuvée.
+
+`media.commons_background_search: true`, associé à `commons_enabled: true`,
+`commons_auto_approve: true` et `mode: approved_only`, lance une recherche
+Commons après chaque cycle News ayant publié un article. Le quota est d'un
+article et d'une miniature par cycle. Le titre d'origine sert de requête.
+Deux termes communs au moins avec le nom du résultat sont exigés, en plus
+des droits vérifiés. Ce filtre est conservateur et peut laisser le visuel
+de remplacement. La recherche intervient après la publication, sans appel LLM.
+Elle utilise le quota réseau média partagé et s'applique aux nouvelles
+publications uniquement.
+
+Quand le registre est plein, l'ajout d'un candidat Commons vérifié peut
+écarter une référence aux droits inconnus, sans miniature ni décision.
+Les images approuvées et les décisions sont conservées.
+
+`media.qualification_images: true` prépare aussi les miniatures des images
+natives découvertes dans les flux ou sur les pages, en laissant leurs droits
+au statut inconnu. Elles ne sont visibles que dans une session administrateur
+V2. Les projections anonymes et les exports statiques utilisent les règles
+d'approbation habituelles. La provenance de la candidate reste dans le registre.
+
+News prépare les miniatures dans une tâche séparée toutes les cinq minutes,
+à partir des vingt derniers articles traités du jour. Elle peut réussir pendant
+une synthèse et reste soumise au quota réseau partagé. Le Direct peut afficher
+une miniature privée au rafraîchissement suivant dans une session administrateur.
+
+La tâche média essaie en priorité les articles de la Une. En l'absence
+d'image publiable, la grande carte de l'accueil utilise un visuel éditorial
+générique généré pour le site, avec une légende explicite.

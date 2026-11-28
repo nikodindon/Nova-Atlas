@@ -233,3 +233,44 @@ autoritaire ; modification/vide/corruption invalidés, aucune décision de droit
 cachée. Les droits sont chargés une fois par page et les octets restent vérifiés.
 L'avertissement d'export média read-only indiqué plus haut est corrigé par staging
 sous site/media ; autres limites administratives et frontière audio inchangées.
+
+### Titres et résumés en anglais
+
+`fetch.editorial.english_edition: true` ajoute une paire titre/résumé en anglais
+aux nouveaux articles lorsque la langue éditoriale est le français. News effectue
+un appel local supplémentaire, borné et mis en cache, à partir du texte prêt à
+être publié. Une traduction indisponible ou invalide laisse l'article publiable.
+Le sélecteur V2 choisit la paire complète par navigateur. En son absence, il
+affiche le contenu disponible et indique que la version anglaise manque.
+Les articles existants, les événements, les rapports, les éditions et la radio
+conservent leur langue. Désactiver l'option arrête les nouvelles traductions.
+
+Le Direct sans filtre demande `order=varied` à l'API des articles. L'ordre est
+calculé avant pagination. Il place le dernier article traité en tête, conserve
+l'ordre de traitement au sein de chaque source et
+évite les répétitions adjacentes lorsque les sources disponibles le permettent.
+Les filtres par catégorie et les archives utilisent l'ordre chronologique.
+
+La une appelle `GET /api/public/headlines` et réutilise la sélection Breaking
+News de V1. Elle retient jusqu'à quatre sujets couverts par au moins deux
+articles et publiés dans les quatre dernières heures. Le score combine
+la fraîcheur (0 à 1), le poids de catégorie (`editorial_events.importance`
+de 0 à 10, divisé par 10) et 0,1 point par domaine supplémentaire dans
+la limite de 0,3. Plusieurs domaines ne valent pas confirmation indépendante.
+Sans sujet admissible, la une conserve les articles récents.
+Sur ordinateur, la rotation de vingt secondes peut être mise en pause.
+Sur mobile ou avec la préférence de mouvement réduit, le choix est manuel.
+
+L'accueil présente les trois éditions et le rapport complet de la date civile
+Europe/Paris. Une publication absente est signalée et ne propose aucun lien.
+Les dates précédentes restent disponibles dans les archives.
+
+Dans le Direct, les catégories se cumulent au clic. **Toutes** rétablit
+le flux complet. La sélection est conservée dans l'adresse et appliquée
+avant pagination, y compris lors de l'actualisation automatique.
+Les icônes et les traits colorés identifient les catégories.
+
+Dans le Direct, **L’édition** pointe vers la dernière édition effectivement
+publiée pour le créneau civil Europe/Paris. En attendant une nouvelle édition,
+la précédente reste disponible et datée. **La quotidienne** pointe vers le
+dernier rapport publié, même lorsqu'il date d'un jour précédent.

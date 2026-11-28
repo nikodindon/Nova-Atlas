@@ -105,3 +105,133 @@ def test_images_are_projected_only_for_requested_page(app,client,monkeypatch):
     assert response.status_code==200 and response.json['total']==3
     assert len(calls)==1
     assert '_image_target' not in response.text
+
+
+def test_public_article_projects_valid_english_pair(client, app):
+    paths, day, _ = content(app)
+    path = paths['articles']/f'{day}_articles.json'
+    rows = json.loads(path.read_bytes())
+    rows[0]['english_edition'] = {'title': 'Synthetic headline', 'summary': 'Synthetic summary.'}
+    path.write_text(json.dumps(rows))
+    row = get(client, '/api/public/articles?date='+day).json['articles'][0]
+    assert row['english_edition'] == rows[0]['english_edition']
+    assert '日本語' in row['title']
+
+
+def test_live_source_order_avoids_repeats_across_pages(client, app):
+    from datetime import timedelta
+
+    paths, day, _ = content(app)
+    now = datetime.now(timezone.utc)
+    sources = ['alpha', 'beta', 'gamma', 'alpha', 'alpha']
+    rows = [
+        article(i, when=now-timedelta(minutes=i), link=f'https://{source}.example/{i}',
+                source=f'{source}.example')
+        for i, source in enumerate(sources)
+    ]
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps(rows))
+
+    def sources_at(query):
+        return [r['source'].split('.')[0] for r in get(client, '/api/public/articles?'+query).json['articles']]
+
+    assert sources_at('') == sources
+    assert sources_at('order=varied&per_page=2&page=1') == ['alpha', 'beta']
+    assert sources_at('order=varied&per_page=2&page=2') == ['alpha', 'gamma']
+    assert sources_at('order=varied&per_page=2&page=3') == ['alpha']
+    assert get(client, '/api/public/articles?order=unknown').status_code == 400
+
+
+def test_live_prioritizes_recently_processed_article_with_old_source_date(client, app):
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    paths, day, _ = content(app)
+    now = datetime.now(timezone.utc)
+    recent = article(1, when=now, source='first.example')
+    old = article(2, when=now-timedelta(hours=11), source='second.example')
+    old['timestamp'] = (now+timedelta(minutes=1)).astimezone(
+        ZoneInfo('Europe/Paris')
+    ).replace(tzinfo=None).isoformat()
+    recent['timestamp'] = now.isoformat()
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps([recent, old]))
+    response = get(client, f'/api/public/articles?date={day}&order=varied&per_page=1')
+    row = response.json['articles'][0]
+    assert row['hash'] == old['hash']
+    assert row['published_raw'] == old['pub_date']
+    normal = get(client, f'/api/public/articles?date={day}&per_page=1')
+    assert normal.json['articles'][0]['hash'] == recent['hash']
+
+
+def test_headlines_rank_shared_breaking_selection_and_exclude_old_and_single(client, app, monkeypatch):
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    from modules.web import atlas_web
+
+    paths = app.extensions['atlas_paths']
+    now = datetime.now(timezone.utc)
+    day = now.astimezone(ZoneInfo('Europe/Paris')).strftime('%Y%m%d')
+    rows = [article(i, when=now, title=f'Title {i}') for i in range(4)]
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps(rows))
+
+    def item(i, age, sources, count=2):
+        return {'published_at': (now-timedelta(minutes=age)).isoformat(), 'source_count': sources,
+                'article_count': count, 'cat': 'france', 'event_id': str(i), 'link': rows[i]['link']}
+
+    monkeypatch.setattr(atlas_web, 'get_breaking_news', lambda *a, **k: [
+        item(0, 15, 2), item(1, 30, 9), item(2, 300, 20), item(3, 5, 1, count=1),
+    ])
+    response = get(client, '/api/public/headlines')
+    assert response.status_code == 200
+    assert [row['title'] for row in response.json['articles']] == ['Title 1', 'Title 0']
+    assert '_image_target' not in response.json['articles'][0]
+
+
+def test_qualification_image_catalog_requires_admin_session(client):
+    path = '/api/admin/media/qualification'
+    assert get(client, path).status_code == 401
+    login(client)
+    response = get(client, path)
+    assert response.status_code == 200 and response.json['images'] == {}
+    assert response.headers['Cache-Control'] == 'no-store'
+
+
+@pytest.mark.parametrize('kind,title', [
+    ('matin', '🌅 Édition du Matin'), ('midi', '☀️ Édition de Midi'), ('soir', '🌙 Édition du Soir'),
+])
+def test_edition_projection_does_not_repeat_its_heading_or_date(client, app, kind, title):
+    path = app.extensions['atlas_paths']['editions']/f'20261127_{kind}.md'
+    original = f'# {title} — vendredi 27 novembre 2026\n\nTexte de l’édition.\n\n## À retenir\n'
+    path.write_text(original)
+    result = get(client, f'/api/public/documents/20261127/{kind}').json
+    assert result['title'] == title
+    assert result['date'] == '20261127'
+    body = json.dumps(result['nodes'], ensure_ascii=False)
+    assert title not in body and 'vendredi 27 novembre 2026' not in body
+    assert 'Texte de l’édition.' in body and 'À retenir' in body
+    assert path.read_text() == original
+
+
+def test_live_category_union_filters_before_pagination(client, app):
+    paths, day, _ = content(app)
+    categories = ['france', 'tech', 'science', 'asie', 'tech']
+    rows = [article(i, category=category) for i, category in enumerate(categories)]
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps(rows))
+    base = f'/api/public/articles?date={day}&category=tech&category=science&per_page=2'
+    first = get(client, base+'&page=1').json
+    second = get(client, base+'&page=2').json
+    assert first['total'] == second['total'] == 3
+    assert set(first['available_categories']) == set(categories)
+    result = first['articles'] + second['articles']
+    assert [row['category'] for row in result].count('tech') == 2
+    assert [row['category'] for row in result].count('science') == 1
+    assert get(client, base+'&category=x'*33).status_code == 400
+
+
+def test_archive_index_exposes_latest_report_even_outside_requested_page(client, app):
+    paths = app.extensions['atlas_paths']
+    (paths['reports']/'20261106_report.md').write_text('# Rapport')
+    (paths['articles']/'20261107_articles.json').write_text('[]')
+    response = get(client, '/api/public/archives?per_page=1')
+    assert response.status_code == 200
+    assert response.json['days'][0]['date'] == '20261107'
+    assert response.json['latest_report'] == '20261106'

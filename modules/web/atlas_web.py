@@ -1384,6 +1384,9 @@ def create_app(config: dict, *, root: Path = None):
     from modules.web.public_api import install_public_api
     install_public_api(app,paths,config)
 
+    from modules.web.personal_radio_api import install_personal_radio
+    install_personal_radio(app, config, paths)
+
     @app.route("/config/feeds/page", methods=["GET"])
     def feeds_page():
         """Page HTML de gestion des flux (UI niveau 1)."""

@@ -1,11 +1,14 @@
-"""Explicit bounded admin network operations; collection hooks never fetch images."""
+"""Bounded Commons searches for editorial review and newly published articles."""
 from contextlib import contextmanager
 from datetime import datetime,timezone
 import os
+import re
 import threading
 import time
-from modules.media.store import MediaStore,MediaError,MediaConflict,target_for_article,target_for_event
+from modules.media.store import MediaStore,MediaError,MediaConflict,target_for_article,target_for_event,same_target
 from modules.media.commons import Commons
+from modules.media.rights import assess
+from modules.fetch.editorial import terms
 from modules.media.candidates import ImageCandidate,html_images
 from modules.editorial.index import EventIndex,lock
 from modules.fetch.ingestion import FeedIngestor,key
@@ -75,10 +78,112 @@ class MediaService:
 
     def search(self,term,target):
         if self.config.get('commons_enabled') is not True:raise MediaError('commons_not_configured')
-        target=self.target(target)
+        return self._search(term, self.target(target))
+
+    def illustrate_new_article(self, article):
+        if (self.store.mode != 'approved_only'
+                or not all(self.config.get(key) is True for key in
+                           ('commons_background_search', 'commons_auto_approve', 'commons_enabled'))):
+            return
+        target = target_for_article(article)
+        state, _ = self.store.load()
+        if any(same_target(row['target'], target) and row['status'] in ('approved', 'rejected')
+               for row in state['records'].values()):
+            return
+        # Keep words only so headline punctuation never becomes search syntax.
+        title = article.get('title_original') or article['title']
+        term = ' '.join(re.findall(r'[^\W_]+', title))[:120].strip()
+        if len(terms(term)) < 2:
+            return
+        return self._search(term, target, automatic=True)
+
+    def illustrate_qualification(self, article):
+        if self.config.get('qualification_images') is not True or self.store.mode == 'disabled':
+            return False
+        target = target_for_article(article)
+        state, _ = self.store.load()
+        if any(same_target(row['target'], target) and (row['artifact'] or row['status'] == 'rejected')
+               for row in state['records'].values()):
+            return False
+        candidates = [ImageCandidate(**row['candidate']) for row in state['records'].values()
+                      if row['target']['kind'] == 'article_reference' and row['target']['id'] == target['id']]
+        from modules.fetch.ingestion import FeedState
+        feeds = FeedState(self.store.data / 'feed_ingestion_state.json')
+        for record in feeds.records.values():
+            for raw in record.get('entries', []):
+                entry = FeedEntry.from_dict(raw)
+                if entry.link == article['link']:
+                    candidates.extend(ImageCandidate(image['url'], image['method'], entry.link)
+                                      for image in entry.images)
+        if not candidates:
+            return False
+        with self.operation():
+            distinct = {candidate.url: candidate for candidate in reversed(candidates)}
+            for candidate in tuple(reversed(distinct.values()))[:2]:
+                try:
+                    response = self.get(candidate.url)
+                    identity = self.store.add(candidate, target, qualification=True)
+                    _, version = self.store.load()
+                    self.store.prepare(identity, response.content, expected=version, qualification=True)
+                    return True
+                except (ValueError, OSError, KeyError):
+                    continue
+        return False
+
+    def qualification_images(self):
+        if self.config.get('qualification_images') is not True or self.store.mode == 'disabled':
+            return {}
+        state, _ = self.store.load()
+        images = {}
+        for row in state['records'].values():
+            if row['status'] != 'rights_unknown' or not row['artifact'] or row['target']['kind'] != 'article':
+                continue
+            variant = next(v for v in row['artifact']['variants'] if v['size'] == 320)
+            base = '/api/admin/media/' + row['id'] + '/preview/'
+            images[row['target']['fingerprint']] = {
+                'url': base + '320.jpg', 'large_url': base + '768.jpg',
+                'width': variant['width'], 'height': variant['height'], 'fallback': False,
+                'caption': 'Illustration de la source · essai privé', 'attribution': None,
+            }
+        return images
+
+    def _search(self, term, target, *, automatic=False):
         with self.operation():
             candidates=Commons(self.get).fetch(term=term)
-            return [self.store.add(c,target,trusted=True) for c in candidates]
+            if automatic:
+                subject = terms(term)
+                candidates = [
+                    candidate for candidate in candidates
+                    if len(subject & terms(candidate.title.replace('File:', '').rsplit('.', 1)[0])) >= 2
+                    and assess(candidate.proof, trusted_commons=True)['status'] == 'rights_verified'
+                ][:1]
+            identities = [self.store.add(c,target,trusted=True) for c in candidates]
+        auto_approve = self.config.get('commons_auto_approve') is True and self.store.mode == 'approved_only'
+        if auto_approve or self.config.get('commons_auto_prepare') is True:
+            state, version = self.store.load()
+            for identity in identities:
+                row = state['records'][identity]
+                if row['status'] != 'rights_verified':
+                    continue
+                if auto_approve and not self.store.can_auto_approve(state, row):
+                    continue
+                if row.get('artifact') and not auto_approve:
+                    continue
+                try:
+                    if not row.get('artifact'):
+                        self.prepare(identity, version)
+                        if auto_approve:
+                            current, version = self.store.load()
+                            prepared = current['records'].get(identity)
+                            if not prepared or any(prepared[key] != row[key] for key in ('resource_version', 'caption')):
+                                break
+                    if auto_approve:
+                        self.store.auto_approve(identity, expected=version)
+                except MediaError:
+                    # Candidates remain available for review if preparation fails.
+                    pass
+                break
+        return identities
 
     def refresh(self,identity):
         if self.config.get('commons_enabled') is not True:raise MediaError('commons_not_configured')

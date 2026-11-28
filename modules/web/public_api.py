@@ -3,7 +3,7 @@ from dataclasses import asdict
 from collections import OrderedDict
 import hashlib
 import threading
-from datetime import datetime,timezone
+from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import re
@@ -12,6 +12,7 @@ from flask import request,jsonify
 from modules.editorial.events import Coverage
 from modules.editorial.index import read,decode,EventIndex,public_event
 from modules.editorial.categories import registry
+from modules.editorial.source_order import diversify_sources
 from modules.media.store import MediaStore,FALLBACK,target_for_article,target_for_event
 from modules.web.web_security import render_markdown,safe_url
 
@@ -30,6 +31,20 @@ def date(value):
     except ValueError:raise PublicReadError('invalid_date') from None
     return value
 
+
+
+def live_article_time(row):
+    """Sort historical Paris wall times without altering the public dates."""
+    value = row['observed_at'] or row['observed_raw'] or row['published_at']
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        stamp = datetime.fromisoformat(value)
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=ZoneInfo('Europe/Paris'))
+        return stamp.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
+        return datetime.min.replace(tzinfo=timezone.utc)
 
 def document_nodes(text):
     # Same established Markdown/nh3 policy, projected as inert typed nodes, never a page scrape.
@@ -50,8 +65,13 @@ def document_nodes(text):
 
 def install_public_api(app,paths,config):
     store=MediaStore(paths['data'],mode=config.get('media',{}).get('mode','disabled'))
-    def options(allowed):
-        if set(request.args)-set(allowed) or any(len(request.args.getlist(k))!=1 or len(request.args[k])>200 for k in request.args):raise PublicReadError('invalid_query')
+    def options(allowed, *, repeated=()):
+        if set(request.args) - set(allowed):
+            raise PublicReadError('invalid_query')
+        for key, values in request.args.lists():
+            maximum = 32 if key in repeated else 1
+            if len(values) > maximum or any(len(value) > 200 for value in values):
+                raise PublicReadError('invalid_query')
     def pagination():
         try:page=int(request.args.get('page','1'));size=int(request.args.get('per_page','20'))
         except ValueError:raise PublicReadError('invalid_pagination') from None
@@ -73,6 +93,7 @@ def install_public_api(app,paths,config):
             while len(article_cache)>2:article_cache.popitem(last=False)
             return [dict(row) for row in rows]
     def article_rows(raw):
+        from modules.fetch.editorial import english_edition_fields
         values=[] if raw is None else decode(raw)
         if not isinstance(values,list) or len(values)>2000:raise PublicReadError('invalid_articles')
         result=[]
@@ -83,6 +104,8 @@ def install_public_api(app,paths,config):
                 image_target={'kind':'article','id':c.article_hash,'fingerprint':c.id,'title':c.title}
                 result.append({'id':c.id,'hash':c.article_hash,'title':c.title,'original_title':c.original_title,'summary':c.summary,'link':c.link,'source':c.source,'category':c.category,
                     'published_raw':c.published_raw,'published_at':c.published_at,'publication_status':c.publication_status,'observed_raw':c.observed_raw,'observed_at':c.observed_at,'language':c.language,'_image_target':image_target})
+                if edition := english_edition_fields(value.get('english_edition')):
+                    result[-1]['english_edition'] = edition
             except (ValueError,TypeError,KeyError):continue
         return sorted(result,key=lambda r:r['published_at'] or r['observed_at'] or r['observed_raw'],reverse=True)
     @app.after_request
@@ -108,17 +131,74 @@ def install_public_api(app,paths,config):
             value=config.get('icecast',{}).get(key,default)
             return '/stream'+value if isinstance(value,str) and re.fullmatch(r'/[A-Za-z0-9_-]{1,64}',value) else '/stream'+default
         cats=[asdict(c) for c in registry(paths['feeds_file'])]
-        return respond(name=str(config.get('service',{}).get('name','Nova Atlas'))[:100],categories=cats,streams={'primary':mount('mount','/nova'),'android':mount('android_mount','/nova-android')})
+        return respond(name=str(config.get('service',{}).get('name','Nova Atlas'))[:100],categories=cats,streams={'primary':mount('mount','/nova'),'android':mount('android_mount','/nova-android')},personal_music=config.get('radio', {}).get('personal_music') is True)
     @app.get('/api/public/articles')
     @guarded
     def public_articles():
-        options(('date','page','per_page','category'));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
+        options(('date','page','per_page','category','order'), repeated=('category',));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
         rows=articles(day)
-        if request.args.get('category'):rows=[r for r in rows if r['category']==request.args['category']]
+        available_categories = sorted({row['category'] for row in rows})[:100]
+        categories = {value for value in request.args.getlist('category') if value}
+        if any(len(value) > 100 for value in categories):
+            raise PublicReadError('invalid_category_filter')
+        if categories:
+            rows = [row for row in rows if row['category'] in categories]
+        order = request.args.get('order', 'chronological')
+        if order not in ('chronological', 'varied'):
+            raise PublicReadError('invalid_article_order')
+        if order == 'varied':
+            rows.sort(key=live_article_time, reverse=True)
+            rows = diversify_sources(
+                rows, lambda row: row['source'].lower().removeprefix('www.'), prefer_first=True,
+            )
         selected=rows[(page-1)*size:page*size]
         targets=[row.pop('_image_target') for row in selected]
         page_rows=[{**row,'image':image} for row,image in zip(selected,store.public_many(targets))]
-        return respond(date=day,articles=page_rows,total=len(rows),page=page,per_page=size)
+        return respond(date=day,articles=page_rows,total=len(rows),page=page,per_page=size,available_categories=available_categories)
+    @app.get('/api/public/headlines')
+    @guarded
+    def public_headlines():
+        from modules.web.atlas_web import get_breaking_news
+
+        options(())
+        now = datetime.now(timezone.utc)
+        weights = config.get('editorial_events', {}).get('importance', {})
+        ranked = []
+        for item in get_breaking_news(paths, max_items=30):
+            if item['article_count'] < 2:
+                continue
+            published = datetime.fromisoformat(item['published_at'])
+            age = (now - published).total_seconds()
+            if not 0 <= age <= 14400:
+                continue
+            weight = weights.get(item['cat'], 1) if isinstance(weights, dict) else 1
+            importance = weight / 10 if type(weight) in (int, float) and 0 <= weight <= 10 else 0.1
+            score = 1 - age / 14400 + importance + min(max(item['source_count'] - 1, 0), 3) * 0.1
+            ranked.append((score, published, item))
+        if not ranked:
+            return respond(articles=[])
+
+        today = now.astimezone(ZoneInfo('Europe/Paris')).date()
+        by_link = {}
+        for day in (today, today - timedelta(days=1)):
+            for row in articles(day.strftime('%Y%m%d')):
+                if row['link']:
+                    by_link.setdefault(row['link'], row)
+        selected = []
+        seen = set()
+        for _, _, item in sorted(ranked, key=lambda row: (row[0], row[1], row[2]['event_id']), reverse=True):
+            row = by_link.get(item['link'])
+            if row and row['id'] not in seen:
+                selected.append(row)
+                seen.add(row['id'])
+                if len(selected) == 4:
+                    break
+        images = store.public_many([row['_image_target'] for row in selected])
+        return respond(articles=[
+            {**{key: value for key, value in row.items() if key != '_image_target'}, 'image': image}
+            for row, image in zip(selected, images)
+        ])
+
     @app.get('/api/public/archives')
     @guarded
     def public_archives():
@@ -137,7 +217,10 @@ def install_public_api(app,paths,config):
                 else:row[kind]=True
         rows=sorted(days.values(),key=lambda r:r['date'],reverse=True)
         for row in rows:row['editions']=sorted(row['editions'])
-        return respond(days=rows[(page-1)*size:page*size],total=len(rows),page=page,per_page=size)
+        today = datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d')
+        latest_report = next((row['date'] for row in rows if row['date'] <= today and row['report']), None)
+        return respond(days=rows[(page-1)*size:page*size],total=len(rows),page=page,per_page=size,
+                       latest_report=latest_report)
     @app.get('/api/public/documents/<day>/<kind>')
     @guarded
     def public_document(day,kind):
@@ -146,8 +229,17 @@ def install_public_api(app,paths,config):
         directory=paths['reports'] if kind=='report' else paths['editions']
         raw=regular(directory/f'{day}_{kind}.md',512*1024)
         if raw is None:return jsonify(status='unavailable',reason='document_not_found'),404
-        text=raw.decode('utf-8');title=next((line.lstrip('# ').strip() for line in text.splitlines() if line.startswith('# ')),kind)[:300]
-        return respond(date=day,kind=kind,title=title,nodes=document_nodes(text))
+        text = raw.decode('utf-8')
+        title = next((line[2:].strip() for line in text.splitlines() if line.startswith('# ')), kind)
+        if kind != 'report':
+            from modules.utils.helpers import format_date_fr
+
+            first, _, body = text.lstrip('\ufeff\r\n').partition('\n')
+            if first.startswith('# '):
+                title = first[2:].strip()
+                text = body
+                title = title.removesuffix(' — ' + format_date_fr(datetime.strptime(day, '%Y%m%d')))
+        return respond(date=day,kind=kind,title=title[:300],nodes=document_nodes(text))
     def event_rows():
         data=EventIndex(paths['articles'],paths['data']).load()
         return (data or {}).get('events',[])
@@ -155,8 +247,13 @@ def install_public_api(app,paths,config):
     @app.get('/api/public/events')
     @guarded
     def public_events():
-        options(('page','per_page','category'));page,size=pagination();data=EventIndex(paths['articles'],paths['data']).load();rows=(data or {}).get('events',[])
+        options(('page','per_page','category','multi_source'));page,size=pagination();data=EventIndex(paths['articles'],paths['data']).load();rows=(data or {}).get('events',[])
         if request.args.get('category'):rows=[r for r in rows if request.args['category'] in [r['category'],*r['secondary_categories']]]
+        multi_source = request.args.get('multi_source')
+        if multi_source not in (None, '1'):
+            raise PublicReadError('invalid_multi_source_filter')
+        if multi_source == '1':
+            rows = [row for row in rows if row['domain_count'] >= 2]
         rows=sorted(rows,key=lambda r:r['last_updated_at'] or '',reverse=True)
         selected=rows[(page-1)*size:page*size]
         images=store.public_many([target_for_event(row) for row in selected])

@@ -237,3 +237,158 @@ def test_reload_cannot_generate_with_another_client_than_cache_identity(tmp_path
     assert obj._summarize('Titre synthétique','Une source autorisée pour un essai isolé. '*4,'science')=='Sortie du modèle A.'
     assert old._call_ollama_cli.call_count==1 and new._call_ollama_cli.call_count==0
     assert obj._summary_evidence['model']['name']=='fixture-a'
+
+
+def test_safe_title_policy_can_be_qualified_with_the_legacy_summary_prompt(tmp_path):
+    obj = qualify(make_fetcher(tmp_path), prompt_version='legacy-v1',
+                  title_policy='preserve_unknown')
+    title = 'Crise du logement : des manifestants plantent des tentes à Rome'
+    with patch('modules.core.llm_client.get_language', return_value='français'), \
+         patch('modules.fetch.atlas_fetch.ollama_call') as call:
+        assert obj._translate_title(title, source_language='fr') == title
+        assert obj._translate_title(title) == title
+    call.assert_not_called()
+    assert obj._title_evidence['status'] == 'original_preserved_without_call'
+
+
+def test_gemma_preamble_is_removed_without_changing_editorial_text():
+    text = 'À Aono, 12 passages sont prévus. La note « Résumé : horaires » reste valable.'
+    assert ed.clean_editorial('Résumé :\n\n' + text) == text
+
+
+def test_body_extraction_prefers_short_body_over_recommendations():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<article><div class="cookie-banner">Cookies et préférences</div>
+    <div class="article-body"><p>Le pont rouvrira lundi.</p></div>
+    <section><p>Autres articles recommandés.</p></section></article>"""
+    assert extract_article_text(page) == 'Le pont rouvrira lundi.'
+
+
+def test_navigation_only_produces_no_article_body():
+    from modules.fetch.extraction import extract_article_text
+
+    assert extract_article_text('<nav><p>Accueil. Cookies. Archives.</p></nav>') == ''
+
+
+def test_body_extraction_ignores_nested_story_and_related_panel():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><article><h1>La mémoire du climat</h1>
+    <article><div itemprop="articleBody"><p>La COP31 ouvre demain.</p></div></article>
+    <div class="related-articles"><div class="article-body"><p>Un autre sujet.</p></div></div>
+    <p>Les chercheurs ont étudié les cernes des arbres.</p></article></main>"""
+    assert extract_article_text(page) == 'Les chercheurs ont étudié les cernes des arbres.'
+
+
+def test_body_extraction_refuses_recommendation_only_page():
+    from modules.fetch.extraction import extract_article_text
+
+    page = '<main><article><h1>Le climat</h1><article><p>La COP31.</p></article></article><p>Abonnez-vous.</p></main>'
+    assert extract_article_text(page) == ''
+
+
+def test_body_extraction_prefers_article_with_main_headline_over_other_cards():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><article><h2>La COP31</h2><p>Un autre sujet.</p></article>
+    <article><h1>La mémoire du climat</h1><p>Les arbres gardent des traces.</p></article></main>"""
+    assert extract_article_text(page) == 'Les arbres gardent des traces.'
+
+
+def test_english_edition_requires_complete_pair_and_preserves_numbers():
+    from modules.fetch.editorial import parse_english_edition
+
+    title, summary = 'Un budget de 1 200 euros', 'Le budget augmente de 2,5 %.'
+    raw = '{"title":"A budget of 1,200 euros","summary":"The budget increases by 2.5%."}'
+    assert parse_english_edition(raw, title, summary) == {
+        'title': 'A budget of 1,200 euros', 'summary': 'The budget increases by 2.5%.',
+    }
+    assert parse_english_edition('```json\n' + raw + '\n```', title, summary) == parse_english_edition(raw, title, summary)
+    assert parse_english_edition('Commentary\n```json\n' + raw + '\n```', title, summary) is None
+    assert parse_english_edition(raw.replace('2.5', '3.5'), title, summary) is None
+    assert parse_english_edition('{"title":"Missing summary"}', title, summary) is None
+    assert parse_english_edition(raw.replace('A budget', '<think>A budget'), title, summary) is None
+
+
+def test_english_edition_opt_in_uses_one_versioned_translation_call(tmp_path):
+    obj = qualify(make_fetcher(tmp_path))
+    raw = '{"title":"The bridge reopens","summary":"The bridge reopens on Monday."}'
+    with patch('modules.fetch.atlas_fetch.get_language', return_value='fr'), \
+         patch.object(obj, '_generation_client', return_value=None), \
+         patch.object(obj, '_generation_identity', return_value={'model': 'fixture'}), \
+         patch('modules.fetch.atlas_fetch.ollama_call', return_value=raw) as call:
+        assert obj._english_edition('Le pont rouvre', 'Le pont rouvre lundi.') is None
+        call.assert_not_called()
+        obj.editorial['english_edition'] = True
+        assert obj._english_edition('Le pont rouvre', 'Le pont rouvre lundi.')['title'] == 'The bridge reopens'
+        call.assert_called_once()
+        assert call.call_args.kwargs['operation'] == 'translate'
+        assert call.call_args.kwargs['cache_validator'](raw)
+
+
+def test_source_diversity_applies_before_collection_category_cap():
+    from modules.editorial.source_order import diversify_sources
+
+    rows = [('verge', 1), ('verge', 2), ('verge', 3), ('ars', 4), ('wired', 5)]
+    assert diversify_sources(rows, lambda r: r[0], limit=3) == [
+        ('verge', 1), ('ars', 4), ('verge', 2),
+    ]
+    assert diversify_sources(rows[:3], lambda r: r[0]) == rows[:3]
+
+
+def test_backlog_pass_does_not_download_feeds_and_can_exceed_category_cap(tmp_path, monkeypatch):
+    from modules.core.scheduler import NewsWindow
+    from datetime import datetime
+    from threading import Event
+
+    fetcher = make_fetcher(tmp_path)
+    fetcher.max_per_category = 1
+    fetcher._state = fetcher._load_state()
+    fetcher._feed_stop_event = NewsWindow(Event(), datetime(2026, 11, 27, 22, 5))
+    for i in range(3):
+        fetcher._record({'title': f'Article {i}', 'link': f'https://agency{i}.invalid/article',
+                         'pub_date': ''}, 'science')
+    fetcher._save_state()
+    process = Mock(side_effect=[False, True, True])
+    monkeypatch.setattr(fetcher, '_process_item', process)
+    monkeypatch.setattr('modules.fetch.atlas_fetch._load_rss_sources',
+                        Mock(side_effect=AssertionError('Unexpected download')))
+    assert fetcher._run_cycle(refresh_feeds=False) == 2
+    assert process.call_count == 3
+
+
+def test_language_hint_can_distinguish_bilingual_publisher_sections():
+    hints = ed.options({'fetch': {'editorial': {'source_languages': {
+        'www.france24.com/fr': 'fr',
+        'www.france24.com/en': 'en',
+        'other.example': 'en',
+    }}}})['source_languages']
+    english = ed.source_language('https://www.france24.com/en/video/example', hints)
+    french = ed.source_language('https://www.france24.com/fr/video/exemple', hints)
+    assert ed.translate_needed('Headline', 'fr', english, 'preserve_unknown')
+    assert not ed.translate_needed('Titre', 'fr', french, 'preserve_unknown')
+    assert ed.source_language('https://www.france24.com/enough/?path=/en/', hints) is None
+    assert ed.source_language('https://other.example/item', hints) == 'en'
+
+
+def test_extraction_ignores_recommendation_cards_without_prose():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><article><div class="entry-content"><p>Le port rouvre lundi.</p></div></article>
+              <article><h2>À lire ensuite</h2></article></main>"""
+    assert extract_article_text(page) == 'Le port rouvre lundi.'
+    ambiguous = page.replace('<h2>À lire ensuite</h2>', '<p>Une autre actualité.</p>')
+    assert extract_article_text(ambiguous) == ''
+
+
+def test_futura_selects_main_story_without_nested_synopsis_cards():
+    from modules.fetch.extraction import extract_article_text
+
+    page = """<main><h1>Les anneaux de Saturne</h1><div class="section single-content">
+              <p>Les chercheurs ont étudié les anneaux.</p><article><p>À lire aussi</p></article>
+              </div><article><p>Une autre actualité.</p></article></main>"""
+    assert extract_article_text(page, source_url='https://www.futura-sciences.com/sciences/actualites/x') == (
+        'Les chercheurs ont étudié les anneaux.'
+    )
+    assert extract_article_text(page, source_url='https://example.org/x') == ''

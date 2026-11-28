@@ -65,3 +65,23 @@ def test_breaking_uses_index_and_no_confirmation_claim(client,app):
     items=get_breaking_news(app.extensions['atlas_paths'])
     assert items[0]['count']==2 and items[0]['source_count']==2 and items[0]['independent_confirmation'] is False
     assert len(items[0]['coverages'])==2
+
+
+def test_automatic_event_index_keeps_bounded_recent_snapshot(tmp_path):
+    import json
+    from datetime import datetime, timezone
+    from modules.editorial.index import EventIndex
+    from tests.test_editorial_events import article
+
+    today = datetime(2026, 11, 28, 10, tzinfo=timezone.utc)
+    data = tmp_path/'data'
+    articles = data/'articles'
+    articles.mkdir(parents=True)
+    rows = [article(i, when=today) for i in range(4)]
+    (articles/'20261128_articles.json').write_text(json.dumps(rows))
+    index = EventIndex(articles, data, clock=lambda: today, days=2, recent_limit=2)
+    result = index.refresh_recent()
+    assert result['input_sha'] == index.refresh_recent()['input_sha']
+    assert sum(e['article_count'] for e in result['events']) == 2
+    hashes = {row['article_hash'] for e in result['events'] for row in e['articles']}
+    assert hashes == {row['hash'] for row in rows[-2:]}

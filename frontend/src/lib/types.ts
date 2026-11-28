@@ -26,6 +26,7 @@ export interface Site {
   name: string;
   categories: Category[];
   streams: { primary: string; android: string };
+  personal_music?: boolean;
 }
 export interface Article {
   id: string;
@@ -33,6 +34,7 @@ export interface Article {
   title: string;
   original_title: string;
   summary: string;
+  english_edition?: { title: string; summary: string };
   link: string | null;
   source: string;
   category: string;
@@ -45,6 +47,7 @@ export interface Article {
 export interface Coverage {
   id: string;
   title: string;
+  summary?: string;
   source: string;
   link: string | null;
   published_at: string | null;
@@ -71,6 +74,7 @@ export interface PageResult {
 }
 export interface Articles extends PageResult {
   articles: Article[];
+  available_categories?: string[];
   date: string;
 }
 export interface Events extends PageResult {
@@ -85,6 +89,7 @@ export interface ArchiveDay {
 }
 export interface Archives extends PageResult {
   days: ArchiveDay[];
+  latest_report?: string | null;
 }
 export interface RichNode {
   text?: string;
