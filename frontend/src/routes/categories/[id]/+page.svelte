@@ -10,7 +10,6 @@
   resource={data.articles}
   locale={data.locale}
   categories={data.site.data?.categories || []}
-  category={data.category}
   path={'/categories/' + encodeURIComponent(data.category)}
   {title}
 />

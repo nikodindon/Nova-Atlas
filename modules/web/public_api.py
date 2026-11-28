@@ -65,8 +65,13 @@ def document_nodes(text):
 
 def install_public_api(app,paths,config):
     store=MediaStore(paths['data'],mode=config.get('media',{}).get('mode','disabled'))
-    def options(allowed):
-        if set(request.args)-set(allowed) or any(len(request.args.getlist(k))!=1 or len(request.args[k])>200 for k in request.args):raise PublicReadError('invalid_query')
+    def options(allowed, *, repeated=()):
+        if set(request.args) - set(allowed):
+            raise PublicReadError('invalid_query')
+        for key, values in request.args.lists():
+            maximum = 32 if key in repeated else 1
+            if len(values) > maximum or any(len(value) > 200 for value in values):
+                raise PublicReadError('invalid_query')
     def pagination():
         try:page=int(request.args.get('page','1'));size=int(request.args.get('per_page','20'))
         except ValueError:raise PublicReadError('invalid_pagination') from None
@@ -130,9 +135,14 @@ def install_public_api(app,paths,config):
     @app.get('/api/public/articles')
     @guarded
     def public_articles():
-        options(('date','page','per_page','category','order'));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
+        options(('date','page','per_page','category','order'), repeated=('category',));day=date(request.args.get('date') or datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d'));page,size=pagination()
         rows=articles(day)
-        if request.args.get('category'):rows=[r for r in rows if r['category']==request.args['category']]
+        available_categories = sorted({row['category'] for row in rows})[:100]
+        categories = {value for value in request.args.getlist('category') if value}
+        if any(len(value) > 100 for value in categories):
+            raise PublicReadError('invalid_category_filter')
+        if categories:
+            rows = [row for row in rows if row['category'] in categories]
         order = request.args.get('order', 'chronological')
         if order not in ('chronological', 'varied'):
             raise PublicReadError('invalid_article_order')
@@ -144,7 +154,7 @@ def install_public_api(app,paths,config):
         selected=rows[(page-1)*size:page*size]
         targets=[row.pop('_image_target') for row in selected]
         page_rows=[{**row,'image':image} for row,image in zip(selected,store.public_many(targets))]
-        return respond(date=day,articles=page_rows,total=len(rows),page=page,per_page=size)
+        return respond(date=day,articles=page_rows,total=len(rows),page=page,per_page=size,available_categories=available_categories)
     @app.get('/api/public/headlines')
     @guarded
     def public_headlines():

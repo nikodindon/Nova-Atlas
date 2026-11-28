@@ -209,3 +209,19 @@ def test_edition_projection_does_not_repeat_its_heading_or_date(client, app, kin
     assert title not in body and 'vendredi 27 novembre 2026' not in body
     assert 'Texte de l’édition.' in body and 'À retenir' in body
     assert path.read_text() == original
+
+
+def test_live_category_union_filters_before_pagination(client, app):
+    paths, day, _ = content(app)
+    categories = ['france', 'tech', 'science', 'asie', 'tech']
+    rows = [article(i, category=category) for i, category in enumerate(categories)]
+    (paths['articles']/f'{day}_articles.json').write_text(json.dumps(rows))
+    base = f'/api/public/articles?date={day}&category=tech&category=science&per_page=2'
+    first = get(client, base+'&page=1').json
+    second = get(client, base+'&page=2').json
+    assert first['total'] == second['total'] == 3
+    assert set(first['available_categories']) == set(categories)
+    result = first['articles'] + second['articles']
+    assert [row['category'] for row in result].count('tech') == 2
+    assert [row['category'] for row in result].count('science') == 1
+    assert get(client, base+'&category=x'*33).status_code == 400

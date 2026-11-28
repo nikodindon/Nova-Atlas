@@ -10,6 +10,6 @@
   resource={data.articles}
   locale={data.locale}
   categories={data.site.data?.categories || []}
-  category={data.category}
+  selectedCategories={data.selectedCategories}
   title={t.live}
 />

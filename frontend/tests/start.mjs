@@ -35,6 +35,7 @@ const image = {
   },
 };
 const cats = [
+  { id: 'science', name: 'Science & Santé', icon: '🔬', active: true },
   { id: 'tech', name: 'Tech & IA', icon: '⚡', active: true },
   { id: 'monde', name: 'Monde', icon: '🌐', active: true },
   { id: 'economie', name: 'Économie', icon: '📈', active: true },
@@ -273,14 +274,15 @@ const backend = http.createServer(async (req, res) => {
       json(res, { status: 'unavailable' }, 503);
       return;
     }
-    const category = url.searchParams.get('category');
-    let rows = category ? articles.filter((a) => a.category === category) : articles;
+    const categories = url.searchParams.getAll('category').filter(Boolean);
+    let rows = categories.length ? articles.filter((a) => categories.includes(a.category)) : articles;
     rows = rows.map((a) => ({ ...a, image: revoked ? fallback : a.image }));
     json(res, {
       ...base,
       date: day,
       total: rows.length,
       articles: rows.slice((base.page - 1) * base.per_page, base.page * base.per_page),
+      available_categories: [...new Set(articles.map((article) => article.category))],
     });
     return;
   }

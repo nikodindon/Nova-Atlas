@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Article, Locale } from '@lib/types';
+  import type { Article, Category, Locale } from '@lib/types';
   import { messages, dateLabel } from '@lib/i18n';
   import { safeLink } from '@lib/security';
   import { qualificationImages } from '@lib/client';
@@ -11,7 +11,8 @@
     locale,
     lead = false,
     compact = false,
-  }: { article: Article; locale: Locale; lead?: boolean; compact?: boolean } = $props();
+    category,
+  }: { article: Article; locale: Locale; lead?: boolean; compact?: boolean; category?: Category } = $props();
   let t = $derived(messages(locale));
   let edition = $derived(locale === 'en' ? article.english_edition : undefined);
   let summary = $derived(edition?.summary ?? article.summary);
@@ -46,7 +47,10 @@
     </figure>
   {/if}
   <div class="card-body">
-    <p class="eyebrow">{article.category} <span>· {article.source}</span></p>
+    <p class="eyebrow">
+      {#if category?.icon}<span aria-hidden="true">{category.icon}</span> {/if}
+      {category?.name ?? article.category} <span>· {article.source}</span>
+    </p>
     <h2>{edition?.title ?? article.title}</h2>
     {#if locale === 'en' && !edition}<p class="article-meta">{t.articleTranslationUnavailable}</p>{/if}
     <p class="summary" id={summaryId}>{compact && !expanded ? preview : summary}</p>

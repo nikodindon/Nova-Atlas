@@ -317,6 +317,40 @@
     flex-direction: column;
     gap: 1.6rem;
   }
+  [data-category="geopolitique"] { --category-color: #e8612a; }
+  [data-category="economie"] { --category-color: #3b82f6; }
+  [data-category="crypto"] { --category-color: #f59e0b; }
+  [data-category="tech"] { --category-color: #8b5cf6; }
+  [data-category="france"] { --category-color: #ef4444; }
+  [data-category="monde"] { --category-color: #22a856; }
+  [data-category="science"] { --category-color: #06a3ba; }
+  [data-category="environnement"] { --category-color: #84ad16; }
+  [data-category="societe"] { --category-color: #f97316; }
+  [data-category="culture"] { --category-color: #ec4899; }
+  [data-category="sport"] { --category-color: #14a395; }
+  [data-category="asie"] { --category-color: #bd5c95; }
+
+  .feed-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 1.25rem;
+  }
+  .feed-filters button {
+    border-radius: 999px;
+    padding: 0.45rem 0.75rem;
+    min-height: 2.75rem;
+    white-space: normal;
+  }
+  .feed-filters button[aria-pressed="true"] {
+    border-color: var(--category-color, var(--teal));
+    box-shadow: inset 0 0 0 1px var(--category-color, var(--teal));
+    font-weight: 700;
+  }
+  .direct-list > .article-card {
+    border-inline-start: 3px solid var(--category-color, var(--teal));
+    padding-inline-start: 0.8rem;
+  }
   .article-card {
     border-bottom: 1px solid var(--line);
     padding-bottom: 1.3rem;

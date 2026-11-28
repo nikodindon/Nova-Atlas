@@ -74,6 +74,7 @@ export interface PageResult {
 }
 export interface Articles extends PageResult {
   articles: Article[];
+  available_categories?: string[];
   date: string;
 }
 export interface Events extends PageResult {

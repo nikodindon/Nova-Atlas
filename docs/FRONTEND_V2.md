@@ -264,3 +264,8 @@ Sur mobile ou avec la préférence de mouvement réduit, le choix est manuel.
 L'accueil présente les trois éditions et le rapport complet de la date civile
 Europe/Paris. Une publication absente est signalée et ne propose aucun lien.
 Les dates précédentes restent disponibles dans les archives.
+
+Dans le Direct, les catégories se cumulent au clic. **Toutes** rétablit
+le flux complet. La sélection est conservée dans l'adresse et appliquée
+avant pagination, y compris lors de l'actualisation automatique.
+Les icônes et les traits colorés identifient les catégories.

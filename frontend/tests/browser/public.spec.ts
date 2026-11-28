@@ -121,8 +121,22 @@ test('one persistent audio across public navigation, channels and bounded reconn
 });
 test('category filter, theme, English and unavailable API', async ({ page }) => {
   await page.goto('/direct');
-  await page.getByLabel('Filtrer par catégorie').selectOption('tech');
+  const filters = page.getByRole('group', { name: 'Filtrer par catégorie' });
+  const tech = filters.getByRole('button', { name: 'Tech & IA' });
+  const science = filters.getByRole('button', { name: 'Science & Santé' });
+  await tech.click();
   await expect(page.locator('.article-card')).toHaveCount(2);
+  await science.click();
+  await expect(tech).toHaveAttribute('aria-pressed', 'true');
+  await expect(science).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.article-card[data-category="science"]').first()).toBeVisible();
+  await expect(page.locator('.article-card[data-category="tech"]').first()).toBeVisible();
+  await expect(page.locator('.article-card[data-category="tech"]').first()).toHaveCSS('border-left-width', '3px');
+  await expect(page.locator('.article-card[data-category="monde"]')).toHaveCount(0);
+  await tech.click();
+  await expect(page.locator('.article-card[data-category="tech"]')).toHaveCount(0);
+  await filters.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await expect(page.locator('.article-card[data-category="monde"]').first()).toBeVisible();
   await page.getByRole('button', { name: 'Changer de thème' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByLabel('Langue de l’interface').selectOption('en');
