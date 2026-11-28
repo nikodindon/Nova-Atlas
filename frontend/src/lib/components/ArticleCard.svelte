@@ -36,7 +36,7 @@
 </script>
 
 <article class:lead class="article-card" data-category={article.category}>
-  {#if lead || !image.fallback}<Illustration {image} eager={lead} />{/if}
+  {#if !image.fallback}<Illustration {image} eager={lead} />{/if}
   <div class="card-body">
     <p class="eyebrow">{article.category} <span>· {article.source}</span></p>
     <h2>{edition?.title ?? article.title}</h2>

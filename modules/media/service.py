@@ -118,7 +118,8 @@ class MediaService:
         if not candidates:
             return False
         with self.operation():
-            for candidate in candidates[:2]:
+            distinct = {candidate.url: candidate for candidate in reversed(candidates)}
+            for candidate in tuple(reversed(distinct.values()))[:2]:
                 try:
                     response = self.get(candidate.url)
                     identity = self.store.add(candidate, target, qualification=True)

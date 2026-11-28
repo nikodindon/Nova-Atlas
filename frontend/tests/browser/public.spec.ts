@@ -233,3 +233,21 @@ test('the homepage exposes today’s editions and report before the archives', a
   await daily.getByRole('link', { name: 'Édition du matin' }).click();
   await expect(page).toHaveURL(/\/editions-v2\/\d{8}\/matin$/);
 });
+
+test('a prepared qualification image appears on the article without manual approval', async ({ page }) => {
+  const candidate = '/api/admin/media/' + 'a'.repeat(64) + '/preview/320.jpg';
+  await page.route('**/api/admin/media/qualification', (route) => route.fulfill({
+    json: { images: { 'article-1': {
+      url: candidate, width: 320, height: 180, fallback: false,
+      caption: 'Illustration de qualification', attribution: null,
+    } } },
+  }));
+  await page.route('**' + candidate, async (route) => {
+    const response = await route.fetch({ url: new URL('/assets/news-fallback.svg', route.request().url()).href });
+    await route.fulfill({ response });
+  });
+  await page.goto('/direct');
+  const illustration = page.getByRole('img', { name: 'Illustration de qualification' });
+  await expect(illustration).toHaveAttribute('src', candidate);
+  await expect(illustration).toBeVisible();
+});

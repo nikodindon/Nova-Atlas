@@ -40,11 +40,12 @@
 {#if breaking.length}
   <HeadlineRotation articles={breaking} locale={data.locale} />
 {:else if data.articles.data?.articles.length}<section class="headlines" aria-label={t.home}>
-    <ArticleCard article={data.articles.data.articles[0]} locale={data.locale} lead />
+    <ArticleCard article={data.articles.data.articles[0]} locale={data.locale} lead compact />
     <div class="headlines-side">
       {#each data.articles.data.articles.slice(1, 4) as article}<ArticleCard
           {article}
           locale={data.locale}
+          compact
         />{/each}
     </div>
   </section>{/if}

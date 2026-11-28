@@ -235,3 +235,8 @@ natives découvertes dans les flux ou sur les pages, en laissant leurs droits
 au statut inconnu. Elles ne sont visibles que dans une session administrateur
 V2. Les projections anonymes et les exports statiques utilisent les règles
 d'approbation habituelles. La provenance de la candidate reste dans le registre.
+
+News prépare les miniatures dans une tâche séparée toutes les cinq minutes,
+à partir des vingt derniers articles traités du jour. Elle peut réussir pendant
+une synthèse et reste soumise au quota réseau partagé. Le Direct peut afficher
+une miniature privée au rafraîchissement suivant dans une session administrateur.

@@ -308,6 +308,7 @@
   .headlines {
     display: grid;
     grid-template-columns: 1.45fr 1fr;
+    align-items: start;
     gap: 2.2rem;
     margin-top: 2.3rem;
   }

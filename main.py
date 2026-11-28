@@ -152,36 +152,36 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
         if stop_event.is_set():
             return
         refresh_events = config.get('editorial_events', {}).get('refresh_after_collection') is True
-        media = config.get('media', {})
-        refresh_media = media.get('qualification_images') is True or media.get('commons_background_search') is True
-        if not (refresh_events or refresh_media):
+        if not refresh_events:
             return
-        args = (fetcher.data_dir, fetcher.seen_file.parent)
-        if refresh_events:
-            from modules.editorial.index import EventIndex
-            try:
-                state = EventIndex(*args, days=2, recent_limit=250).refresh_recent()
-                grouped = sum(event['article_count'] > 1 for event in state['events'])
-                log.info("Index événements : %d sujets dont %d regroupés", len(state['events']), grouped)
-            except (ValueError, OSError):
-                log.warning("Index événements non actualisé")
-        if not refresh_media:
-            return
-        from modules.media.service import MediaService
+        from modules.editorial.index import EventIndex
         try:
-            service = MediaService(*args, media)
-            candidates = getattr(fetcher, 'illustration_candidates', [])
-            if media.get('qualification_images') is True:
-                # Seed from recent stored articles when the cycle had no useful image.
-                for article in [*candidates, *reversed(fetcher._load_today()[-10:])]:
-                    if stop_event.is_set():
-                        return
-                    if service.illustrate_qualification(article):
-                        log.info("Miniature privée préparée")
-                        return
-            article = getattr(fetcher, 'illustration_candidate', None)
-            if article:
-                service.illustrate_new_article(article)
+            state = EventIndex(fetcher.data_dir, fetcher.seen_file.parent, days=2, recent_limit=250).refresh_recent()
+            grouped = sum(event['article_count'] > 1 for event in state['events'])
+            log.info("Index événements : %d sujets dont %d regroupés", len(state['events']), grouped)
+        except (ValueError, OSError):
+            log.warning("Index événements non actualisé")
+
+    def refresh_media():
+        if stop_event.is_set():
+            return
+        media = config.get('media', {})
+        from modules.media.service import MediaService
+        from modules.fetch.article_state import read_json
+        try:
+            service = MediaService(fetcher.data_dir, fetcher.seen_file.parent, media)
+            now = datetime.now()
+            rows = read_json(fetcher.data_dir / (now.strftime('%Y%m%d') + '_articles.json'), list)
+            candidates = [article for article in reversed(rows[-20:])
+                          if isinstance(article, dict) and article.get('link') and article.get('title')]
+            for article in candidates:
+                if stop_event.is_set():
+                    return
+                if service.illustrate_qualification(article):
+                    log.info("Miniature privée préparée")
+                    return
+            if candidates:
+                service.illustrate_new_article(candidates[0])
         except (ValueError, OSError):
             log.warning("Illustration indisponible pour ce cycle")
 
@@ -247,13 +247,20 @@ def run_news_engine(config: dict, debug: bool = False, *, stop_event=None):
 
     def plan_news(now):
         if config.get('fetch', {}).get('drain_backlog') is True:
-            return news_tasks(now, post_hours, drain_backlog=True)
-        return news_tasks(now, post_hours)
+            tasks = news_tasks(now, post_hours, drain_backlog=True)
+        else:
+            tasks = news_tasks(now, post_hours)
+        media = config.get('media', {})
+        if now.minute % 5 == 2 and (media.get('qualification_images') is True
+                                     or media.get('commons_background_search') is True):
+            from modules.core.scheduler import DueTask, civil_slot
+            tasks.append(DueTask('media', civil_slot(now, now.minute)))
+        return tasks
 
     run_loop(
         plan_news,
         {'fetch': fetch_and_rebuild, 'report': rapport_and_rebuild,
-         'edition': edition_and_rebuild, 'posts': posts_job,
+         'edition': edition_and_rebuild, 'posts': posts_job, 'media': refresh_media,
          'rebuild': lambda: generate_static_site(config, full=True)},
         stop_event, runner=runner, clock=lambda: datetime.now(),
         before_tick=lambda now: _check_reload(),

@@ -44,7 +44,7 @@
     {/if}
   </div>
   <div class="headlines">
-    {#key articles[active].id}<ArticleCard article={articles[active]} {locale} lead />{/key}
+    {#key articles[active].id}<ArticleCard article={articles[active]} {locale} lead compact />{/key}
     {#if articles.length > 1}
       <div class="headlines-side">
         {#each articles as article, index (article.id)}
