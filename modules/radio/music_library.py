@@ -2,14 +2,58 @@
 from contextlib import closing, contextmanager
 import hashlib
 import os
+import re
 from pathlib import Path
 import sqlite3
 import stat
+import unicodedata
 
 MUSIC_TRACK_LIMIT = 100_000
 
 UNKNOWN = 'Non renseigné'
 FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+
+
+ALIASES = {
+    'alt rock': 'Alternative Rock',
+    'alt metal': 'Alternative Metal',
+    'black': 'Black Metal',
+    'black symphonique': 'Symphonic Black Metal',
+    'symphonic black': 'Symphonic Black Metal',
+    'thrash': 'Thrash Metal',
+    'thrashmetal': 'Thrash Metal',
+    'prog rock': 'Progressive Rock',
+    'prog metal': 'Progressive Metal',
+    'prog death': 'Progressive Death Metal',
+    'post black metal': 'Post-Black Metal',
+    'funeral doom': 'Funeral Doom Metal',
+    'xperimental rock': 'Experimental Rock',
+    'hip hop': 'Hip-Hop',
+    'edm': 'EDM',
+    'aor': 'AOR',
+}
+UNCLASSIFIED = {'', 'non renseigné', 'unknown', 'other', 'tbd', 'getmetal.club'}
+STANDALONE_GENRES = {
+    'rock', 'metal', 'pop', 'jazz', 'folk', 'electronic', 'ambient', 'industrial', 'experimental',
+}
+
+
+def normalized_genres(value):
+    value = unicodedata.normalize('NFKC', value).strip().strip('[]')
+    value = re.sub(r'[‐‑–—]', '-', value)
+    labels = []
+    for chunk in re.split(r'[,;]', value):
+        slash = [part.strip() for part in chunk.split('/')]
+        # Slashes can also describe a single hybrid genre.
+        parts = slash if len(slash) > 1 and all(
+            len(part.split()) > 1 or part.casefold() in STANDALONE_GENRES
+            for part in slash
+        ) else [chunk]
+        for part in parts:
+            key = ' '.join(part.strip(' []').casefold().replace('-', ' ').replace('alt.', 'alt').split())
+            if key not in UNCLASSIFIED:
+                labels.append(ALIASES.get(key, re.sub(r'\s*/\s*', ' / ', key.title())))
+    return list(dict.fromkeys(labels)) or [UNKNOWN]
 
 
 @contextmanager
@@ -133,18 +177,34 @@ class MusicLibrary:
                     return None
             return found
 
+    @staticmethod
+    def genre_groups(db):
+        groups = {}
+        rows = db.execute('SELECT key, MIN(label), COUNT(*) FROM genres GROUP BY key')
+        for raw_key, label, count in rows:
+            for genre in normalized_genres(label):
+                keys, total = groups.get(genre, ([], 0))
+                keys.append(raw_key)
+                groups[genre] = keys, total + count
+        return groups
+
     def genres(self):
         with closing(self.connect('ro')) as db:
-            return [row[0] for row in db.execute(
-                'SELECT MIN(label) FROM genres GROUP BY key ORDER BY COUNT(*) DESC, key LIMIT 100'
-            )]
+            groups = self.genre_groups(db)
+        return sorted(groups, key=lambda genre: (-groups[genre][1], genre.casefold()))[:100]
 
     def choose(self, genre, previous):
         with closing(self.connect('ro')) as db:
             if genre:
+                groups = self.genre_groups(db)
+                selected = genre.casefold()
+                # Keep supporting a genre value from a tab opened before an index update.
+                keys = next((keys for label, (keys, _) in groups.items() if label.casefold() == selected),
+                            [selected])
+                placeholders = ','.join('?' for _ in keys)
                 row = db.execute(
-                    'SELECT track_id FROM genres WHERE key=? AND track_id<>? ORDER BY RANDOM() LIMIT 1',
-                    (genre.casefold(), previous),
+                    f'SELECT DISTINCT track_id FROM genres WHERE key IN ({placeholders}) AND track_id<>? ORDER BY RANDOM() LIMIT 1',
+                    (*keys, previous),
                 ).fetchone()
             else:
                 row = db.execute('SELECT id FROM tracks WHERE id<>? ORDER BY RANDOM() LIMIT 1', (previous,)).fetchone()

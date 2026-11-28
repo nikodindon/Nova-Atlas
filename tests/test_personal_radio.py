@@ -125,3 +125,19 @@ def test_external_personal_music_requires_admin_session(app):
     assert client.get(path, base_url='https://lan.example').status_code == 200
     login(client)
     assert get(client, path).status_code == 200
+
+
+def test_genre_aliases_and_multigenre_tags_match_the_same_selector(tmp_path):
+    root = tmp_path/'music'
+    write_mp3(root/'one.mp3', '[Metal]')
+    write_mp3(root/'two.mp3', 'Metal;Thrash')
+    write_mp3(root/'three.mp3', 'ThrashMetal')
+    write_mp3(root/'four.mp3', 'Alt. Rock')
+    write_mp3(root/'five.mp3', 'Alternative-Rock')
+    write_mp3(root/'six.mp3', 'Blackened Death Metal')
+    library = MusicLibrary(tmp_path, root)
+    library.scan(Event())
+    assert set(library.genres()) == {'Metal', 'Thrash Metal', 'Alternative Rock', 'Blackened Death Metal'}
+    first = library.choose('Thrash Metal', '')
+    other = library.choose('thrash metal', first)
+    assert {library.track(first)['path'], library.track(other)['path']} == {'two.mp3', 'three.mp3'}

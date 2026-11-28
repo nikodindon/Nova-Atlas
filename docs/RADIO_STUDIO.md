@@ -344,3 +344,8 @@ Une origine extérieure peut utiliser `radio.personal_music_admin_hosts` et la
 même liste dans `ATLAS_PERSONAL_MUSIC_ADMIN_HOSTS` côté serveur V2. Sur ces
 origines, l'API et le lecteur personnel exigent la session administrateur
 existante via HTTPS. Le direct partagé reste accessible normalement.
+
+Le catalogue rapproche les variantes d'écriture et les alias connus tels
+que `Alt. Rock` et `Alternative-Rock`. Un tag listant plusieurs styles rend
+le morceau disponible sous chacun d'eux. La normalisation est appliquée
+à la lecture du catalogue et ne modifie aucun tag ID3.
