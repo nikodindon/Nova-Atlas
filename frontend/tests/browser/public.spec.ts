@@ -262,3 +262,42 @@ test('the homepage sidebar keeps recent summaries tucked away', async ({ page })
   await teasers.first().locator('summary').click();
   await expect(teasers.first().locator('p')).toBeVisible();
 });
+
+test('personal radio filters genres, skips locally and returns to music after a bulletin', async ({ page }) => {
+  const first = 'a'.repeat(64);
+  const second = 'b'.repeat(64);
+  const bulletin = 'bulletin_20261128_093000_' + 'c'.repeat(32) + '.mp3';
+  let currentBulletin = false;
+  await page.clock.install();
+  await page.route('**/api/radio/personal/genres', (route) =>
+    route.fulfill({ json: { available: true, genres: ['Rock', 'Jazz'] } }),
+  );
+  await page.route('**/api/radio/personal/next?*', (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    expect(query.get('genre')).toBe('Rock');
+    return route.fulfill({ json: { track: query.get('previous') === first ? second : first } });
+  });
+  await page.route('**/api/radio/personal/bulletin', (route) =>
+    route.fulfill({ json: { bulletin: currentBulletin ? {
+      name: bulletin, started: Math.floor(Date.now() / 1000),
+    } : null } }),
+  );
+  await page.goto('/');
+  await page.getByLabel('Canal', { exact: true }).selectOption('personal');
+  const genre = page.getByLabel('Style musical');
+  await expect(genre).toHaveValue('');
+  await genre.selectOption('Rock');
+  await page.getByRole('button', { name: 'Écouter', exact: true }).click();
+  const audio = page.locator('audio');
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + first + '.mp3');
+  await page.getByRole('button', { name: 'Suivant' }).click();
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + second + '.mp3');
+  await page.locator('nav.main-nav a[href="/direct"]').click();
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + second + '.mp3');
+  currentBulletin = true;
+  await page.clock.runFor(11000);
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/bulletin/' + bulletin);
+  await expect(page.getByRole('button', { name: 'Suivant' })).toBeDisabled();
+  await audio.dispatchEvent('ended');
+  await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + first + '.mp3');
+});

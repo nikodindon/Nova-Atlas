@@ -258,6 +258,7 @@ const backend = http.createServer(async (req, res) => {
     json(res, {
       ...base,
       name: 'Nova Atlas',
+      personal_music: true,
       categories: cats,
       streams: { primary: '/stream/nova', android: '/stream/nova-android' },
     });

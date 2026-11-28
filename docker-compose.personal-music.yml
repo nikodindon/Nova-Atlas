@@ -1,0 +1,18 @@
+# Optional read-only library shared by the indexer and the personal player.
+services:
+  radio:
+    volumes:
+      - type: bind
+        source: ${ATLAS_PERSONAL_MUSIC_DIR:?set ATLAS_PERSONAL_MUSIC_DIR to your music library}
+        target: /app/music
+        read_only: true
+        bind:
+          create_host_path: false
+  web:
+    volumes:
+      - type: bind
+        source: ${ATLAS_PERSONAL_MUSIC_DIR:?set ATLAS_PERSONAL_MUSIC_DIR to your music library}
+        target: /app/music
+        read_only: true
+        bind:
+          create_host_path: false

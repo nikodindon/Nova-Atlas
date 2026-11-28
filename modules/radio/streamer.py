@@ -11,6 +11,7 @@ import os
 import stat
 from modules.radio.audio_integrity import validated_publication, cache_publication, receipt_path, inspect_audio
 from modules.radio import transport
+from modules.radio.music_library import MUSIC_TRACK_LIMIT
 import random
 import subprocess
 import tempfile
@@ -23,7 +24,6 @@ logger = logging.getLogger("nova.streamer")
 
 FADE_DURATION      = 3.0
 CHUNK_SIZE         = 32768
-MUSIC_TRACK_LIMIT = 100_000
 MUSIC_VALIDATION_CACHE_LIMIT = 1_024
 HEARTBEAT_INTERVAL = 0.5
 
@@ -55,6 +55,7 @@ class Streamer:
 
         self.music_dir   = Path(paths.get("music", "music"))
         self.queue_dir   = Path(paths.get("audio_queue", "audio_queue"))
+        self.personal_data = Path(paths.get("data_dir", "data")) if radio.get("personal_music") is True else None
         self.bitrate     = radio.get("bitrate", "128k")
         self.sample_rate = radio.get("sample_rate", 44100)
         self.channels    = radio.get("channels", 2)
@@ -160,6 +161,12 @@ class Streamer:
             if studio:
                 try:studio.channel_event(bulletin,'primary','playing')
                 except (ValueError,OSError):return
+            if getattr(self, 'personal_data', None) is not None:
+                from modules.radio.personal_bulletin import record_playback
+                try:
+                    record_playback(self.personal_data, self.queue_dir, bulletin.name)
+                except (ValueError, OSError):
+                    logger.warning('Personal bulletin unavailable')
             success=self._stream_file(bulletin, is_music=False)
             if studio:
                 try:studio.channel_event(bulletin,'primary','locally_sent' if success else 'interrupted' if self._stop_event.is_set() else 'failed',bytes_sent=getattr(self,'_last_pass_bytes',0))

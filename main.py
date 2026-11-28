@@ -386,6 +386,22 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
     # Lance les 2 workers principaux (Streamer + BulletinGen via scheduler)
     stream_threads = [threading.Thread(target=streamer.run, daemon=True, name="Streamer"),
                       threading.Thread(target=android_streamer.run, daemon=True, name="AndroidStreamer")]
+    music_scan_stop = None
+    if config.get('radio', {}).get('personal_music') is True:
+        from modules.radio.music_library import MusicLibrary
+        from sqlite3 import Error as SQLiteError
+
+        music_scan_stop = threading.Event()
+
+        def index_music():
+            try:
+                count = MusicLibrary(streamer.personal_data, streamer.music_dir).scan(music_scan_stop)
+                if count is not None:
+                    log.info("Catalogue radio personnel : %d MP3", count)
+            except (OSError, ValueError, SQLiteError):
+                log.warning("Catalogue radio personnel indisponible")
+
+        stream_threads.append(threading.Thread(target=index_music, daemon=True, name="MusicLibrary"))
     for thread in stream_threads:
         thread.start()
 
@@ -433,6 +449,8 @@ def run_radio(config: dict, debug: bool = False, *, stop_event=None):
                  stop_event, runner=ThreadRunner(log=log), clock=lambda: datetime.now(ZONE) if studio else datetime.now(),
                  before_tick=refresh_with_studio)
     finally:
+        if music_scan_stop is not None:
+            music_scan_stop.set()
         # run_loop drains bulletin work first; stop audio only after its final enqueue.
         streamer.stop()
         android_streamer.stop()

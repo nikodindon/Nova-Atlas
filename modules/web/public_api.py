@@ -126,7 +126,7 @@ def install_public_api(app,paths,config):
             value=config.get('icecast',{}).get(key,default)
             return '/stream'+value if isinstance(value,str) and re.fullmatch(r'/[A-Za-z0-9_-]{1,64}',value) else '/stream'+default
         cats=[asdict(c) for c in registry(paths['feeds_file'])]
-        return respond(name=str(config.get('service',{}).get('name','Nova Atlas'))[:100],categories=cats,streams={'primary':mount('mount','/nova'),'android':mount('android_mount','/nova-android')})
+        return respond(name=str(config.get('service',{}).get('name','Nova Atlas'))[:100],categories=cats,streams={'primary':mount('mount','/nova'),'android':mount('android_mount','/nova-android')},personal_music=config.get('radio', {}).get('personal_music') is True)
     @app.get('/api/public/articles')
     @guarded
     def public_articles():

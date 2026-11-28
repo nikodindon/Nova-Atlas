@@ -101,7 +101,8 @@ def install_admin_security(app):
         # Explicit public endpoints. Any newly added endpoint is privileged by default.
         public = {'homepage', 'index', 'live', 'api_articles', 'api_events','api_event_detail','media_public','media_image',
                   'api_subscription_status', 'api_get_preferences', 'stream_proxy',
-                  'serve_edition', 'serve_page', 'admin_login','auth_bootstrap','public_site','public_articles','public_headlines','public_archives','public_document','public_events','public_event_detail', 'web_asset'}
+                  'serve_edition', 'serve_page', 'admin_login','auth_bootstrap','public_site','public_articles','public_headlines','public_archives','public_document','public_events','public_event_detail', 'web_asset', 'personal_genres', 'personal_next', 'personal_track',
+                  'personal_bulletin_state', 'personal_bulletin_audio'}
         if request.endpoint is None:
             return None
         if (request.endpoint not in public or request.endpoint in ('admin_login','auth_bootstrap')) and (

@@ -639,6 +639,15 @@
     font-size: 2.2rem;
     color: #f0a77a;
   }
+  .radio-player .next-track {
+    background: #253e42;
+    color: #fff;
+    border-color: #6a8182;
+    white-space: nowrap;
+  }
+  .radio-player .next-track:disabled {
+    opacity: 0.55;
+  }
   .radio-player .play {
     background: #f5f2eb;
     color: #182e32;
@@ -762,6 +771,7 @@
     }
     .radio-mark { display: none; }
     .radio-player { flex-wrap: wrap; row-gap: .3rem; }
+    .radio-player select { max-width: 9rem; }
     .radio-player .volume { display: flex; flex-direction: row; align-items: center; width: 100%; justify-content: flex-end; gap: 1rem; margin: 0; }
     .radio-copy {
       width: auto;

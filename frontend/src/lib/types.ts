@@ -26,6 +26,7 @@ export interface Site {
   name: string;
   categories: Category[];
   streams: { primary: string; android: string };
+  personal_music?: boolean;
 }
 export interface Article {
   id: string;

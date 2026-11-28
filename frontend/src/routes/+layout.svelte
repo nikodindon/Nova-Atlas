@@ -53,5 +53,6 @@
 </footer>
 <RadioPlayer
   locale={data.locale}
+  personalMusic={data.site.data?.personal_music === true}
   streams={data.site.data?.streams || { primary: '/stream/nova', android: '/stream/nova-android' }}
 />
