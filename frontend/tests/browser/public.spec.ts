@@ -315,3 +315,17 @@ test('personal radio filters genres, skips locally and returns to music after a 
   await audio.dispatchEvent('ended');
   await expect(audio).toHaveAttribute('src', '/api/radio/personal/track/' + first + '.mp3');
 });
+
+
+test('live feed puts the current edition and last daily report within reach', async ({ page }, testInfo) => {
+  await page.goto('/direct');
+  const sidebar = page.locator('.timeline-briefs');
+  await expect(sidebar.getByRole('heading', { name: 'L’édition', exact: true })).toBeVisible();
+  await expect(sidebar.getByRole('heading', { name: 'La quotidienne', exact: true })).toBeVisible();
+  await expect(sidebar.locator('a[href^="/editions-v2/"]')).toHaveCount(1);
+  await expect(sidebar.getByRole('link', { name: 'Rapport complet' })).toHaveAttribute('href', /\/rapports\/\d{8}$/);
+  const briefs = await sidebar.boundingBox();
+  const articles = await page.locator('.direct-list').boundingBox();
+  if (testInfo.project.name === 'mobile') expect(briefs!.y).toBeLessThan(articles!.y);
+  else expect(briefs!.x).toBeGreaterThan(articles!.x);
+});

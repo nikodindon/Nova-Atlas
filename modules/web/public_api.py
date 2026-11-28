@@ -217,7 +217,10 @@ def install_public_api(app,paths,config):
                 else:row[kind]=True
         rows=sorted(days.values(),key=lambda r:r['date'],reverse=True)
         for row in rows:row['editions']=sorted(row['editions'])
-        return respond(days=rows[(page-1)*size:page*size],total=len(rows),page=page,per_page=size)
+        today = datetime.now(ZoneInfo('Europe/Paris')).strftime('%Y%m%d')
+        latest_report = next((row['date'] for row in rows if row['date'] <= today and row['report']), None)
+        return respond(days=rows[(page-1)*size:page*size],total=len(rows),page=page,per_page=size,
+                       latest_report=latest_report)
     @app.get('/api/public/documents/<day>/<kind>')
     @guarded
     def public_document(day,kind):

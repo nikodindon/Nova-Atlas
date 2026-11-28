@@ -2,6 +2,7 @@
   import ArticleCard from './ArticleCard.svelte';
   import Notice from './Notice.svelte';
   import Pagination from './Pagination.svelte';
+  import type { Snippet } from 'svelte';
   import { messages } from '@lib/i18n';
   import { invalidate, invalidateAll, goto } from '$app/navigation';
   import type { Articles, Category, Locale, Resource } from '@lib/types';
@@ -12,6 +13,7 @@
     selectedCategories = [],
     path = '/direct',
     title,
+    sidebar,
   }: {
     resource: Resource<Articles>;
     locale: Locale;
@@ -19,6 +21,7 @@
     selectedCategories?: string[];
     path?: string;
     title: string;
+    sidebar?: Snippet;
   } = $props();
   let t = $derived(messages(locale));
   let pendingCategories = $state<string[] | null>(null);
@@ -97,11 +100,15 @@
   </div>
 {/if}
 <Notice state={resource.state} empty={!resource.data?.articles.length} {locale} />
-<div class="timeline">
-  <aside class="timeline-aside">
-    <strong>{t.live}</strong>
-    <p>{t.collected}<br />{resource.fetchedAt.slice(0, 10)}</p>
-  </aside>
+<div class="timeline" class:with-sidebar={!!sidebar}>
+  {#if sidebar}
+    <aside class="timeline-briefs">{@render sidebar()}</aside>
+  {:else}
+    <aside class="timeline-aside">
+      <strong>{t.live}</strong>
+      <p>{t.collected}<br />{resource.fetchedAt.slice(0, 10)}</p>
+    </aside>
+  {/if}
   <div class="live-list" class:direct-list={path === '/direct'}>
     {#each resource.data?.articles || [] as article (article.id)}
       {@const category = path === '/direct' ? choices.find((item) => item.id === article.category) : undefined}

@@ -482,6 +482,17 @@
     grid-template-columns: 180px minmax(0, 1fr);
     gap: 2rem;
   }
+  .timeline.with-sidebar {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.35fr);
+    grid-template-areas: "articles briefs";
+    align-items: start;
+  }
+  .timeline.with-sidebar .live-list { grid-area: articles; }
+  .timeline-briefs {
+    grid-area: briefs;
+    display: grid;
+    gap: 1.2rem;
+  }
   .timeline-aside {
     border-right: 1px solid var(--line);
     color: var(--muted);
@@ -493,7 +504,7 @@
   }
   .live-list .article-card {
     padding-left: 1.2rem;
-    border-left: 3px solid var(--teal);
+    border-left: 3px solid var(--category-color, var(--teal));
   }
   .notice {
     padding: 1rem;
@@ -787,6 +798,10 @@
     }
     .timeline {
       grid-template-columns: 1fr;
+    }
+    .timeline.with-sidebar {
+      grid-template-columns: 1fr;
+      grid-template-areas: "briefs" "articles";
     }
     .timeline-aside {
       display: none;

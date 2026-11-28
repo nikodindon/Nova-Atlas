@@ -225,3 +225,13 @@ def test_live_category_union_filters_before_pagination(client, app):
     assert [row['category'] for row in result].count('tech') == 2
     assert [row['category'] for row in result].count('science') == 1
     assert get(client, base+'&category=x'*33).status_code == 400
+
+
+def test_archive_index_exposes_latest_report_even_outside_requested_page(client, app):
+    paths = app.extensions['atlas_paths']
+    (paths['reports']/'20261106_report.md').write_text('# Rapport')
+    (paths['articles']/'20261107_articles.json').write_text('[]')
+    response = get(client, '/api/public/archives?per_page=1')
+    assert response.status_code == 200
+    assert response.json['days'][0]['date'] == '20261107'
+    assert response.json['latest_report'] == '20261106'

@@ -269,3 +269,8 @@ Dans le Direct, les catégories se cumulent au clic. **Toutes** rétablit
 le flux complet. La sélection est conservée dans l'adresse et appliquée
 avant pagination, y compris lors de l'actualisation automatique.
 Les icônes et les traits colorés identifient les catégories.
+
+Dans le Direct, **L’édition** pointe vers la dernière édition effectivement
+publiée pour le créneau civil Europe/Paris. En attendant une nouvelle édition,
+la précédente reste disponible et datée. **La quotidienne** pointe vers le
+dernier rapport publié, même lorsqu'il date d'un jour précédent.

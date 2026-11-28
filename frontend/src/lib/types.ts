@@ -89,6 +89,7 @@ export interface ArchiveDay {
 }
 export interface Archives extends PageResult {
   days: ArchiveDay[];
+  latest_report?: string | null;
 }
 export interface RichNode {
   text?: string;
