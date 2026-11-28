@@ -105,10 +105,14 @@ def install_admin_security(app):
                   'personal_bulletin_state', 'personal_bulletin_audio'}
         if request.endpoint is None:
             return None
-        if (request.endpoint not in public or request.endpoint in ('admin_login','auth_bootstrap')) and (
+        private_music = (
+            request.endpoint.startswith('personal_')
+            and request.host.lower() in app.config.get('ATLAS_PERSONAL_RADIO_ADMIN_HOSTS', ())
+        )
+        if (private_music or request.endpoint not in public or request.endpoint in ('admin_login','auth_bootstrap')) and (
                 app.config['SESSION_COOKIE_SECURE'] and not request.is_secure):
             return denied(403, 'HTTPS requis pour l’administration')
-        if request.endpoint not in public:
+        if private_music or request.endpoint not in public:
             if not authenticated():
                 if (request.endpoint in {'config_page', 'config_simple_page', 'config_yaml_page', 'feeds_page', 'preferences_page'}
                         and request.method in ('GET', 'HEAD') and request.accept_mimetypes.best == 'text/html'):

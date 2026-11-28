@@ -17,11 +17,20 @@ def install_personal_radio(app, config, paths):
     radio = config.get('radio', {})
     if radio.get('personal_music') is not True:
         return
-    hosts = radio.get('personal_music_hosts')
-    if hosts is not None and (not isinstance(hosts, list) or not hosts or
-            any(not isinstance(host, str) or not re.fullmatch(r'[a-zA-Z0-9.:-]{1,255}', host) for host in hosts)):
-        raise ValueError('invalid_personal_music_hosts')
-    allowed_hosts = {host.lower() for host in hosts} if hosts else None
+    def host_list(key):
+        values = radio.get(key)
+        if values is None:
+            return None
+        if (not isinstance(values, list) or not values or
+                any(not isinstance(host, str) or not re.fullmatch(r'[a-zA-Z0-9.:-]{1,255}', host) for host in values)):
+            raise ValueError(key)
+        return {host.lower() for host in values}
+
+    allowed_hosts = host_list('personal_music_hosts')
+    admin_hosts = host_list('personal_music_admin_hosts') or set()
+    if allowed_hosts is not None:
+        allowed_hosts |= admin_hosts
+    app.config['ATLAS_PERSONAL_RADIO_ADMIN_HOSTS'] = admin_hosts
 
     @app.before_request
     def personal_radio_origin():

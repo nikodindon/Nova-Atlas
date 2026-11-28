@@ -339,3 +339,8 @@ Si le site a aussi une origine publique, restreindre les routes audio avec
 `radio.personal_music_hosts` (liste exacte hôte et port) et utiliser la
 même liste dans la variable serveur V2 `ATLAS_PERSONAL_MUSIC_HOSTS`, séparée
 par des virgules. Le proxy public doit préserver le nom d'hôte externe.
+
+Une origine extérieure peut utiliser `radio.personal_music_admin_hosts` et la
+même liste dans `ATLAS_PERSONAL_MUSIC_ADMIN_HOSTS` côté serveur V2. Sur ces
+origines, l'API et le lecteur personnel exigent la session administrateur
+existante via HTTPS. Le direct partagé reste accessible normalement.

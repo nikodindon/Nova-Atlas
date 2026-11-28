@@ -6,6 +6,7 @@ from mutagen.id3 import ID3, TCON
 
 from modules.radio.music_library import MusicLibrary, open_track
 from modules.web.atlas_web import create_app
+from tests.test_admin_security import app, password_hash
 
 
 def write_mp3(path, genre=None):
@@ -106,3 +107,21 @@ def test_personal_track_catalogue_can_be_limited_to_lan_origins(tmp_path):
     path = '/api/radio/personal/genres'
     assert client.get(path, base_url='https://public.example').status_code == 404
     assert client.get(path, base_url='http://192.168.1.32:15173').status_code == 200
+
+
+def test_external_personal_music_requires_admin_session(app):
+    from tests.test_admin_security import get, login
+
+    paths = app.extensions['atlas_paths']
+    config = {'radio': {
+        'personal_music': True,
+        'personal_music_hosts': ['lan.example'],
+        'personal_music_admin_hosts': ['localhost'],
+    }}
+    enabled = create_app(config, root=paths['root'])
+    client = enabled.test_client()
+    path = '/api/radio/personal/genres'
+    assert get(client, path).status_code == 401
+    assert client.get(path, base_url='https://lan.example').status_code == 200
+    login(client)
+    assert get(client, path).status_code == 200
